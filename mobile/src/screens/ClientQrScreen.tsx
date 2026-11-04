@@ -41,7 +41,7 @@ export function ClientQrScreen({ navigation }: Props) {
         identificador_qr: 'BIPFY:CLIENTE:DEMO',
         token_identificacao: 'BIPFY:CLIENTE:DEMO',
         cliente_id: 1,
-        nome: 'Cliente BipFy',
+        nome: 'Cliente e-Sigma Ágape',
         cpf: '000.000.000-00',
         modo: 'CLIENT_SIDE_DYNAMIC_QR',
         instrucoes: 'Apresente este QR Code para leitura no balcão ou na geladeira'

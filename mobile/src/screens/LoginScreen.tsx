@@ -42,8 +42,8 @@ export function LoginScreen({ navigation }: Props) {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Wine color="#3b82f6" size={48} />
-        <Text style={styles.title}>BipFy App</Text>
-        <Text style={styles.subtitle}>BipFy Sistema de Gerenciamento de Comércios</Text>
+        <Text style={styles.title}>e-Sigma Ágape App</Text>
+        <Text style={styles.subtitle}>e-Sigma Ágape — Salão de Ágapes & Confraternização</Text>
       </View>
 
       <View style={styles.form}>

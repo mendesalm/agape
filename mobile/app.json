@@ -1,17 +1,19 @@
 {
   "expo": {
-    "name": "BipFy",
-    "slug": "bipfy",
+    "name": "e-Sigma Ágape",
+    "slug": "esigma-agape",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.esigma.agape.scanner"
     },
     "android": {
+      "package": "com.esigma.agape.scanner",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#070E1C",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

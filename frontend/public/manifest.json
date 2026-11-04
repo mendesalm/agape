@@ -1,0 +1,31 @@
+{
+  "name": "e-Sigma Ágape - Salão de Ágapes & Confraternização",
+  "short_name": "Ágape",
+  "description": "Gestão de Salão de Ágapes, Comandas QR Code, Carteira Pré-Paga e Estoque FEFO no ecossistema e-Sigma",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#070e1c",
+  "theme_color": "#070e1c",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}

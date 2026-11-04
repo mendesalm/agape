@@ -52,7 +52,7 @@ export function WalletScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>Seu Saldo BipFy</Text>
+        <Text style={styles.cardLabel}>Seu Saldo e-Sigma Ágape</Text>
         {loading ? (
           <ActivityIndicator color="#fff" size="small" style={{ marginVertical: 20 }} />
         ) : (
