@@ -15,15 +15,16 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            # Clona o repositório na primeira vez ou atualiza nas próximas
-            if [ ! -d "/var/www/agape/.git" ]; then
-              mkdir -p /var/www/agape
-              git clone https://github.com/mendesalm/agape.git /var/www/agape
-            fi
-
+            # Acessar a pasta onde o projeto Ágape está na VPS
             cd /var/www/agape
             git pull origin main
 
-            # Executa o script de setup/atualização (Backend porta 8007 + Frontend + Systemd + Nginx)
-            chmod +x deploy/setup_vps.sh
-            sudo ./deploy/setup_vps.sh
+            # Atualiza e reinicia Backend (Porta 8007)
+            source backend/venv/bin/activate
+            pip install -r backend/requirements.txt
+            sudo systemctl restart agape-api
+
+            # Atualiza e compila Frontend
+            cd frontend
+            npm install
+            npm run build

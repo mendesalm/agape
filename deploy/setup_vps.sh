@@ -7,7 +7,9 @@ APP_DIR="/var/www/agape"
 
 # 1. Backend Python venv + dependencias
 cd "$APP_DIR/backend"
-python3 -m venv venv
+if [ ! -d "venv" ]; then
+    python3 -m venv venv
+fi
 ./venv/bin/pip install --upgrade pip
 ./venv/bin/pip install -r requirements.txt
 
@@ -22,10 +24,11 @@ systemctl daemon-reload
 systemctl enable agape-api
 systemctl restart agape-api
 
-# 4. Nginx VirtualHost
-cp "$APP_DIR/deploy/agape.e-sigma.app.nginx.conf" /etc/nginx/sites-available/agape.e-sigma.app
-ln -sf /etc/nginx/sites-available/agape.e-sigma.app /etc/nginx/sites-enabled/agape.e-sigma.app
-nginx -t && systemctl reload nginx
+# 4. Nginx VirtualHost (preserva configuracao SSL do Certbot se ja existir)
+if [ ! -f "/etc/nginx/sites-available/agape.e-sigma.app" ]; then
+    cp "$APP_DIR/deploy/agape.e-sigma.app.nginx.conf" /etc/nginx/sites-available/agape.e-sigma.app
+    ln -sf /etc/nginx/sites-available/agape.e-sigma.app /etc/nginx/sites-enabled/agape.e-sigma.app
+    nginx -t && systemctl reload nginx
+fi
 
-echo "=== Agape ativo em http://agape.e-sigma.app (Porta interna 8007) ==="
-echo "Para ativar HTTPS (SSL), execute: certbot --nginx -d agape.e-sigma.app"
+echo "=== Agape ativo em https://agape.e-sigma.app (Porta interna 8007) ==="
