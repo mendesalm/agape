@@ -17,7 +17,8 @@ import {
   Store,
   Copy,
   Check,
-  Mail
+  Mail,
+  Sparkles
 } from 'lucide-react';
 
 interface Estabelecimento {
