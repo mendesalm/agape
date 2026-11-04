@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: bipfy_db_dev
+    environment:
+      POSTGRES_USER: bipfy_user
+      POSTGRES_PASSWORD: bipfy_password
+      POSTGRES_DB: bipfy_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

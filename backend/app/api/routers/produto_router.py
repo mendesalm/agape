@@ -1,0 +1,144 @@
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
+
+from app.core.database import obter_sessao
+from app.schemas.produto_schema import (
+    ProdutoCreate, 
+    ProdutoUpdate, 
+    ProdutoResponse,
+    LoteEntradaCreate,
+    TransferenciaEstoqueRequest,
+    PerdaLoteRequest,
+    AlertaEstoqueGeral
+)
+from app.services.produto_service import ProdutoService
+from app.api.dependencias import obter_usuario_logado
+from app.models.usuario import Usuario
+
+router = APIRouter(prefix="/produtos", tags=["Produtos e Estoque em 2 Níveis (SaaS)"])
+
+@router.get("/alertas", response_model=AlertaEstoqueGeral)
+async def obter_alertas_estoque(
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Retorna o painel consolidado de alertas:
+    - Necessidade de reposição na gôndola (estoque de venda baixo)
+    - Necessidade de compra (armazém baixo)
+    - Lotes próximos da validade (<= 30 dias) ou vencidos (FEFO / PVPS)
+    """
+    servico = ProdutoService(db, usuario.tenant_id)
+    return await servico.obter_painel_alertas()
+
+@router.get("/", response_model=List[ProdutoResponse])
+async def listar(
+    skip: int = 0, 
+    limit: int = 100, 
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    servico = ProdutoService(db, usuario.tenant_id)
+    return await servico.listar_produtos(skip, limit)
+
+@router.get("/codigo/{codigo}", response_model=ProdutoResponse)
+async def obter_por_codigo(
+    codigo: str,
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Busca produto pelo Código de Barras de fábrica (EAN-13), Tag QR Code do BipFy ou ID.
+    Usado para bipagem imediata no caixa, totem ou celular.
+    """
+    servico = ProdutoService(db, usuario.tenant_id)
+    return await servico.buscar_por_codigo(codigo)
+
+@router.get("/{produto_id}", response_model=ProdutoResponse)
+async def obter(
+    produto_id: int, 
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    servico = ProdutoService(db, usuario.tenant_id)
+    return await servico.obter_produto(produto_id)
+
+@router.post("/", response_model=ProdutoResponse, status_code=status.HTTP_201_CREATED)
+async def criar(
+    dados: ProdutoCreate, 
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    servico = ProdutoService(db, usuario.tenant_id)
+    return await servico.criar_produto(dados)
+
+@router.put("/{produto_id}", response_model=ProdutoResponse)
+async def atualizar(
+    produto_id: int, 
+    dados: ProdutoUpdate, 
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    servico = ProdutoService(db, usuario.tenant_id)
+    return await servico.atualizar_produto(produto_id, dados)
+
+@router.post("/{produto_id}/lotes", response_model=ProdutoResponse, status_code=status.HTTP_201_CREATED)
+async def adicionar_lote(
+    produto_id: int,
+    dados: LoteEntradaCreate,
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Cadastra a entrada de um novo lote com prazo de validade e destino (Armazém ou Gôndola).
+    """
+    servico = ProdutoService(db, usuario.tenant_id)
+    return await servico.registrar_entrada_lote(produto_id, dados)
+
+@router.post("/{produto_id}/transferir-gondola", response_model=ProdutoResponse)
+async def transferir_para_gondola(
+    produto_id: int,
+    dados: TransferenciaEstoqueRequest,
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Transfere itens do Armazém para a Gôndola.
+    Se lote_id não for enviado, aplica o algoritmo FEFO automaticamente
+    (prioriza os lotes com menores prazos de validade).
+    """
+    servico = ProdutoService(db, usuario.tenant_id)
+    return await servico.transferir_para_gondola(produto_id, dados)
+
+@router.post("/{produto_id}/transferir-armazem", response_model=ProdutoResponse)
+async def transferir_para_armazem(
+    produto_id: int,
+    dados: TransferenciaEstoqueRequest,
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Transfere itens da Gôndola de volta para o Armazém.
+    """
+    servico = ProdutoService(db, usuario.tenant_id)
+    return await servico.transferir_para_armazem(produto_id, dados)
+
+@router.post("/{produto_id}/perdas", response_model=ProdutoResponse)
+async def registrar_perda_estoque(
+    produto_id: int, 
+    dados: PerdaLoteRequest, 
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Registra uma perda/quebra/vencimento de produto no Armazém ou na Gôndola.
+    """
+    servico = ProdutoService(db, usuario.tenant_id)
+    return await servico.registrar_perda(
+        produto_id=produto_id,
+        quantidade=dados.quantidade,
+        motivo=dados.motivo,
+        local=dados.local,
+        lote_id=dados.lote_id
+    )

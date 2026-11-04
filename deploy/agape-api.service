@@ -1,0 +1,15 @@
+[Unit]
+Description=e-Sigma Agape Backend API (FastAPI / Uvicorn)
+After=network.target postgresql.service
+
+[Service]
+User=root
+WorkingDirectory=/var/www/agape/backend
+Environment="PATH=/var/www/agape/backend/venv/bin"
+EnvironmentFile=/var/www/agape/backend/.env
+ExecStart=/var/www/agape/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8007 --workers 2
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
