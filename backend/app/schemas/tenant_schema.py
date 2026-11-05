@@ -4,7 +4,9 @@ from datetime import datetime
 from app.models.estabelecimento import ModoOperacao
 
 class EstabelecimentoBase(BaseModel):
-    nome_fantasia: str = Field(..., max_length=100)
+    nome_fantasia: str = Field(..., max_length=150)
+    numero_loja: Optional[str] = Field(None, max_length=30)
+    rito: Optional[str] = Field(None, max_length=80)
     cnpj: Optional[str] = Field(None, max_length=18)
     logo_url: Optional[str] = Field(None, max_length=255)
     modo_operacao: ModoOperacao = Field(default=ModoOperacao.HONESTY_MARKET, description="Modo operacional do bar")

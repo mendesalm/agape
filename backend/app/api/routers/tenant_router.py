@@ -83,14 +83,14 @@ async def obter_metricas_globais_saas(
 async def listar_estabelecimentos(
     ativo: Optional[bool] = None,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(500, ge=1, le=1000),
     db: AsyncSession = Depends(obter_sessao),
     _superadmin: Usuario = Depends(exigir_superadmin)
 ):
     """
     (SUPERADMIN) Lista todas as instâncias/bares parceiros do SaaS BipFy com métricas agregadas.
     """
-    query = select(Estabelecimento).offset(skip).limit(limit).order_by(Estabelecimento.id.desc())
+    query = select(Estabelecimento).offset(skip).limit(limit).order_by(Estabelecimento.nome_fantasia.asc())
     if ativo is not None:
         query = query.where(Estabelecimento.ativo == ativo)
 
@@ -129,6 +129,8 @@ async def listar_estabelecimentos(
         resposta.append(EstabelecimentoDetalhesResponse(
             id=est.id,
             nome_fantasia=est.nome_fantasia,
+            numero_loja=est.numero_loja,
+            rito=est.rito,
             cnpj=est.cnpj,
             logo_url=est.logo_url,
             modo_operacao=est.modo_operacao,
@@ -230,6 +232,8 @@ async def obter_meu_estabelecimento(
     return EstabelecimentoDetalhesResponse(
         id=est.id,
         nome_fantasia=est.nome_fantasia,
+        numero_loja=est.numero_loja,
+        rito=est.rito,
         cnpj=est.cnpj,
         logo_url=est.logo_url,
         modo_operacao=est.modo_operacao,

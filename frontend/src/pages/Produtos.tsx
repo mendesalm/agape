@@ -11,9 +11,13 @@ import {
   Clock,
   QrCode,
   Printer,
-  Barcode
+  Barcode,
+  Camera,
+  Building2,
+  Search
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
+import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
 
 interface LoteEstoque {
   id: number;
@@ -54,6 +58,10 @@ interface Produto {
 export function Produtos() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [termoBusca, setTermoBusca] = useState('');
+
+  // Loja Ativa no Contexto / Âmbito
+  const [lojaAtivaInfo, setLojaAtivaInfo] = useState<{ id?: number; nome?: string; numero_loja?: number } | null>(null);
 
   // Estados dos Modais
   const [isModalNovoOpen, setIsModalNovoOpen] = useState(false);
@@ -63,6 +71,10 @@ export function Produtos() {
   const [isModalNovoLoteOpen, setIsModalNovoLoteOpen] = useState(false);
   const [isModalQrOpen, setIsModalQrOpen] = useState(false);
   const [produtoSelecionado, setProdutoSelecionado] = useState<Produto | null>(null);
+
+  // Estados da Câmera Scanner
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+  const [cameraTarget, setCameraTarget] = useState<'busca' | 'qr_fabrica' | 'ean'>('busca');
 
   // Estados do Formulário de Novo Produto
   const [nome, setNome] = useState('');
@@ -99,7 +111,45 @@ export function Produtos() {
 
   useEffect(() => {
     carregarProdutos();
+    carregarContextoLoja();
   }, []);
+
+  const carregarContextoLoja = () => {
+    try {
+      const lojaSalva = localStorage.getItem('agape_loja_selecionada');
+      if (lojaSalva) {
+        setLojaAtivaInfo(JSON.parse(lojaSalva));
+      } else {
+        const userSalvo = localStorage.getItem('agape_user');
+        if (userSalvo) {
+          const user = JSON.parse(userSalvo);
+          if (user.loja_atual) setLojaAtivaInfo(user.loja_atual);
+        }
+      }
+    } catch (e) {
+      console.warn("Erro ao ler contexto da loja", e);
+    }
+  };
+
+  const handleLeituraCamera = (codigoLido: string) => {
+    setIsCameraScannerOpen(false);
+    if (!codigoLido) return;
+
+    if (cameraTarget === 'busca') {
+      setTermoBusca(codigoLido);
+    } else if (cameraTarget === 'qr_fabrica') {
+      setQrCodeTag(codigoLido);
+      // Auto detecção GS1
+      const match = codigoLido.match(/\/01\/(\d{13,14})/);
+      if (match) {
+        let gtin = match[1];
+        if (gtin.length === 14 && gtin.startsWith('0')) gtin = gtin.substring(1);
+        if (!codigoBarras) setCodigoBarras(gtin);
+      }
+    } else if (cameraTarget === 'ean') {
+      setCodigoBarras(codigoLido);
+    }
+  };
 
   const carregarProdutos = async () => {
     try {
@@ -211,23 +261,54 @@ export function Produtos() {
   const totalComprar = produtos.filter(p => p.alerta_compra_armazem).length;
   const totalVencendo = produtos.flatMap(p => p.lotes).filter(l => l.status_validade === 'vencendo' || l.status_validade === 'vencido').length;
 
+  // Produtos filtrados por termo de busca ou leitura com câmera
+  const produtosFiltrados = produtos.filter(p => {
+    if (!termoBusca.trim()) return true;
+    const t = termoBusca.toLowerCase().trim();
+    return (
+      p.nome.toLowerCase().includes(t) ||
+      (p.codigo_barras && p.codigo_barras.toLowerCase().includes(t)) ||
+      (p.qr_code_tag && p.qr_code_tag.toLowerCase().includes(t)) ||
+      (p.marca && p.marca.toLowerCase().includes(t))
+    );
+  });
+
   return (
     <div className="space-y-6 relative">
-      {/* Header Principal */}
+      {/* Header Principal com Indicador de Âmbito / Loja Ativa */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Estoque & Armazenagem</h1>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Estoque & Armazenagem</h1>
+            {lojaAtivaInfo && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-xs font-bold shadow-sm">
+                <Building2 size={13} className="text-amber-700" />
+                {lojaAtivaInfo.numero_loja ? `Estoque Exclusivo: Loja Nº ${lojaAtivaInfo.numero_loja}` : `Estoque: ${lojaAtivaInfo.nome}`}
+              </span>
+            )}
+          </div>
           <p className="text-gray-500 mt-1 text-sm">
-            Gestão em 2 níveis (Armazém e Gôndola) com controle por lotes e despacho FEFO.
+            Gestão isolada por Loja em 2 níveis (<strong>Armazém / Depósito</strong> e <strong>Display / Gôndola</strong>) com despacho FEFO.
           </p>
         </div>
-        <button 
-          onClick={() => setIsModalNovoOpen(true)}
-          className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-medium flex items-center space-x-2 hover:bg-blue-700 transition-colors shadow-sm"
-        >
-          <Plus size={20} />
-          <span>Cadastrar Produto</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            type="button"
+            onClick={() => { setCameraTarget('busca'); setIsCameraScannerOpen(true); }}
+            className="bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 px-4 py-2.5 rounded-xl font-semibold flex items-center space-x-2 transition-colors text-sm shadow-sm"
+            title="Abrir câmera do dispositivo para ler QR Code ou Código de Barras"
+          >
+            <Camera size={18} className="text-indigo-600" />
+            <span>Ler com Câmera</span>
+          </button>
+          <button 
+            onClick={() => setIsModalNovoOpen(true)}
+            className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-medium flex items-center space-x-2 hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            <Plus size={20} />
+            <span>Cadastrar Produto</span>
+          </button>
+        </div>
       </div>
 
       {/* Cards de Alertas de Giro e Validade */}
@@ -238,7 +319,7 @@ export function Produtos() {
           </div>
           <div>
             <div className="text-xl font-bold text-amber-900">{totalRepor}</div>
-            <div className="text-xs text-amber-700 font-medium">Itens precisando de Reposição na Gôndola</div>
+            <div className="text-xs text-amber-700 font-medium">Itens precisando de Reposição no Display / Gôndola</div>
           </div>
         </div>
 
@@ -263,6 +344,37 @@ export function Produtos() {
         </div>
       </div>
 
+      {/* Barra de Filtro e Busca Rápida com Câmera */}
+      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input
+            type="text"
+            value={termoBusca}
+            onChange={e => setTermoBusca(e.target.value)}
+            placeholder="Filtrar estoque por nome, código de barras EAN ou QR Code..."
+            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        {termoBusca && (
+          <button 
+            onClick={() => setTermoBusca('')}
+            className="text-xs text-gray-500 hover:text-gray-800 font-semibold px-2 py-1"
+          >
+            Limpar
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => { setCameraTarget('busca'); setIsCameraScannerOpen(true); }}
+          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+          title="Abrir câmera para buscar produto pelo código"
+        >
+          <Camera size={15} />
+          <span>Escanear Código</span>
+        </button>
+      </div>
+
       {/* Tabela de Produtos */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden w-full">
         {loading ? (
@@ -275,24 +387,26 @@ export function Produtos() {
                   <th className="px-6 py-4 font-semibold">Produto</th>
                   <th className="px-6 py-4 font-semibold">Categoria</th>
                   <th className="px-6 py-4 font-semibold">Preços (Custo / Venda)</th>
-                  <th className="px-6 py-4 font-semibold text-center">Gôndola (Geladeira)</th>
+                  <th className="px-6 py-4 font-semibold text-center">Display / Gôndola</th>
                   <th className="px-6 py-4 font-semibold text-center">Armazém (Depósito)</th>
                   <th className="px-6 py-4 font-semibold text-center">Lotes & FEFO</th>
                   <th className="px-6 py-4 font-semibold text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-sm">
-              {produtos.length === 0 ? (
+              {produtosFiltrados.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                     <div className="flex flex-col items-center justify-center">
                       <Package size={48} className="text-gray-300 mb-4" />
-                      <p className="text-lg font-medium">Nenhum produto cadastrado no momento.</p>
+                      <p className="text-lg font-medium">
+                        {termoBusca ? `Nenhum produto encontrado para "${termoBusca}".` : 'Nenhum produto cadastrado nesta loja.'}
+                      </p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                produtos.map((produto) => (
+                produtosFiltrados.map((produto) => (
                   <tr key={produto.id} className="hover:bg-gray-50/60 transition-colors">
                     <td className="px-6 py-4 font-medium text-gray-800 flex items-center space-x-3">
                       {produto.foto_url ? (
@@ -518,9 +632,18 @@ export function Produtos() {
                   </span>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 uppercase mb-1 flex items-center gap-1.5">
-                        <QrCode size={14} className="text-purple-600" /> QR Code de Fábrica (Lata/Garrafa)
-                      </label>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-xs font-semibold text-gray-700 uppercase flex items-center gap-1.5">
+                          <QrCode size={14} className="text-purple-600" /> QR Code de Fábrica
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => { setCameraTarget('qr_fabrica'); setIsCameraScannerOpen(true); }}
+                          className="px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded text-[11px] font-bold flex items-center gap-1 transition-colors"
+                        >
+                          <Camera size={12} /> Câmera QR
+                        </button>
+                      </div>
                       <input 
                         type="text" 
                         value={qrCodeTag} 
@@ -536,7 +659,7 @@ export function Produtos() {
                           }
                         }} 
                         className="w-full px-3 py-2 border border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none text-sm bg-white font-mono text-xs" 
-                        placeholder="Bipe o QR Code impresso de fábrica na lata..." 
+                        placeholder="Bipe ou escaneie o QR impresso na lata..." 
                       />
                       <span className="text-[10px] text-purple-700 mt-1 block">
                         Suporta QR padrão GS1 Digital Link, URLs de fabricantes e códigos seriais.
@@ -544,9 +667,18 @@ export function Produtos() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 uppercase mb-1 flex items-center gap-1.5">
-                        <Barcode size={14} className="text-gray-500" /> Código de Barras (EAN-13 / GTIN)
-                      </label>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-xs font-semibold text-gray-700 uppercase flex items-center gap-1.5">
+                          <Barcode size={14} className="text-gray-500" /> Código de Barras (EAN-13 / GTIN)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => { setCameraTarget('ean'); setIsCameraScannerOpen(true); }}
+                          className="px-2 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded text-[11px] font-bold flex items-center gap-1 transition-colors"
+                        >
+                          <Camera size={12} /> Câmera EAN
+                        </button>
+                      </div>
                       <input 
                         type="text" 
                         value={codigoBarras} 
@@ -915,6 +1047,21 @@ export function Produtos() {
           </div>
         </div>
       )}
+
+      {/* Modal Leitor de QR Code / Código de Barras com Câmera */}
+      <LeitorQrCameraModal
+        isOpen={isCameraScannerOpen}
+        onClose={() => setIsCameraScannerOpen(false)}
+        onScanSuccess={handleLeituraCamera}
+        titulo={
+          cameraTarget === 'busca'
+            ? 'Escanear Produto (Buscar no Estoque)'
+            : cameraTarget === 'qr_fabrica'
+            ? 'Escanear QR Code de Fábrica'
+            : 'Escanear Código de Barras (EAN-13)'
+        }
+        subtitulo="Aponte a câmera do dispositivo para o código na lata, garrafa ou embalagem."
+      />
 
     </div>
   );

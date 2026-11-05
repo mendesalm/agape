@@ -14,8 +14,11 @@ import {
   ArrowRight,
   UserCheck,
   UserPlus,
-  RotateCcw
+  RotateCcw,
+  Camera,
+  Building2
 } from 'lucide-react';
+import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
 
 interface ItemComanda {
   id: number;
@@ -51,6 +54,13 @@ export function Comandas() {
   const [comandas, setComandas] = useState<Comanda[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Loja Ativa no Contexto / Âmbito
+  const [lojaAtivaInfo, setLojaAtivaInfo] = useState<{ id?: number; nome?: string; numero_loja?: number } | null>(null);
+
+  // Estados da Câmera Scanner
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+  const [cameraTarget, setCameraTarget] = useState<'cartao_balcao' | 'produto_balcao' | 'coringa_associar' | 'coringa_devolver' | 'nova_comanda'>('cartao_balcao');
 
   // Modo de Operação (Balcão Rápido vs Gestão de Mesas)
   const [modoBalcaoRapido, setModoBalcaoRapido] = useState(true);
@@ -91,7 +101,63 @@ export function Comandas() {
 
   useEffect(() => {
     carregarDados();
+    carregarContextoLoja();
   }, []);
+
+  const carregarContextoLoja = () => {
+    try {
+      const lojaSalva = localStorage.getItem('agape_loja_selecionada');
+      if (lojaSalva) {
+        setLojaAtivaInfo(JSON.parse(lojaSalva));
+      } else {
+        const userSalvo = localStorage.getItem('agape_user');
+        if (userSalvo) {
+          const user = JSON.parse(userSalvo);
+          if (user.loja_atual) setLojaAtivaInfo(user.loja_atual);
+        }
+      }
+    } catch (e) {
+      console.warn("Erro ao ler contexto da loja", e);
+    }
+  };
+
+  const handleLeituraCamera = async (codigoLido: string) => {
+    setIsCameraScannerOpen(false);
+    if (!codigoLido) return;
+
+    if (cameraTarget === 'cartao_balcao') {
+      setCartaoClienteInput(codigoLido);
+      try {
+        const res = await api.post('/comandas/identificar-cartao', {
+          identificador_cartao: codigoLido.trim()
+        });
+        setComandaBalcaoAtiva(res.data);
+        setSucessoFeedback(`Cliente identificado: ${res.data.nome_cliente || res.data.identificador_cartao}`);
+        setTimeout(() => setSucessoFeedback(null), 3000);
+        setTimeout(() => inputProdutoRef.current?.focus(), 150);
+        carregarDados();
+      } catch (err: any) {
+        alert(err.response?.data?.detail || "Erro ao identificar cliente pelo QR Code escaneado.");
+      }
+    } else if (cameraTarget === 'produto_balcao') {
+      setCodigoProdutoInput(codigoLido);
+      try {
+        const res = await api.get(`/produtos/codigo/${encodeURIComponent(codigoLido.trim())}`);
+        setProdutoConferencia(res.data);
+        setQtdConferencia(1);
+        setCodigoProdutoInput('');
+      } catch (err: any) {
+        alert(err.response?.data?.detail || `Produto não encontrado para o código: ${codigoLido}`);
+        setCodigoProdutoInput('');
+      }
+    } else if (cameraTarget === 'coringa_associar') {
+      setCoringaCodigo(codigoLido);
+    } else if (cameraTarget === 'coringa_devolver') {
+      setDevolverCodigoCartao(codigoLido);
+    } else if (cameraTarget === 'nova_comanda') {
+      setIdentificadorCartao(codigoLido);
+    }
+  };
 
   const carregarDados = async () => {
     try {
@@ -119,6 +185,10 @@ export function Comandas() {
     try {
       const res = await api.post('/cartoes/associar-coringa', {
         codigo_cartao: coringaCodigo.trim(),
+        cliente_cpf: coringaCpf.trim(),
+        cliente_nome: coringaNome.trim(),
+        cliente_telefone: coringaTelefone.trim() || undefined,
+        cliente_email: coringaEmail.trim() || undefined,
         cpf: coringaCpf.trim(),
         nome: coringaNome.trim(),
         telefone: coringaTelefone.trim() || undefined,
@@ -295,10 +365,18 @@ export function Comandas() {
       {/* Barra de Controle de Modos */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 pb-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
-            <ClipboardList className="text-blue-600 w-8 h-8" />
-            Comandas & PDV Balcão
-          </h1>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
+              <ClipboardList className="text-blue-600 w-8 h-8" />
+              Comandas & PDV Balcão
+            </h1>
+            {lojaAtivaInfo && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-xs font-bold shadow-sm">
+                <Building2 size={13} className="text-amber-700" />
+                {lojaAtivaInfo.numero_loja ? `PDV: Loja Nº ${lojaAtivaInfo.numero_loja}` : `PDV: ${lojaAtivaInfo.nome}`}
+              </span>
+            )}
+          </div>
           <p className="text-gray-500 text-sm mt-0.5">
             Atendimento presencial no balcão com identificação do cliente por QR/Cartão ou gestão por mesas.
           </p>
@@ -384,6 +462,15 @@ export function Comandas() {
                       autoFocus
                     />
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => { setCameraTarget('cartao_balcao'); setIsCameraScannerOpen(true); }}
+                    className="px-4 py-3 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold text-sm shadow-sm flex items-center gap-1.5 transition-colors"
+                    title="Abrir câmera para escanear QR Code do Cartão"
+                  >
+                    <Camera size={18} className="text-indigo-600" />
+                    <span>Câmera</span>
+                  </button>
                   <button type="submit" className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-1.5">
                     <span>Identificar</span>
                     <ArrowRight size={16} />
@@ -435,6 +522,16 @@ export function Comandas() {
                     disabled={!comandaBalcaoAtiva}
                   />
                 </div>
+                <button
+                  type="button"
+                  disabled={!comandaBalcaoAtiva}
+                  onClick={() => { setCameraTarget('produto_balcao'); setIsCameraScannerOpen(true); }}
+                  className="px-4 py-3 bg-purple-50 border border-purple-200 hover:bg-purple-100 text-purple-700 rounded-xl font-bold text-sm shadow-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  title="Abrir câmera para escanear código do produto"
+                >
+                  <Camera size={18} className="text-purple-600" />
+                  <span>Câmera</span>
+                </button>
                 <button type="submit" disabled={!comandaBalcaoAtiva} className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-sm">
                   Buscar
                 </button>
@@ -710,7 +807,16 @@ export function Comandas() {
             </div>
             <form onSubmit={abrirNovaComanda} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Identificador (Nº Mesa ou Cartão)</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-semibold text-gray-700 uppercase">Identificador (Nº Mesa ou Cartão)</label>
+                  <button
+                    type="button"
+                    onClick={() => { setCameraTarget('nova_comanda'); setIsCameraScannerOpen(true); }}
+                    className="px-2 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded text-[11px] font-bold flex items-center gap-1 transition-colors"
+                  >
+                    <Camera size={12} /> Câmera QR
+                  </button>
+                </div>
                 <input type="text" required value={identificadorCartao} onChange={e=>setIdentificadorCartao(e.target.value)} className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ex: MESA-04 ou CARTAO-88" />
               </div>
               <div>
@@ -744,7 +850,16 @@ export function Comandas() {
             
             <form onSubmit={handleAssociarCoringa} className="p-6 space-y-3.5">
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Bipar ou Digitar Código do Cartão *</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-bold text-gray-700 uppercase">Bipar ou Digitar Código do Cartão *</label>
+                  <button
+                    type="button"
+                    onClick={() => { setCameraTarget('coringa_associar'); setIsCameraScannerOpen(true); }}
+                    className="px-2 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 rounded text-[11px] font-bold flex items-center gap-1 transition-colors"
+                  >
+                    <Camera size={12} /> Câmera QR
+                  </button>
+                </div>
                 <input 
                   type="text" 
                   required 
@@ -835,7 +950,16 @@ export function Comandas() {
 
             <form onSubmit={handleDevolverCoringa} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Bipar ou Digitar Código do Cartão</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-bold text-gray-700 uppercase">Bipar ou Digitar Código do Cartão</label>
+                  <button
+                    type="button"
+                    onClick={() => { setCameraTarget('coringa_devolver'); setIsCameraScannerOpen(true); }}
+                    className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded text-[11px] font-bold flex items-center gap-1 transition-colors"
+                  >
+                    <Camera size={12} /> Câmera QR
+                  </button>
+                </div>
                 <input 
                   type="text" 
                   required 
@@ -861,6 +985,25 @@ export function Comandas() {
           </div>
         </div>
       )}
+
+      {/* Modal Leitor de QR Code / Código com Câmera */}
+      <LeitorQrCameraModal
+        isOpen={isCameraScannerOpen}
+        onClose={() => setIsCameraScannerOpen(false)}
+        onScanSuccess={handleLeituraCamera}
+        titulo={
+          cameraTarget === 'cartao_balcao'
+            ? 'Escanear Cartão / QR do Cliente'
+            : cameraTarget === 'produto_balcao'
+            ? 'Escanear Produto (Lata / Embalagem)'
+            : cameraTarget === 'coringa_associar'
+            ? 'Escanear Cartão Coringa (Entrega)'
+            : cameraTarget === 'coringa_devolver'
+            ? 'Escanear Cartão Coringa (Devolução)'
+            : 'Escanear Identificador da Mesa/Cartão'
+        }
+        subtitulo="Aponte a câmera para o QR Code ou código de barras."
+      />
 
     </div>
   );

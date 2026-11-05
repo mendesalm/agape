@@ -1,8 +1,8 @@
 import asyncio
 import urllib.request
 import json
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
+from typing import Optional, List, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -24,22 +24,133 @@ HASHES_SUPERADMIN_ECOSSISTEMA = [
 ]
 
 class SsoTokenRequest(BaseModel):
-    sso_token: str
+    sso_token: Optional[str] = None
+    token: Optional[str] = None
+
+
+async def _montar_ambitos_usuario(db: AsyncSession, usuario: Usuario) -> Dict[str, Any]:
+    """
+    Descobre todos os âmbitos de acesso disponíveis para o usuário autenticado:
+    - Âmbito Global do Sistema (se for SUPERADMIN)
+    - Lojas Maçônicas vinculadas ao usuário (ex: Loja 2181 em agape_estabelecimentos e obreiro_loja_associacoes)
+    """
+    is_superadmin = usuario.cargo == "SUPERADMIN"
+    lojas_map: Dict[int, Dict[str, Any]] = {}
+
+    # 1. Loja diretamente vinculada ao registro do usuário
+    if usuario.tenant_id:
+        res_est = await db.execute(select(Estabelecimento).where(Estabelecimento.id == usuario.tenant_id))
+        est = res_est.scalars().first()
+        if est:
+            lojas_map[est.id] = {
+                "id": est.id,
+                "nome_fantasia": est.nome_fantasia,
+                "numero_loja": est.numero_loja,
+                "rito": est.rito,
+                "loja_esigma_id": est.loja_esigma_id
+            }
+
+    # 2. Lojas associadas ao Obreiro em obreiro_loja_associacoes (pluri-filiação ou vínculo maçônico)
+    try:
+        res_assoc = await db.execute(
+            text("""
+                SELECT ae.id, ae.nome_fantasia, ae.numero_loja, ae.rito, ae.loja_esigma_id
+                FROM obreiro_loja_associacoes ola
+                JOIN obreiros o ON o.id = ola.obreiro_id
+                JOIN agape_estabelecimentos ae ON ae.loja_esigma_id = ola.loja_id
+                WHERE LOWER(COALESCE(o.email, '')) = :email
+                   OR o.id = :ob_id
+                ORDER BY ae.numero_loja ASC
+            """),
+            {
+                "email": (usuario.email or "").lower(),
+                "ob_id": usuario.obreiro_responsavel_id or -1
+            }
+        )
+        for r in res_assoc.mappings().all():
+            lojas_map[r["id"]] = {
+                "id": r["id"],
+                "nome_fantasia": r["nome_fantasia"],
+                "numero_loja": r["numero_loja"],
+                "rito": r["rito"],
+                "loja_esigma_id": r["loja_esigma_id"]
+            }
+    except Exception:
+        pass
+
+    # 3. Se for SuperAdmin e ainda não tiver a Loja 2181 na lista de atalhos diretos, inclui a Loja 2181
+    if is_superadmin and not any(str(v.get("numero_loja")) == "2181" for v in lojas_map.values()):
+        res_2181 = await db.execute(select(Estabelecimento).where(Estabelecimento.numero_loja == "2181"))
+        est_2181 = res_2181.scalars().first()
+        if est_2181:
+            lojas_map[est_2181.id] = {
+                "id": est_2181.id,
+                "nome_fantasia": est_2181.nome_fantasia,
+                "numero_loja": est_2181.numero_loja,
+                "rito": est_2181.rito,
+                "loja_esigma_id": est_2181.loja_esigma_id
+            }
+
+    lojas_vinculadas = list(lojas_map.values())
+    loja_padrao = lojas_map.get(usuario.tenant_id) if usuario.tenant_id else (lojas_vinculadas[0] if lojas_vinculadas else None)
+
+    ambitos: List[Dict[str, Any]] = []
+    for lj in lojas_vinculadas:
+        ambitos.append({
+            "tipo": "LOJA",
+            "tenant_id": lj["id"],
+            "numero_loja": lj["numero_loja"],
+            "titulo": lj["nome_fantasia"],
+            "subtitulo": f"Salão de Ágapes • Estoque (Armazém & Display) e Comandas da Loja Nº {lj['numero_loja']}" if lj.get("numero_loja") else "Salão de Ágapes • Estoque (Armazém & Display) e Comandas"
+        })
+
+    if is_superadmin:
+        ambitos.append({
+            "tipo": "SISTEMA",
+            "tenant_id": loja_padrao["id"] if loja_padrao else usuario.tenant_id,
+            "numero_loja": None,
+            "titulo": "Administração Global do Sistema (e-Sigma SaaS)",
+            "subtitulo": "Visão SuperAdmin • Gerenciar todas as Lojas Maçônicas, Instâncias e Métricas Globais"
+        })
+
+    return {
+        "is_superadmin": is_superadmin,
+        "loja_atual": loja_padrao,
+        "lojas_vinculadas": lojas_vinculadas,
+        "ambitos_disponiveis": ambitos,
+        "requer_selecao_ambito": len(ambitos) > 1
+    }
+
 
 @router.post("/login")
 async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    request: Request,
     db: AsyncSession = Depends(obter_sessao)
 ):
     """
-    Autenticação unificada do e-Sigma Ágape:
+    Autenticação unificada do e-Sigma Ágape (suporta JSON e OAuth2 Form-Data):
     1. Aceita operadores do Ágape ('agape_usuarios', incluindo não maçons/familiares e SuperAdmins).
     2. Aceita login por CIM, CPF ou E-mail de Obreiros ('obreiros' no lojas_db) ou SuperAdmin do e-Sigma/Harmonia.
+    3. Retorna os âmbitos disponíveis (Sistema Global vs Loja Específica, ex: Loja 2181).
     """
-    identificador = form_data.username.strip()
+    identificador = ""
+    senha = ""
+
+    content_type = (request.headers.get("content-type") or "").lower()
+    if "application/json" in content_type:
+        body = await request.json()
+        identificador = (body.get("email") or body.get("username") or body.get("identificador") or body.get("email_or_cim") or "").strip()
+        senha = body.get("senha") or body.get("password") or ""
+    else:
+        form = await request.form()
+        identificador = str(form.get("username") or form.get("email") or "").strip()
+        senha = str(form.get("password") or form.get("senha") or "")
+
+    if not identificador or not senha:
+        raise HTTPException(status_code=400, detail="Informe seu E-mail/CIM e senha.")
+
     identificador_lower = identificador.lower()
 
-    # Tolerância de alias para contas de estação (loja2181@harmonia.e-sigma.app <-> loja2181@agape.e-sigma.app)
     resultado = await db.execute(select(Usuario).where(Usuario.email == identificador_lower))
     usuario = resultado.scalars().first()
 
@@ -66,7 +177,7 @@ async def login(
                 {"email": identificador_lower, "raw": identificador, "limpo": termo_limpo}
             )
             row_ob = res_ob.mappings().first()
-            if row_ob and row_ob["hash_senha"] and verificar_senha(form_data.password, row_ob["hash_senha"]):
+            if row_ob and row_ob["hash_senha"] and verificar_senha(senha, row_ob["hash_senha"]):
                 tenant_id = None
                 if row_ob["loja_id"]:
                     est = (await db.execute(select(Estabelecimento).where(Estabelecimento.loja_esigma_id == row_ob["loja_id"]))).scalars().first()
@@ -95,10 +206,10 @@ async def login(
         raise HTTPException(status_code=400, detail="E-mail/CIM ou senha incorretos")
 
     # Verifica a senha no hash do usuário ou nos hashes globais de SuperAdmin (Harmonia / e-Sigma)
-    senha_valida = verificar_senha(form_data.password, usuario.senha_hash)
+    senha_valida = verificar_senha(senha, usuario.senha_hash)
     if not senha_valida and usuario.cargo == "SUPERADMIN":
         for h in HASHES_SUPERADMIN_ECOSSISTEMA:
-            if verificar_senha(form_data.password, h):
+            if verificar_senha(senha, h):
                 senha_valida = True
                 break
 
@@ -108,10 +219,13 @@ async def login(
     if not usuario.ativo:
         raise HTTPException(status_code=400, detail="Acesso de operador desativado para este turno.")
 
+    contexto_ambitos = await _montar_ambitos_usuario(db, usuario)
+    tenant_efetivo = usuario.tenant_id or (contexto_ambitos["loja_atual"]["id"] if contexto_ambitos["loja_atual"] else None)
+
     token = criar_token_acesso(
         dados={
             "sub": str(usuario.id),
-            "tenant_id": usuario.tenant_id,
+            "tenant_id": tenant_efetivo,
             "cargo": usuario.cargo
         }
     )
@@ -124,7 +238,13 @@ async def login(
             "nome": usuario.nome,
             "email": usuario.email,
             "cargo": usuario.cargo,
-            "tenant_id": usuario.tenant_id
+            "is_superadmin": contexto_ambitos["is_superadmin"],
+            "tenant_id": tenant_efetivo,
+            "estabelecimento_id": tenant_efetivo,
+            "loja_atual": contexto_ambitos["loja_atual"],
+            "lojas_vinculadas": contexto_ambitos["lojas_vinculadas"],
+            "ambitos_disponiveis": contexto_ambitos["ambitos_disponiveis"],
+            "requer_selecao_ambito": contexto_ambitos["requer_selecao_ambito"]
         }
     }
 
@@ -135,9 +255,13 @@ async def login_sso_esigma(
     db: AsyncSession = Depends(obter_sessao)
 ):
     """
-    Valida um token SSO vindo do Hub e-Sigma ou do Módulo Lojas (?sso_token=...)
-    contra a API do e-Sigma e emite a sessão do Ágape.
+    Valida um token SSO vindo do Hub e-Sigma ou do Módulo Lojas (?sso_token=... ou ?token=...)
+    contra a API do e-Sigma e emite a sessão do Ágape com os âmbitos disponíveis.
     """
+    token_recebido = (dados.sso_token or dados.token or "").strip()
+    if not token_recebido:
+        raise HTTPException(status_code=400, detail="Token SSO não informado.")
+
     def _validar_remoto(jwt_token: str):
         for url in ["http://127.0.0.1:8000/api/v1/auth/validate", "https://e-sigma.app/api/v1/auth/validate"]:
             try:
@@ -149,7 +273,7 @@ async def login_sso_esigma(
                 continue
         return None
 
-    info = await asyncio.to_thread(_validar_remoto, dados.sso_token)
+    info = await asyncio.to_thread(_validar_remoto, token_recebido)
     if not info or "usuario" not in info:
         raise HTTPException(status_code=401, detail="Token SSO inválido ou expirado.")
 
@@ -166,7 +290,6 @@ async def login_sso_esigma(
     usuario = res_u.scalars().first()
 
     if not usuario:
-        # Tenta descobrir a Loja padrão da sessão
         res_est = await db.execute(select(Estabelecimento).where(Estabelecimento.numero_loja == "2181"))
         est_padrao = res_est.scalars().first()
         usuario = Usuario(
@@ -182,10 +305,13 @@ async def login_sso_esigma(
         await db.commit()
         await db.refresh(usuario)
 
+    contexto_ambitos = await _montar_ambitos_usuario(db, usuario)
+    tenant_efetivo = usuario.tenant_id or (contexto_ambitos["loja_atual"]["id"] if contexto_ambitos["loja_atual"] else None)
+
     token = criar_token_acesso(
         dados={
             "sub": str(usuario.id),
-            "tenant_id": usuario.tenant_id,
+            "tenant_id": tenant_efetivo,
             "cargo": usuario.cargo
         }
     )
@@ -198,20 +324,35 @@ async def login_sso_esigma(
             "nome": usuario.nome,
             "email": usuario.email,
             "cargo": usuario.cargo,
-            "tenant_id": usuario.tenant_id
+            "is_superadmin": contexto_ambitos["is_superadmin"],
+            "tenant_id": tenant_efetivo,
+            "estabelecimento_id": tenant_efetivo,
+            "loja_atual": contexto_ambitos["loja_atual"],
+            "lojas_vinculadas": contexto_ambitos["lojas_vinculadas"],
+            "ambitos_disponiveis": contexto_ambitos["ambitos_disponiveis"],
+            "requer_selecao_ambito": contexto_ambitos["requer_selecao_ambito"]
         }
     }
 
 
 @router.get("/me")
-async def obter_meu_perfil(usuario: Usuario = Depends(obter_usuario_logado)):
-    """Retorna os dados do usuário autenticado e seu nível de acesso."""
+async def obter_meu_perfil(
+    usuario: Usuario = Depends(obter_usuario_logado),
+    db: AsyncSession = Depends(obter_sessao)
+):
+    """Retorna os dados do usuário autenticado, a Loja ativa no âmbito atual e os âmbitos disponíveis."""
+    contexto_ambitos = await _montar_ambitos_usuario(db, usuario)
     return {
         "id": usuario.id,
         "nome": usuario.nome,
         "email": usuario.email,
         "cargo": usuario.cargo,
+        "is_superadmin": contexto_ambitos["is_superadmin"],
         "tipo_vinculo": usuario.tipo_vinculo,
         "tenant_id": usuario.tenant_id,
+        "estabelecimento_id": usuario.tenant_id,
+        "loja_atual": contexto_ambitos["loja_atual"],
+        "lojas_vinculadas": contexto_ambitos["lojas_vinculadas"],
+        "ambitos_disponiveis": contexto_ambitos["ambitos_disponiveis"],
         "ativo": usuario.ativo
     }

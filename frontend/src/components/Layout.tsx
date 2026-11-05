@@ -11,14 +11,15 @@ import {
   X,
   ChevronRight,
   Users,
-  ExternalLink
+  ExternalLink,
+  Shield
 } from 'lucide-react';
 import api from '../services/api';
 
 interface LojaInfo {
-  id: string;
-  nome: string;
-  subdominio?: string;
+  id: number;
+  nome_fantasia: string;
+  numero_loja?: string;
 }
 
 export const Layout: React.FC = () => {
@@ -27,43 +28,93 @@ export const Layout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [lojas, setLojas] = useState<LojaInfo[]>([]);
   const [lojaAtiva, setLojaAtiva] = useState<string>('');
+  const [lojaAtivaNome, setLojaAtivaNome] = useState<string>('');
+  const [ambitoAtivo, setAmbitoAtivo] = useState<'LOJA' | 'SISTEMA'>(() => {
+    return (localStorage.getItem('@Barix:ambito') as 'LOJA' | 'SISTEMA') || 'LOJA';
+  });
 
   const userStr = localStorage.getItem('bipfy_user') || localStorage.getItem('@Barix:user');
   const user = userStr ? JSON.parse(userStr) : null;
+  const isSuperAdmin = Boolean(user?.is_superadmin || user?.cargo === 'SUPERADMIN');
 
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
-    if (user?.is_superadmin) {
+    const savedTenant =
+      localStorage.getItem('@Barix:tenant_id') ||
+      localStorage.getItem('bipfy_tenant_id') ||
+      (user?.tenant_id ? String(user.tenant_id) : '');
+
+    if (savedTenant) {
+      setLojaAtiva(String(savedTenant));
+    }
+
+    if (isSuperAdmin) {
       api
-        .get('/tenants/')
+        .get('/tenants/?limit=500')
         .then((res) => {
-          setLojas(res.data || []);
-          const savedTenant =
-            localStorage.getItem('@Barix:tenant_id') ||
-            localStorage.getItem('bipfy_tenant_id');
-          if (savedTenant) {
-            setLojaAtiva(savedTenant);
-          } else if (user?.estabelecimento_id) {
-            setLojaAtiva(user.estabelecimento_id);
+          const lista: LojaInfo[] = res.data || [];
+          setLojas(lista);
+
+          let idEfetivo = savedTenant;
+          if (!idEfetivo && lista.length > 0) {
+            const loja2181 = lista.find((l) => String(l.numero_loja) === '2181') || lista[0];
+            idEfetivo = String(loja2181.id);
+            localStorage.setItem('@Barix:tenant_id', idEfetivo);
+            localStorage.setItem('bipfy_tenant_id', idEfetivo);
+            setLojaAtiva(idEfetivo);
+          }
+
+          const encontrada = lista.find((l) => String(l.id) === String(idEfetivo));
+          if (encontrada) {
+            setLojaAtivaNome(encontrada.nome_fantasia);
+            localStorage.setItem('@Barix:ambito_titulo', encontrada.nome_fantasia);
           }
         })
         .catch(() => {});
+    } else {
+      api
+        .get('/tenants/me')
+        .then((res) => {
+          if (res.data?.nome_fantasia) {
+            setLojaAtivaNome(res.data.nome_fantasia);
+            setLojaAtiva(String(res.data.id));
+            localStorage.setItem('@Barix:ambito_titulo', res.data.nome_fantasia);
+          }
+        })
+        .catch(() => {
+          if (user?.loja_atual?.nome_fantasia) {
+            setLojaAtivaNome(user.loja_atual.nome_fantasia);
+          }
+        });
     }
-  }, [user?.is_superadmin, user?.estabelecimento_id]);
+  }, [isSuperAdmin, user?.tenant_id]);
 
   const handleTrocarLoja = (novoId: string) => {
     setLojaAtiva(novoId);
     if (novoId) {
       localStorage.setItem('@Barix:tenant_id', novoId);
       localStorage.setItem('bipfy_tenant_id', novoId);
-    } else {
-      localStorage.removeItem('@Barix:tenant_id');
-      localStorage.removeItem('bipfy_tenant_id');
+      localStorage.setItem('@Barix:ambito', 'LOJA');
+      setAmbitoAtivo('LOJA');
+      const encontrada = lojas.find((l) => String(l.id) === String(novoId));
+      if (encontrada) {
+        localStorage.setItem('@Barix:ambito_titulo', encontrada.nome_fantasia);
+      }
     }
     window.location.reload();
+  };
+
+  const handleAlternarAmbito = (novoAmbito: 'LOJA' | 'SISTEMA') => {
+    setAmbitoAtivo(novoAmbito);
+    localStorage.setItem('@Barix:ambito', novoAmbito);
+    if (novoAmbito === 'SISTEMA') {
+      navigate('/app/instancias');
+    } else {
+      navigate('/app');
+    }
   };
 
   const handleLogout = () => {
@@ -74,32 +125,38 @@ export const Layout: React.FC = () => {
     localStorage.removeItem('@Barix:user');
     localStorage.removeItem('bipfy_tenant_id');
     localStorage.removeItem('@Barix:tenant_id');
+    localStorage.removeItem('@Barix:ambito');
+    localStorage.removeItem('@Barix:ambito_titulo');
     navigate('/login');
   };
 
-  const isOperadorPuro = user?.cargo === 'OPERADOR_AGAPE' && !user?.is_superadmin;
+  const isOperadorPuro =
+    (user?.cargo === 'OPERADOR_AGAPE' ||
+      user?.cargo === 'OPERADOR_BALCAO' ||
+      user?.cargo === 'GARCOM') &&
+    !isSuperAdmin;
 
   const navItems = isOperadorPuro
     ? [
         { path: '/app/comandas', label: 'Salão & Comandas', icon: UtensilsCrossed },
-        { path: '/app/produtos', label: 'Cardápio & Estoque', icon: Package }
+        { path: '/app/produtos', label: 'Estoque (Armazém/Display)', icon: Package }
       ]
     : [
-        { path: '/app', label: 'Visão Geral', icon: LayoutDashboard },
+        { path: '/app', label: 'Visão Geral da Loja', icon: LayoutDashboard },
         { path: '/app/comandas', label: 'Salão & Comandas', icon: UtensilsCrossed },
-        { path: '/app/produtos', label: 'Cardápio & Estoque', icon: Package },
+        { path: '/app/produtos', label: 'Estoque (Armazém/Display)', icon: Package },
         { path: '/app/equipe', label: 'Equipe do Bar', icon: Users },
         { path: '/app/auditoria', label: 'Auditoria Financeira', icon: ShieldAlert }
       ];
 
-  if (user?.is_superadmin) {
-    navItems.push({ path: '/app/instancias', label: 'Lojas Maçônicas', icon: Building2 });
+  if (isSuperAdmin) {
+    navItems.push({ path: '/app/instancias', label: 'Lojas Maçônicas (SaaS)', icon: Building2 });
   }
 
   return (
     <div className="agape-sovereign-shell flex h-screen bg-[#070F1E] text-slate-200 font-sans overflow-hidden">
       {/* Sidebar Desktop */}
-      <aside className="hidden lg:flex w-72 vidro-escuro border-r border-[#DDB96B]/20 flex-col shrink-0 z-20">
+      <aside className="hidden lg:flex w-76 vidro-escuro border-r border-[#DDB96B]/20 flex-col shrink-0 z-20">
         <div className="p-6 flex items-center gap-3.5 border-b border-[#DDB96B]/20">
           <div className="w-12 h-12 rounded-2xl vidro-destaque flex items-center justify-center p-1.5 shrink-0">
             <img src="/agape.svg" alt="Ágape" className="w-full h-full object-contain" />
@@ -114,29 +171,80 @@ export const Layout: React.FC = () => {
           </div>
         </div>
 
-        {/* Seletor Multi-Loja para SuperAdmin */}
-        {user?.is_superadmin && lojas.length > 0 && (
-          <div className="px-4 py-3 border-b border-[#DDB96B]/15 bg-[#0A1428]/70">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#DDB96B] mb-1.5">
-              Loja Maçônica Ativa ({lojas.length})
-            </label>
-            <select
-              value={lojaAtiva}
-              onChange={(e) => handleTrocarLoja(e.target.value)}
-              className="w-full text-xs bg-[#070F1E] text-slate-200 border border-[#DDB96B]/30 rounded-lg px-2.5 py-2 focus:outline-none focus:border-[#DDB96B]"
-            >
-              {lojas.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.nome}
-                </option>
-              ))}
-            </select>
+        {/* Painel de Âmbito de Operação (Sistema Global vs Loja Específica) */}
+        <div className="px-4 py-3.5 border-b border-[#DDB96B]/20 bg-[#0A1428]/90 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#DDB96B] flex items-center gap-1">
+              {ambitoAtivo === 'SISTEMA' ? (
+                <>
+                  <Shield className="w-3.5 h-3.5" /> Âmbito: Sistema Global
+                </>
+              ) : (
+                <>
+                  <Building2 className="w-3.5 h-3.5" /> Âmbito: Loja Maçônica
+                </>
+              )}
+            </span>
+            {isSuperAdmin && (
+              <div className="flex items-center rounded-lg bg-[#070F1E] p-0.5 border border-[#DDB96B]/30">
+                <button
+                  type="button"
+                  onClick={() => handleAlternarAmbito('LOJA')}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors cursor-pointer ${
+                    ambitoAtivo === 'LOJA'
+                      ? 'bg-[#DDB96B] text-[#070F1E]'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Loja
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAlternarAmbito('SISTEMA')}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors cursor-pointer ${
+                    ambitoAtivo === 'SISTEMA'
+                      ? 'bg-[#DDB96B] text-[#070F1E]'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Sistema
+                </button>
+              </div>
+            )}
           </div>
-        )}
 
-        <div className="px-6 pt-5 pb-2">
+          {isSuperAdmin && lojas.length > 0 ? (
+            <div>
+              <label className="block text-[10px] text-slate-400 mb-1">
+                Loja ativa para Estoque (Armazém/Display) & PDV:
+              </label>
+              <select
+                value={lojaAtiva}
+                onChange={(e) => handleTrocarLoja(e.target.value)}
+                className="w-full text-xs bg-[#070F1E] text-[#FDE68A] font-semibold border border-[#DDB96B]/35 rounded-lg px-2.5 py-2 focus:outline-none focus:border-[#DDB96B]"
+              >
+                {lojas.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.nome_fantasia}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="p-2.5 rounded-xl bg-[#070F1E]/80 border border-[#DDB96B]/25">
+              <div className="text-xs font-bold text-[#FDE68A] truncate">
+                {lojaAtivaNome || user?.loja_atual?.nome_fantasia || 'Salão de Ágapes da Loja'}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-0.5">
+                Estoque Armazém & Display isolados para esta Loja
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 pt-4 pb-2">
           <p className="text-[11px] font-bold uppercase tracking-widest text-[#DDB96B]/70">
-            Menu Principal
+            Menu Operacional
           </p>
         </div>
 
@@ -180,7 +288,7 @@ export const Layout: React.FC = () => {
                 {user?.nome || 'Operador'}
               </p>
               <p className="text-xs text-[#DDB96B] truncate font-medium">
-                {user?.is_superadmin ? 'SuperAdmin e-Sigma' : user?.cargo || 'Gestor do Ágape'}
+                {isSuperAdmin ? 'SuperAdmin • e-Sigma' : user?.cargo || 'Gestor do Ágape'}
               </p>
             </div>
           </div>
@@ -279,33 +387,38 @@ export const Layout: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#070F1E]">
-        {/* Mobile Header */}
-        <header className="lg:hidden vidro-escuro border-b border-[#DDB96B]/20 px-4 py-3 flex items-center justify-between shrink-0 z-30">
+        {/* Top Context Banner (Desktop & Mobile) */}
+        <header className="vidro-escuro border-b border-[#DDB96B]/20 px-4 sm:px-6 py-2.5 flex items-center justify-between shrink-0 z-30">
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="p-2 rounded-xl text-[#DDB96B] hover:bg-white/5"
+              className="lg:hidden p-2 rounded-xl text-[#DDB96B] hover:bg-white/5"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex items-center space-x-2.5">
-              <img src="/agape.svg" alt="Ágape" className="w-8 h-8" />
-              <span className="font-bold font-cinzel text-sigma-gold text-base tracking-wider">
-                ÁGAPE
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-[#DDB96B] shrink-0" />
+              <span className="text-xs text-slate-400 hidden sm:inline">Âmbito Operacional:</span>
+              <span className="text-xs sm:text-sm font-bold text-[#FDE68A] truncate max-w-[200px] sm:max-w-md">
+                {lojaAtivaNome || 'Carregando Loja...'}
+              </span>
+              <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#DDB96B]/15 text-[#DDB96B] border border-[#DDB96B]/30">
+                Armazém & Display Isolados
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {user?.is_superadmin && lojas.length > 0 && (
+          <div className="flex items-center gap-2.5">
+            {isSuperAdmin && lojas.length > 0 && (
               <select
                 value={lojaAtiva}
                 onChange={(e) => handleTrocarLoja(e.target.value)}
-                className="max-w-[150px] text-xs bg-[#0A1428] text-slate-200 border border-[#DDB96B]/30 rounded-lg px-2 py-1.5"
+                className="max-w-[170px] sm:max-w-[240px] text-xs bg-[#0A1428] text-[#FDE68A] border border-[#DDB96B]/30 rounded-lg px-2.5 py-1.5"
+                title="Trocar Loja Maçônica Ativa"
               >
                 {lojas.map((l) => (
                   <option key={l.id} value={l.id}>
-                    {l.nome}
+                    {l.nome_fantasia}
                   </option>
                 ))}
               </select>
