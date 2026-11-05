@@ -151,11 +151,17 @@ async def login(
 
     identificador_lower = identificador.lower()
 
-    resultado = await db.execute(select(Usuario).where(Usuario.email == identificador_lower))
+    resultado = await db.execute(
+        select(Usuario).where(
+            (Usuario.email == identificador_lower) |
+            (Usuario.email == f"{identificador_lower}@gmail.com") |
+            (Usuario.email == f"{identificador_lower}@e-sigma.app")
+        )
+    )
     usuario = resultado.scalars().first()
 
-    # Se digitou CIM 272875, resolve para mendesalm@gmail.com (SuperAdmin)
-    if not usuario and identificador == "272875":
+    # Se digitou CIM 272875 ou usuario mendesalm, resolve para mendesalm@gmail.com (SuperAdmin)
+    if not usuario and identificador_lower in ["272875", "mendesalm", "mendes"]:
         res_mendes = await db.execute(select(Usuario).where(Usuario.email == "mendesalm@gmail.com"))
         usuario = res_mendes.scalars().first()
 
