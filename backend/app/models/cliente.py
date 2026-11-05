@@ -54,6 +54,7 @@ class CarteiraCliente(Base):
     tenant_id = Column(Integer, ForeignKey("agape_estabelecimentos.id"), nullable=False, index=True)
     
     saldo = Column(Float, default=0.0, nullable=False)
+    limite_fiado = Column(Float, default=100.0, nullable=False) # Trava de limite devedor máximo (R$ 100,00)
     data_atualizacao = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     cliente = relationship("Cliente", back_populates="carteiras")
@@ -63,6 +64,9 @@ class CarteiraCliente(Base):
 class TipoTransacaoCarteira(str, enum.Enum):
     CREDITO_PIX = "credito_pix"
     CREDITO_BALCAO = "credito_balcao"
+    RECARGA_BOLETO = "recarga_boleto"
+    RECARGA_DINHEIRO = "recarga_dinheiro"
+    RECARGA_CARTAO = "recarga_cartao"
     DEBITO_PEDIDO = "debito_pedido"
     ESTORNO = "estorno"
 

@@ -39,9 +39,10 @@ class ComandaRepository:
         )
         return resultado.scalars().first()
 
-    async def criar(self, dados: ComandaCreate) -> Comanda:
+    async def criar(self, dados: ComandaCreate, cliente_id: Optional[int] = None) -> Comanda:
         nova_comanda = Comanda(
             tenant_id=self.tenant_id,
+            cliente_id=cliente_id or dados.cliente_id,
             nome_cliente=dados.nome_cliente,
             identificador_cartao=dados.identificador_cartao
         )

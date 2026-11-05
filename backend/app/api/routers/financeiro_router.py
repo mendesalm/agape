@@ -113,3 +113,41 @@ async def listar_transacoes(
     query = select(TransacaoFinanceira).where(TransacaoFinanceira.tenant_id == usuario.tenant_id).order_by(TransacaoFinanceira.data_transacao.desc())
     resultado = await db.execute(query)
     return resultado.scalars().all()
+
+@router.get("/auditoria-estoque")
+async def relatorio_auditoria_estoque(
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Relatório auditável completo de movimentações de estoque (Entradas, Saídas e Perdas),
+    associando operador, cliente, forma de pagamento, se houve perda e valores em R$.
+    """
+    from app.services.produto_service import ProdutoService
+    servico = ProdutoService(db, usuario.tenant_id)
+    movs = await servico.listar_movimentacoes_auditoria(limit=300)
+    
+    itens = []
+    for m in movs:
+        itens.append({
+            "id": m.id,
+            "data_hora": m.data_movimentacao.isoformat(),
+            "tipo": m.tipo.value if hasattr(m.tipo, "value") else str(m.tipo),
+            "produto_id": m.produto_id,
+            "produto_nome": m.produto.nome if m.produto else f"Produto #{m.produto_id}",
+            "quantidade": m.quantidade,
+            "local_origem": m.local_origem,
+            "local_destino": m.local_destino,
+            "motivo": m.motivo,
+            "operador_nome": m.operador.nome if m.operador else "Sistema / Totem",
+            "cliente_nome": m.cliente.nome if m.cliente else (f"Comanda #{m.comanda_id}" if m.comanda_id else "-"),
+            "cliente_documento": (m.cliente.cim or m.cliente.cpf) if m.cliente else None,
+            "forma_pagamento": m.forma_pagamento,
+            "tipo_perda": m.tipo_perda,
+            "justificativa_perda": m.justificativa_perda,
+            "preco_custo_unitario": m.preco_custo_unitario or (m.produto.preco_custo if m.produto else 0.0),
+            "preco_venda_unitario": m.preco_venda_unitario or (m.produto.preco_venda if m.produto else 0.0),
+            "custo_total_perda": m.custo_total_perda or 0.0,
+            "valor_total": m.valor_total or 0.0
+        })
+    return itens

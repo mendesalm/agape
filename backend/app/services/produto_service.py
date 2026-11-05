@@ -291,16 +291,33 @@ class ProdutoService:
         await self.db.commit()
         return lotes_consumidos
 
-    async def registrar_perda(self, produto_id: int, quantidade: int, motivo: str, local: str = "gondola", lote_id: Optional[int] = None):
+    async def registrar_perda(
+        self, 
+        produto_id: int, 
+        quantidade: int, 
+        motivo: str, 
+        local: str = "gondola", 
+        lote_id: Optional[int] = None,
+        tipo_perda: str = "quebra",
+        justificativa: Optional[str] = None,
+        operador_id: Optional[int] = None
+    ):
         """
-        Registra perda/quebra/vencimento de produto, abatendo do lote específico ou pelo FEFO.
+        Registra perda/quebra/vencimento de produto, deduzindo o custo automaticamente
+        e registrando a despesa no financeiro do Bar.
         """
+        from app.models.transacao_financeira import TransacaoFinanceira, TipoTransacao
+
         if quantidade <= 0:
             raise RegraNegocioException("A quantidade da perda deve ser positiva.")
 
         produto = await self.repo.buscar_por_id(produto_id)
         if not produto:
             raise NaoEncontradoException(f"Produto (ID: {produto_id})")
+
+        custo_unit = float(produto.preco_custo or 0.0)
+        custo_total = float(quantidade * custo_unit)
+        justificativa_final = justificativa or motivo
 
         if lote_id:
             lote = await self.repo.buscar_lote_por_id(lote_id)
@@ -323,7 +340,12 @@ class ProdutoService:
                 quantidade=-quantidade,
                 local_origem=local,
                 local_destino="externo",
-                motivo=motivo
+                motivo=f"{tipo_perda.upper()}: {justificativa_final}",
+                operador_id=operador_id,
+                tipo_perda=tipo_perda,
+                justificativa_perda=justificativa_final,
+                preco_custo_unitario=custo_unit,
+                custo_total_perda=custo_total
             )
         else:
             # Baixa no local indicado utilizando FEFO
@@ -345,6 +367,7 @@ class ProdutoService:
                     l.quantidade_armazem -= qtd_baixa
                 restante -= qtd_baixa
 
+                custo_parcial = float(qtd_baixa * custo_unit)
                 await self.repo.registrar_movimentacao(
                     produto_id=produto_id,
                     lote_id=l.id,
@@ -352,12 +375,33 @@ class ProdutoService:
                     quantidade=-qtd_baixa,
                     local_origem=local,
                     local_destino="externo",
-                    motivo=motivo
+                    motivo=f"{tipo_perda.upper()}: {justificativa_final}",
+                    operador_id=operador_id,
+                    tipo_perda=tipo_perda,
+                    justificativa_perda=justificativa_final,
+                    preco_custo_unitario=custo_unit,
+                    custo_total_perda=custo_parcial
                 )
 
+        # Registra a despesa do custo da perda automaticamente no caixa isolado do Bar
+        if custo_total > 0:
+            despesa = TransacaoFinanceira(
+                tenant_id=self.tenant_id,
+                tipo=TipoTransacao.DESPESA,
+                valor=custo_total,
+                descricao=f"Perda/Descarte ({tipo_perda.upper()}): {quantidade}x {produto.nome} - {justificativa_final}",
+                origem_id=produto.id,
+                data_transacao=datetime.utcnow()
+            )
+            self.db.add(despesa)
+
         await self.db.commit()
-        logger.warning(f"Perda de {quantidade} registrada para produto {produto_id} em {local}. Motivo: {motivo}")
+        logger.warning(f"Perda de {quantidade}x {produto.nome} (Custo R$ {custo_total:.2f}) registrada em {local}. Tipo: {tipo_perda}.")
         return await self.obter_produto(produto_id)
+
+    async def listar_movimentacoes_auditoria(self, **kwargs):
+        """Retorna o histórico de movimentações auditáveis de estoque."""
+        return await self.repo.listar_movimentacoes_auditoria(**kwargs)
 
     async def obter_painel_alertas(self) -> AlertaEstoqueGeral:
         """

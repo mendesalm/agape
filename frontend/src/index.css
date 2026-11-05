@@ -326,3 +326,58 @@
 .agape-sovereign-shell .hover\:bg-slate-50:hover {
   background-color: rgba(221, 185, 107, 0.06) !important;
 }
+
+/* ==========================================================================
+   ESTILOS DE IMPRESSÃO PARA BOBINA TÉRMICA (58mm / 80mm - ESC/POS)
+   ========================================================================== */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Oculta tudo na tela durante a impressão */
+  body > * {
+    display: none !important;
+  }
+  
+  /* Exibe exclusivamente o container do comprovante térmico */
+  .comprovante-termico-print {
+    display: block !important;
+    visibility: visible !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 72mm !important; /* Compatível com bobinas de 80mm e legível em 58mm */
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 2mm 3mm !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  .comprovante-termico-print * {
+    visibility: visible !important;
+    color: #000000 !important;
+  }
+
+  @page {
+    margin: 0;
+    size: auto;
+  }
+}
+
+/* ==========================================================================
+   ERGONOMIA SENIOR DE TOQUE (WCAG 2.5.5 - MÍNIMO 44px)
+   ========================================================================== */
+.touch-target-senior {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

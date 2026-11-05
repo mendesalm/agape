@@ -238,17 +238,81 @@ class ProdutoRepository:
         lote_id: Optional[int] = None,
         local_origem: Optional[str] = None,
         local_destino: Optional[str] = None,
-        motivo: Optional[str] = None
+        motivo: Optional[str] = None,
+        operador_id: Optional[int] = None,
+        cliente_id: Optional[int] = None,
+        comanda_id: Optional[int] = None,
+        forma_pagamento: Optional[str] = None,
+        tipo_perda: Optional[str] = None,
+        justificativa_perda: Optional[str] = None,
+        preco_custo_unitario: float = 0.0,
+        preco_venda_unitario: float = 0.0,
+        custo_total_perda: float = 0.0,
+        valor_total: float = 0.0
     ) -> MovimentacaoEstoque:
         nova_movimentacao = MovimentacaoEstoque(
+            tenant_id=self.tenant_id,
             produto_id=produto_id,
             lote_id=lote_id,
             tipo=tipo,
             quantidade=quantidade,
             local_origem=local_origem,
             local_destino=local_destino,
-            motivo=motivo
+            motivo=motivo,
+            operador_id=operador_id,
+            cliente_id=cliente_id,
+            comanda_id=comanda_id,
+            forma_pagamento=forma_pagamento,
+            tipo_perda=tipo_perda,
+            justificativa_perda=justificativa_perda,
+            preco_custo_unitario=preco_custo_unitario,
+            preco_venda_unitario=preco_venda_unitario,
+            custo_total_perda=custo_total_perda,
+            valor_total=valor_total,
+            data_movimentacao=datetime.utcnow()
         )
         self.db.add(nova_movimentacao)
         await self.db.commit()
         return nova_movimentacao
+
+    async def listar_movimentacoes_auditoria(
+        self,
+        data_inicio: Optional[datetime] = None,
+        data_fim: Optional[datetime] = None,
+        tipo: Optional[str] = None,
+        cliente_id: Optional[int] = None,
+        forma_pagamento: Optional[str] = None,
+        apenas_perdas: bool = False,
+        limit: int = 200
+    ) -> List[MovimentacaoEstoque]:
+        query = (
+            select(MovimentacaoEstoque)
+            .options(
+                selectinload(MovimentacaoEstoque.produto),
+                selectinload(MovimentacaoEstoque.cliente),
+                selectinload(MovimentacaoEstoque.operador)
+            )
+            .where(
+                or_(
+                    MovimentacaoEstoque.tenant_id == self.tenant_id,
+                    MovimentacaoEstoque.tenant_id.is_(None)
+                )
+            )
+        )
+
+        if data_inicio:
+            query = query.where(MovimentacaoEstoque.data_movimentacao >= data_inicio)
+        if data_fim:
+            query = query.where(MovimentacaoEstoque.data_movimentacao <= data_fim)
+        if tipo:
+            query = query.where(MovimentacaoEstoque.tipo == tipo)
+        if cliente_id:
+            query = query.where(MovimentacaoEstoque.cliente_id == cliente_id)
+        if forma_pagamento:
+            query = query.where(MovimentacaoEstoque.forma_pagamento == forma_pagamento)
+        if apenas_perdas:
+            query = query.where(MovimentacaoEstoque.tipo == TipoMovimentacao.PERDA_QUEBRA)
+
+        query = query.order_by(MovimentacaoEstoque.data_movimentacao.desc()).limit(limit)
+        resultado = await self.db.execute(query)
+        return resultado.scalars().all() # type: ignore

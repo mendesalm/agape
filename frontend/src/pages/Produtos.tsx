@@ -106,7 +106,8 @@ export function Produtos() {
 
   // Estados do Formulário de Perda/Quebra
   const [quantidadePerda, setQuantidadePerda] = useState('');
-  const [motivoPerda, setMotivoPerda] = useState('');
+  const [tipoPerda, setTipoPerda] = useState<'quebra' | 'vencimento' | 'avaria_transporte' | 'descarte_operacional' | 'outro'>('quebra');
+  const [justificativaPerda, setJustificativaPerda] = useState('');
   const [localPerda, setLocalPerda] = useState<'gondola' | 'armazem'>('gondola');
 
   useEffect(() => {
@@ -245,11 +246,13 @@ export function Produtos() {
     try {
       await api.post(`/produtos/${produtoSelecionado.id}/perdas`, {
         quantidade: parseInt(quantidadePerda),
-        motivo: motivoPerda,
-        local: localPerda
+        local: localPerda,
+        tipo_perda: tipoPerda,
+        justificativa: justificativaPerda,
+        motivo: `${tipoPerda.toUpperCase()}: ${justificativaPerda || 'Baixa de estoque'}`
       });
       setIsModalPerdaOpen(false);
-      setQuantidadePerda(''); setMotivoPerda(''); setProdutoSelecionado(null);
+      setQuantidadePerda(''); setJustificativaPerda(''); setProdutoSelecionado(null);
       carregarProdutos();
     } catch (error: any) {
       alert(error.response?.data?.detail || "Erro ao registrar perda.");
@@ -935,57 +938,113 @@ export function Produtos() {
         </div>
       )}
 
-      {/* Modal Registrar Perda/Quebra */}
+      {/* Modal Registrar Perda/Quebra com Dedução Automática de Custo */}
       {isModalPerdaOpen && produtoSelecionado && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-orange-50">
-              <h3 className="text-xl font-bold text-orange-800 flex items-center gap-2"><AlertTriangle size={20}/> Registrar Perda</h3>
-              <button onClick={() => setIsModalPerdaOpen(false)} className="text-orange-400 hover:text-orange-600"><X size={24} /></button>
-            </div>
-            <form onSubmit={registrarPerda} className="p-6 space-y-4">
-              <p className="text-sm text-gray-600">Produto: <span className="font-bold text-gray-800">{produtoSelecionado.nome}</span></p>
-              
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden text-gray-800">
+            <div className="flex justify-between items-center p-6 border-b border-orange-100 bg-orange-50/70">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Local da Ocorrência</label>
+                <h3 className="text-xl font-bold text-orange-900 flex items-center gap-2">
+                  <AlertTriangle size={22} className="text-orange-600" /> Registrar Perda / Baixa
+                </h3>
+                <p className="text-xs text-orange-700/80 mt-0.5">Auditoria com dedução automática de custo</p>
+              </div>
+              <button onClick={() => setIsModalPerdaOpen(false)} className="text-orange-400 hover:text-orange-600 p-1"><X size={22} /></button>
+            </div>
+
+            <form onSubmit={registrarPerda} className="p-6 space-y-4">
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs space-y-1">
+                <div className="flex justify-between font-bold text-sm text-gray-900">
+                  <span>{produtoSelecionado.nome}</span>
+                  <span className="text-blue-700">R$ {produtoSelecionado.preco_venda.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-gray-500">
+                  <span>Custo Unitário Registrado:</span>
+                  <span className="font-semibold text-gray-700">R$ {(produtoSelecionado.preco_custo || 0).toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">Tipo de Perda</label>
                 <select 
-                  value={localPerda} 
-                  onChange={e => setLocalPerda(e.target.value as any)}
-                  className="w-full px-3 py-2 border rounded-xl text-sm bg-white"
+                  value={tipoPerda} 
+                  onChange={e => setTipoPerda(e.target.value as any)}
+                  className="w-full px-4 py-2.5 border rounded-xl text-sm bg-white min-h-[44px] outline-none focus:ring-2 focus:ring-orange-500"
                 >
-                  <option value="gondola">Gôndola (Geladeira / Salão)</option>
-                  <option value="armazem">Armazém (Depósito)</option>
+                  <option value="quebra">Quebra / Queda Acidental de Garrafa</option>
+                  <option value="vencimento">Vencimento / Validade Expirada</option>
+                  <option value="avaria_transporte">Avaria de Transporte / Fornecedor</option>
+                  <option value="descarte_operacional">Descarte Operacional (Serpentina Chopp / Espuma)</option>
+                  <option value="outro">Outro Motivo</option>
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Quantidade</label>
-                <input 
-                  type="number" 
-                  min="1" 
-                  required 
-                  value={quantidadePerda} 
-                  onChange={e=>setQuantidadePerda(e.target.value)} 
-                  className="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm" 
-                  placeholder="Ex: 1" 
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">Local da Baixa</label>
+                  <select 
+                    value={localPerda} 
+                    onChange={e => setLocalPerda(e.target.value as any)}
+                    className="w-full px-3 py-2.5 border rounded-xl text-sm bg-white min-h-[44px] outline-none focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="gondola">Gôndola (Geladeira)</option>
+                    <option value="armazem">Armazém (Depósito)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">Quantidade</label>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    required 
+                    value={quantidadePerda} 
+                    onChange={e => setQuantidadePerda(e.target.value)} 
+                    className="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-base font-bold min-h-[44px]" 
+                    placeholder="1" 
+                  />
+                </div>
               </div>
 
+              {/* Destaque do Custo Deduzido Automaticamente */}
+              {parseInt(quantidadePerda) > 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-0.5">
+                  <span className="text-amber-800 font-bold block">Prejuízo / Custo Deduzido Automaticamente:</span>
+                  <div className="text-lg font-black text-amber-900">
+                    R$ {((parseInt(quantidadePerda) || 0) * (produtoSelecionado.preco_custo || 0)).toFixed(2)}
+                  </div>
+                  <p className="text-[10px] text-amber-700">
+                    Este valor será registrado como despesa de perda no fluxo financeiro do Bar.
+                  </p>
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Motivo</label>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">Justificativa da Ocorrência</label>
                 <textarea 
                   required 
-                  value={motivoPerda} 
-                  onChange={e=>setMotivoPerda(e.target.value)} 
-                  className="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm" 
-                  placeholder="Ex: Garrafa caiu, ou produto vencido descartado" 
-                  rows={3}
+                  value={justificativaPerda} 
+                  onChange={e => setJustificativaPerda(e.target.value)} 
+                  className="w-full px-3 py-2.5 border rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm" 
+                  placeholder="Ex: Garrafa trincada durante o transporte para a geladeira" 
+                  rows={2}
                 ></textarea>
               </div>
 
-              <div className="mt-6 flex justify-end space-x-3">
-                <button type="button" onClick={() => setIsModalPerdaOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl font-medium text-sm">Cancelar</button>
-                <button type="submit" className="px-5 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 font-medium text-sm">Registrar Baixa</button>
+              <div className="mt-6 flex justify-end space-x-3 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setIsModalPerdaOpen(false)} 
+                  className="min-h-[46px] px-5 py-2.5 text-gray-600 hover:bg-gray-100 rounded-xl font-bold text-sm"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="min-h-[46px] px-6 py-2.5 bg-orange-600 text-white rounded-xl hover:bg-orange-700 font-extrabold text-sm shadow-md shadow-orange-600/20 active:scale-98 transition-all"
+                >
+                  Registrar Baixa & Abater Custo
+                </button>
               </div>
             </form>
           </div>

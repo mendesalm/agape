@@ -132,13 +132,17 @@ async def registrar_perda_estoque(
     usuario: Usuario = Depends(obter_usuario_logado)
 ):
     """
-    Registra uma perda/quebra/vencimento de produto no Armazém ou na Gôndola.
+    Registra uma perda/quebra/vencimento de produto no Armazém ou na Gôndola,
+    calculando e deduzindo automaticamente o custo da perda e registrando despesa no Bar.
     """
     servico = ProdutoService(db, usuario.tenant_id)
     return await servico.registrar_perda(
         produto_id=produto_id,
         quantidade=dados.quantidade,
-        motivo=dados.motivo,
+        motivo=dados.motivo or dados.justificativa or "Perda operacional",
         local=dados.local,
-        lote_id=dados.lote_id
+        lote_id=dados.lote_id,
+        tipo_perda=dados.tipo_perda or "quebra",
+        justificativa=dados.justificativa or dados.motivo or "Perda registrada",
+        operador_id=usuario.id
     )

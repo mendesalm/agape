@@ -32,7 +32,9 @@ class TransferenciaEstoqueRequest(BaseModel):
 
 class PerdaLoteRequest(BaseModel):
     quantidade: int = Field(..., gt=0)
-    motivo: str = Field(..., max_length=255)
+    tipo_perda: str = Field(default="quebra", description="quebra, vencimento, avaria_transporte, descarte_operacional, outro")
+    justificativa: Optional[str] = Field(None, max_length=255)
+    motivo: Optional[str] = Field(None, max_length=255)
     local: str = Field(default="gondola", pattern="^(gondola|armazem)$")
     lote_id: Optional[int] = None
 

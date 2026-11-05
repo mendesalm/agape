@@ -21,8 +21,16 @@ class Comanda(Base):
     data_abertura = Column(DateTime, default=datetime.utcnow, nullable=False)
     data_fechamento = Column(DateTime, nullable=True)
 
+    # Auditoria de Fechamento / Venda Direta
+    operador_id = Column(Integer, ForeignKey("agape_usuarios.id"), nullable=True, index=True)
+    forma_pagamento = Column(String(30), nullable=True) # pix, dinheiro, cartao_debito, cartao_credito, saldo_bar_fiado
+    valor_total = Column(Float, default=0.0)
+    troco = Column(Float, default=0.0)
+    observacao = Column(String(255), nullable=True)
+
     estabelecimento = relationship("Estabelecimento", back_populates="comandas")
     cliente = relationship("Cliente")
+    operador = relationship("Usuario")
     itens = relationship("ItemComanda", back_populates="comanda", cascade="all, delete-orphan")
 
 class StatusPreparoItem(str, enum.Enum):

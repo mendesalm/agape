@@ -1,21 +1,38 @@
-from typing import Optional
+from typing import Optional, List
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
+from fastapi import HTTPException
+from loguru import logger
+
 from app.repositories.comanda_repository import ComandaRepository
 from app.repositories.produto_repository import ProdutoRepository
-from app.schemas.comanda_schema import ComandaCreate, ItemComandaCreate
-from app.models.comanda import Comanda, StatusComanda
-from app.models.movimentacao_estoque import TipoMovimentacao
+from app.schemas.comanda_schema import (
+    ComandaCreate, 
+    ItemComandaCreate, 
+    FecharComandaRequest, 
+    ComprovanteTermicoResponse
+)
+from app.models.comanda import Comanda, ItemComanda, StatusComanda
+from app.models.cliente import Cliente, CartaoFisico, VinculoCartaoCliente, CarteiraCliente, TipoTransacaoCarteira
+from app.models.estabelecimento import Estabelecimento
+from app.models.usuario import Usuario
+from app.models.movimentacao_estoque import MovimentacaoEstoque, TipoMovimentacao
+from app.models.transacao_financeira import TransacaoFinanceira, TipoTransacao
+from app.services.carteira_service import CarteiraService
 from app.core.exceptions import NaoEncontradoException, RegraNegocioException
-from loguru import logger
 
 class ComandaService:
     def __init__(self, db: AsyncSession, tenant_id: int):
         self.repo_comanda = ComandaRepository(db, tenant_id)
         self.repo_produto = ProdutoRepository(db, tenant_id)
+        self.db = db
         self.tenant_id = tenant_id
 
     def _enriquecer_comanda(self, comanda: Comanda) -> Comanda:
-        setattr(comanda, "total", sum(item.quantidade * item.valor_unitario for item in comanda.itens))
+        total = sum(item.quantidade * item.valor_unitario for item in comanda.itens)
+        setattr(comanda, "total", float(total))
         for item in comanda.itens:
             if hasattr(item, "produto") and item.produto:
                 setattr(item, "produto_nome", item.produto.nome)
@@ -29,7 +46,7 @@ class ComandaService:
             self._enriquecer_comanda(c)
         return comandas
 
-    async def obter_comanda(self, comanda_id: int):
+    async def obter_comanda(self, comanda_id: int) -> Comanda:
         comanda = await self.repo_comanda.buscar_por_id(comanda_id)
         if not comanda:
             raise NaoEncontradoException(f"Comanda (ID: {comanda_id})")
@@ -39,16 +56,59 @@ class ComandaService:
         """
         Localiza comanda aberta pelo Cartão/QR Code do cliente, ou abre uma nova
         caso ele não possua uma comanda ativa no momento.
+        Vincula automaticamente o Cliente caso o cartão pertença a um irmão/visitante.
         """
-        comanda = await self.repo_comanda.buscar_por_cartao(identificador_cartao)
-        if not comanda:
-            # Abre nova comanda vinculada ao cartão
-            dados = ComandaCreate(
-                identificador_cartao=identificador_cartao,
-                nome_cliente=nome_cliente or f"Cliente {identificador_cartao}"
+        identificador_limpo = identificador_cartao.strip()
+        comanda = await self.repo_comanda.buscar_por_cartao(identificador_limpo)
+
+        # Se não existe comanda aberta, verifica vínculo de cliente
+        cliente_id_vinculado: Optional[int] = None
+        nome_encontrado = nome_cliente
+
+        # 1. Checa se o cartão é um Cartão Físico Coringa com vínculo ativo
+        res_vinc = await self.db.execute(
+            select(VinculoCartaoCliente)
+            .options(selectinload(VinculoCartaoCliente.cliente), selectinload(VinculoCartaoCliente.cartao))
+            .join(CartaoFisico, VinculoCartaoCliente.cartao_id == CartaoFisico.id)
+            .where(
+                CartaoFisico.codigo_identificador == identificador_limpo,
+                VinculoCartaoCliente.ativo == True
             )
-            comanda = await self.repo_comanda.criar(dados)
-            logger.info(f"Nova comanda #{comanda.id} criada para o cartão/QR {identificador_cartao}.")
+        )
+        vinculo = res_vinc.scalars().first()
+        if vinculo and vinculo.cliente:
+            cliente_id_vinculado = vinculo.cliente.id
+            nome_encontrado = vinculo.cliente.nome
+
+        # 2. Se não achou por coringa, checa se o identificador é o próprio CPF ou CIM do cliente
+        if not cliente_id_vinculado:
+            res_cli = await self.db.execute(
+                select(Cliente).where(
+                    (Cliente.cpf == identificador_limpo) |
+                    (Cliente.cim == identificador_limpo) |
+                    (Cliente.cpf == f"CIM:{identificador_limpo}")
+                )
+            )
+            cli = res_cli.scalars().first()
+            if cli:
+                cliente_id_vinculado = cli.id
+                nome_encontrado = cli.nome
+
+        if not comanda:
+            dados = ComandaCreate(
+                identificador_cartao=identificador_limpo,
+                nome_cliente=nome_encontrado or f"Cliente {identificador_limpo}",
+                cliente_id=cliente_id_vinculado
+            )
+            comanda = await self.repo_comanda.criar(dados, cliente_id=cliente_id_vinculado)
+            logger.info(f"Nova comanda #{comanda.id} aberta para cartão/QR {identificador_limpo} (Cliente #{cliente_id_vinculado}).")
+        else:
+            # Se a comanda já existia mas não tinha cliente_id vinculado, aproveita para vincular
+            if cliente_id_vinculado and not comanda.cliente_id:
+                comanda.cliente_id = cliente_id_vinculado
+                if nome_encontrado and (not comanda.nome_cliente or "Cliente AGAPE" in comanda.nome_cliente):
+                    comanda.nome_cliente = nome_encontrado
+                await self.db.commit()
 
         return self._enriquecer_comanda(comanda)
 
@@ -58,12 +118,12 @@ class ComandaService:
             if comanda_existente:
                 raise RegraNegocioException(f"Já existe uma comanda aberta para o cartão {dados.identificador_cartao}.")
         
-        comanda = await self.repo_comanda.criar(dados)
+        comanda = await self.repo_comanda.criar(dados, cliente_id=dados.cliente_id)
         setattr(comanda, "total", 0.0)
-        logger.info(f"Comanda {comanda.id} aberta. Tenant: {self.tenant_id}")
+        logger.info(f"Comanda {comanda.id} aberta no bar (Tenant: {self.tenant_id}).")
         return comanda
 
-    async def adicionar_item(self, comanda_id: int, dados: ItemComandaCreate):
+    async def adicionar_item(self, comanda_id: int, dados: ItemComandaCreate, operador_id: Optional[int] = None):
         comanda = await self.obter_comanda(comanda_id)
         
         if comanda.status != StatusComanda.ABERTA:
@@ -85,36 +145,316 @@ class ComandaService:
             motivo=f"Venda na comanda #{comanda_id}"
         )
 
-        # Registra o item travando o preço de venda atual
-        await self.repo_comanda.adicionar_item(
+        # Registra o item na comanda com o preço congelado no ato da venda
+        novo_item = ItemComanda(
             comanda_id=comanda_id,
             produto_id=produto.id,
+            operador_id=operador_id,
             quantidade=dados.quantidade,
-            valor_unitario=produto.preco_venda 
+            valor_unitario=produto.preco_venda
         )
+        self.db.add(novo_item)
+        await self.db.commit()
 
-        logger.info(f"{dados.quantidade}x {produto.nome} (Saída Venda) adicionado à comanda {comanda_id}.")
+        logger.info(f"{dados.quantidade}x {produto.nome} adicionado à comanda #{comanda_id} (Operador #{operador_id}).")
         return await self.obter_comanda(comanda_id)
 
-    async def fechar_comanda(self, comanda_id: int):
-        from app.models.transacao_financeira import TransacaoFinanceira, TipoTransacao
-        
+    async def fechar_comanda(
+        self, 
+        comanda_id: int, 
+        dados: Optional[FecharComandaRequest] = None,
+        usuario: Optional[Usuario] = None
+    ):
+        """
+        Encerra a comanda, processa o pagamento com as formas de pagamento autorizadas,
+        valida o teto de fiado (máx R$ 100 devedor), debita carteira e registra a receita
+        no caixa ISOLADO do bar.
+        """
         comanda = await self.obter_comanda(comanda_id)
         if comanda.status != StatusComanda.ABERTA:
             raise RegraNegocioException("Esta comanda não está aberta.")
+
+        total_venda = float(comanda.total)
+        forma_pagamento = dados.forma_pagamento.lower() if dados else "pix"
+        operador_id = usuario.id if usuario else None
+
+        # Vincula cliente caso informado no payload
+        if dados and dados.cliente_id and not comanda.cliente_id:
+            comanda.cliente_id = dados.cliente_id
+
+        # Se for pagamento via Saldo / Fiado na Conta do Bar
+        if forma_pagamento in ["saldo_bar_fiado", "fiado", "saldo_bar"]:
+            if not comanda.cliente_id:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Para pagamento no Saldo/Fiado da conta do bar, é obrigatório selecionar/identificar o cliente obreiro."
+                )
+
+            # Localiza ou inicializa a carteira do irmão no bar
+            carteira = await CarteiraService.obter_ou_criar_carteira(self.db, comanda.cliente_id, self.tenant_id)
             
-        comanda = await self.repo_comanda.atualizar_status(comanda, StatusComanda.FECHADA)
-        
-        # Gera o registro financeiro (Receita) com o total da comanda
-        transacao = TransacaoFinanceira(
+            # Validação do Limite de Fiado (máximo R$ 100,00 devedor)
+            limite = getattr(carteira, "limite_fiado", None) or CarteiraService.LIMITE_FIADO_PADRAO
+            novo_saldo = carteira.saldo - total_venda
+            if novo_saldo < -limite:
+                saldo_devedor = abs(novo_saldo)
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"Venda a fiado bloqueada: limite devedor máximo (R$ {limite:.2f}) seria ultrapassado. "
+                        f"Saldo atual: R$ {carteira.saldo:.2f}, Compra: R$ {total_venda:.2f}, Saldo após compra: -R$ {saldo_devedor:.2f}. "
+                        f"O irmão deve recarregar a conta do bar ou pagar por Pix/Dinheiro/Cartão."
+                    )
+                )
+
+            # Processa o débito na carteira via Event Sourcing
+            await CarteiraService.processar_transacao(
+                db=self.db,
+                carteira_id=carteira.id,
+                tipo=TipoTransacaoCarteira.DEBITO_PEDIDO,
+                valor=total_venda,
+                descricao=f"Consumação Comanda #{comanda.id}",
+                referencia_externa=f"COMANDA-{comanda.id}"
+            )
+
+        # Atualiza dados da comanda fechada
+        comanda.status = StatusComanda.FECHADA
+        comanda.data_fechamento = datetime.utcnow()
+        comanda.operador_id = operador_id
+        comanda.forma_pagamento = forma_pagamento
+        comanda.valor_total = total_venda
+        comanda.troco = float(dados.troco or 0.0) if dados else 0.0
+        comanda.observacao = dados.observacao if dados else None
+
+        # Registra a receita no caixa ISOLADO do Bar
+        transacao_bar = TransacaoFinanceira(
             tenant_id=self.tenant_id,
             tipo=TipoTransacao.RECEITA,
-            valor=comanda.total,
-            descricao=f"Fechamento da Comanda #{comanda.id}",
-            origem_id=comanda.id
+            valor=total_venda,
+            descricao=f"Fechamento Comanda #{comanda.id} ({forma_pagamento.upper()})",
+            origem_id=comanda.id,
+            data_transacao=datetime.utcnow()
         )
-        self.repo_comanda.db.add(transacao)
-        await self.repo_comanda.db.commit()
+        self.db.add(transacao_bar)
+
+        # Atualiza / audita as movimentações de estoque associadas
+        from sqlalchemy import update
+        await self.db.execute(
+            update(MovimentacaoEstoque)
+            .where(MovimentacaoEstoque.motivo.like(f"%comanda #{comanda.id}%"))
+            .values(
+                tenant_id=self.tenant_id,
+                operador_id=operador_id,
+                cliente_id=comanda.cliente_id,
+                comanda_id=comanda.id,
+                forma_pagamento=forma_pagamento,
+                valor_total=total_venda
+            )
+        )
+
+        await self.db.commit()
+        logger.info(f"Comanda #{comanda.id} fechada com sucesso via {forma_pagamento}. Valor: R$ {total_venda:.2f}.")
+        return await self.obter_comanda(comanda.id)
+
+    async def gerar_comprovante_termico(self, comanda_id: int) -> ComprovanteTermicoResponse:
+        """
+        Gera os dados e a formatação textual padrão para impressão em bobina térmica (58mm/80mm).
+        """
+        comanda = await self.obter_comanda(comanda_id)
         
-        logger.info(f"Comanda {comanda.id} (Tenant {self.tenant_id}) fechada com sucesso. Receita registrada.")
-        return comanda
+        # Dados do estabelecimento
+        res_est = await self.db.execute(select(Estabelecimento).where(Estabelecimento.id == self.tenant_id))
+        est = res_est.scalars().first()
+        nome_bar = getattr(est, "nome_fantasia", None) or getattr(est, "nome", "ÁGAPE - SALÃO DE FESTAS & BAR")
+        loja_numero = getattr(est, "numero_loja", None) if est else None
+
+        # Operador
+        nome_op = "Atendente Balcão"
+        if comanda.operador_id:
+            res_op = await self.db.execute(select(Usuario).where(Usuario.id == comanda.operador_id))
+            op = res_op.scalars().first()
+            if op:
+                nome_op = op.nome
+
+        # Cliente e Saldo do Bar
+        nome_cli = comanda.nome_cliente or "Cliente Avulso"
+        doc_cli = ""
+        tipo_cli = "Consumidor"
+        saldo_ant = None
+        saldo_pos = None
+
+        if comanda.cliente_id:
+            res_cli = await self.db.execute(
+                select(Cliente).options(selectinload(Cliente.carteiras)).where(Cliente.id == comanda.cliente_id)
+            )
+            cli = res_cli.scalars().first()
+            if cli:
+                nome_cli = cli.nome
+                doc_cli = cli.cim or cli.cpf
+                tipo_cli = cli.tipo_consumidor or "Obreiro"
+                # Carteira do Bar
+                for cart in cli.carteiras:
+                    if cart.tenant_id == self.tenant_id:
+                        saldo_pos = cart.saldo
+                        saldo_ant = (cart.saldo + comanda.total) if comanda.forma_pagamento in ["saldo_bar_fiado", "fiado"] else cart.saldo
+                        break
+
+        # Montagem do Layout Térmico ESC/POS (Linhas de 32 a 42 caracteres)
+        data_formatada = (comanda.data_fechamento or comanda.data_abertura).strftime("%d/%m/%Y %H:%M:%S")
+        linhas = []
+        linhas.append("=" * 38)
+        linhas.append(nome_bar[:38].center(38))
+        if loja_numero:
+            linhas.append(f"Loja Nº {loja_numero}".center(38))
+        linhas.append("SISTEMA DE CONSUMO ÁGAPE (BAR)".center(38))
+        linhas.append("-" * 38)
+        linhas.append(f"COMPROVANTE Nº: {comanda.id:05d}")
+        linhas.append(f"DATA/HORA:     {data_formatada}")
+        linhas.append(f"OPERADOR:      {nome_op[:23]}")
+        linhas.append(f"CLIENTE:       {nome_cli[:23]}")
+        if doc_cli:
+            linhas.append(f"DOC/CIM:       {doc_cli}")
+        linhas.append("-" * 38)
+        linhas.append("QTD  ITEM                VL.UN   TOTAL")
+        linhas.append("-" * 38)
+
+        itens_dict = []
+        for it in comanda.itens:
+            nome_p = getattr(it, "produto_nome", f"Item #{it.produto_id}")[:16]
+            subtotal = it.quantidade * it.valor_unitario
+            linha_item = f"{it.quantidade:<3}  {nome_p:<17} {it.valor_unitario:>6.2f} {subtotal:>7.2f}"
+            linhas.append(linha_item)
+            itens_dict.append({
+                "produto_nome": nome_p,
+                "quantidade": it.quantidade,
+                "valor_unitario": it.valor_unitario,
+                "subtotal": subtotal
+            })
+
+        linhas.append("-" * 38)
+        linhas.append(f"TOTAL:                        R$ {comanda.total:>7.2f}")
+        fp_nome = (comanda.forma_pagamento or "PIX").upper().replace("_", " ")
+        linhas.append(f"FORMA DE PAGAMENTO:           {fp_nome:>8}")
+        
+        if saldo_pos is not None:
+            linhas.append("-" * 38)
+            linhas.append("CONTA DO BAR (ISOLADA DA LOJA):")
+            if saldo_ant is not None:
+                linhas.append(f"Saldo Anterior:               R$ {saldo_ant:>7.2f}")
+            status_saldo = "Positivo" if saldo_pos >= 0 else "Devedor (Fiado)"
+            linhas.append(f"Saldo Atual ({status_saldo}): R$ {saldo_pos:>7.2f}")
+            linhas.append("(Limite devedor autorizado: R$ 100,00)")
+
+        linhas.append("=" * 38)
+        linhas.append("Obrigado pela Fraternidade!".center(38))
+        linhas.append("=" * 38)
+        linhas.append("\n\n\n") # Espaço para guilhotina da impressora térmica
+
+        texto_escpos = "\n".join(linhas)
+
+        return ComprovanteTermicoResponse(
+            comanda_id=comanda.id,
+            data_hora=comanda.data_fechamento or comanda.data_abertura,
+            estabelecimento_nome=nome_bar,
+            loja_numero=str(loja_numero) if loja_numero else None,
+            operador_nome=nome_op,
+            cliente_nome=nome_cli,
+            cliente_documento=doc_cli,
+            tipo_consumidor=tipo_cli,
+            itens=itens_dict,
+            total=comanda.total,
+            forma_pagamento=fp_nome,
+            saldo_anterior=saldo_ant,
+            saldo_atual=saldo_pos,
+            limite_fiado=100.0,
+            texto_escpos=texto_escpos
+        )
+
+    async def gerar_extrato_periodo_termico(
+        self,
+        cliente_id: int,
+        data_inicio: datetime,
+        data_fim: datetime
+    ) -> dict:
+        """
+        Gera o extrato de consumação de um determinado período para impressão térmica ou A4.
+        """
+        res_cli = await self.db.execute(
+            select(Cliente).options(selectinload(Cliente.carteiras)).where(Cliente.id == cliente_id)
+        )
+        cliente = res_cli.scalars().first()
+        if not cliente:
+            raise NaoEncontradoException(f"Cliente (ID: {cliente_id})")
+
+        # Busca comandas do cliente no período
+        res_com = await self.db.execute(
+            select(Comanda)
+            .options(selectinload(Comanda.itens).selectinload(ItemComanda.produto))
+            .where(
+                Comanda.cliente_id == cliente_id,
+                Comanda.tenant_id == self.tenant_id,
+                Comanda.data_abertura >= data_inicio,
+                Comanda.data_abertura <= data_fim
+            )
+            .order_by(Comanda.data_abertura.asc())
+        )
+        comandas = res_com.scalars().all()
+        for c in comandas:
+            self._enriquecer_comanda(c)
+
+        total_periodo = sum(c.total for c in comandas)
+
+        # Saldo atual da conta do bar
+        saldo_bar = 0.0
+        for cart in cliente.carteiras:
+            if cart.tenant_id == self.tenant_id:
+                saldo_bar = cart.saldo
+                break
+
+        # Gera texto para bobina
+        linhas = []
+        linhas.append("=" * 38)
+        linhas.append("EXTRATO DE CONSUMAÇÃO - BAR".center(38))
+        linhas.append(f"Período: {data_inicio.strftime('%d/%m/%y')} a {data_fim.strftime('%d/%m/%y')}")
+        linhas.append(f"Cliente: {cliente.nome[:25]}")
+        if cliente.cim:
+            linhas.append(f"CIM:     {cliente.cim}")
+        linhas.append("-" * 38)
+        for c in comandas:
+            data_c = (c.data_fechamento or c.data_abertura).strftime("%d/%m %H:%M")
+            linhas.append(f"Comanda #{c.id:04d} - {data_c} - R$ {c.total:.2f}")
+            for it in c.itens:
+                linhas.append(f"  {it.quantidade}x {getattr(it, 'produto_nome', 'Item')[:18]} R$ {it.valor_unitario * it.quantidade:.2f}")
+        linhas.append("-" * 38)
+        linhas.append(f"TOTAL CONSUMIDO NO PERÍODO: R$ {total_periodo:.2f}")
+        linhas.append(f"SALDO ATUAL NO BAR:          R$ {saldo_bar:.2f}")
+        linhas.append("=" * 38)
+        linhas.append("\n\n\n")
+
+        return {
+            "cliente_id": cliente.id,
+            "cliente_nome": cliente.nome,
+            "cliente_documento": cliente.cim or cliente.cpf,
+            "data_inicio": data_inicio.isoformat(),
+            "data_fim": data_fim.isoformat(),
+            "total_periodo": total_periodo,
+            "saldo_atual_bar": saldo_bar,
+            "limite_fiado": 100.0,
+            "comandas": [
+                {
+                    "id": c.id,
+                    "data": (c.data_fechamento or c.data_abertura).isoformat(),
+                    "total": c.total,
+                    "forma_pagamento": c.forma_pagamento,
+                    "itens": [
+                        {
+                            "produto": getattr(it, "produto_nome", "Item"),
+                            "quantidade": it.quantidade,
+                            "valor_unitario": it.valor_unitario,
+                            "subtotal": it.quantidade * it.valor_unitario
+                        } for it in c.itens
+                    ]
+                } for c in comandas
+            ],
+            "texto_escpos": "\n".join(linhas)
+        }

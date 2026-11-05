@@ -4,7 +4,6 @@ import {
   Plus, 
   CreditCard, 
   ShoppingCart, 
-  CheckCircle, 
   X, 
   ClipboardList, 
   Barcode, 
@@ -16,9 +15,14 @@ import {
   UserPlus,
   RotateCcw,
   Camera,
-  Building2
+  Building2,
+  Printer,
+  Receipt
 } from 'lucide-react';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
+import { ComprovanteTermicoModal, type DadosComprovante } from '../components/ComprovanteTermicoModal';
+import { FecharComandaModal } from '../components/FecharComandaModal';
+import { RecargaBarModal } from '../components/RecargaBarModal';
 
 interface ItemComanda {
   id: number;
@@ -31,6 +35,9 @@ interface ItemComanda {
 
 interface Comanda {
   id: number;
+  cliente_id?: number;
+  operador_id?: number;
+  forma_pagamento?: string;
   nome_cliente?: string;
   identificador_cartao?: string;
   status: 'ABERTA' | 'FECHADA' | 'CANCELADA';
@@ -80,6 +87,14 @@ export function Comandas() {
   // Estados dos Modais
   const [isModalNovaOpen, setIsModalNovaOpen] = useState(false);
   const [comandaSelecionada, setComandaSelecionada] = useState<Comanda | null>(null);
+
+  // Modais de Fechamento de Comanda, Térmica e Recarga
+  const [isModalFecharOpen, setIsModalFecharOpen] = useState(false);
+  const [comandaParaFechar, setComandaParaFechar] = useState<Comanda | null>(null);
+  const [comprovanteAtual, setComprovanteAtual] = useState<DadosComprovante | null>(null);
+  const [isModalTermicoOpen, setIsModalTermicoOpen] = useState(false);
+  const [isModalRecargaOpen, setIsModalRecargaOpen] = useState(false);
+  const [clienteRecarga, setClienteRecarga] = useState<{ id: number; nome: string; saldo?: number } | null>(null);
 
   // Estados dos Cartões Coringa (Visitantes)
   const [isModalAssociarCoringaOpen, setIsModalAssociarCoringaOpen] = useState(false);
@@ -342,16 +357,38 @@ export function Comandas() {
     }
   };
 
-  const fecharComanda = async (comanda_id: number) => {
-    if (!window.confirm("Deseja fechar esta conta e registrar o pagamento no financeiro?")) return;
-    try {
-      await api.patch(`/comandas/${comanda_id}/fechar`);
-      if (comandaSelecionada?.id === comanda_id) setComandaSelecionada(null);
-      if (comandaBalcaoAtiva?.id === comanda_id) setComandaBalcaoAtiva(null);
-      carregarDados();
-    } catch (error: any) {
-      alert(error.response?.data?.detail || "Erro ao fechar comanda.");
+  const abrirModalFechamento = (comanda: Comanda) => {
+    setComandaParaFechar(comanda);
+    setIsModalFecharOpen(true);
+  };
+
+  const handleFechamentoSucesso = (comprovante: DadosComprovante) => {
+    setComprovanteAtual(comprovante);
+    setIsModalTermicoOpen(true);
+    setSucessoFeedback(`Comanda #${comprovante.comanda_id} encerrada com sucesso! Emitindo comprovante térmico...`);
+    if (comandaBalcaoAtiva?.id === comprovante.comanda_id) {
+      setComandaBalcaoAtiva(null);
     }
+    if (comandaSelecionada?.id === comprovante.comanda_id) {
+      setComandaSelecionada(null);
+    }
+    carregarDados();
+    setTimeout(() => setSucessoFeedback(null), 4000);
+  };
+
+  const reabrirComprovanteTermico = async (comanda_id: number) => {
+    try {
+      const res = await api.get(`/comandas/${comanda_id}/comprovante-termico`);
+      setComprovanteAtual(res.data);
+      setIsModalTermicoOpen(true);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Erro ao gerar comprovante térmico.");
+    }
+  };
+
+  const abrirRecargaCliente = (clienteId: number, nome: string, saldo?: number) => {
+    setClienteRecarga({ id: clienteId, nome, saldo });
+    setIsModalRecargaOpen(true);
   };
 
   const getProdutoNome = (id: number) => {
@@ -382,37 +419,37 @@ export function Comandas() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           {/* Ações de Cartão Coringa (Visitantes) */}
           <button
             onClick={() => setIsModalAssociarCoringaOpen(true)}
-            className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+            className="min-h-[44px] px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm transition-all active:scale-98"
           >
-            <UserPlus size={15} />
+            <UserPlus size={16} />
             <span>Entregar Cartão Coringa</span>
           </button>
 
           <button
             onClick={() => setIsModalDevolverCoringaOpen(true)}
-            className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+            className="min-h-[44px] px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm transition-all active:scale-98"
           >
-            <RotateCcw size={15} />
+            <RotateCcw size={16} />
             <span>Devolver Cartão</span>
           </button>
 
-          <div className="flex items-center gap-1 bg-gray-100 p-1.5 rounded-xl border border-gray-200">
+          <div className="flex items-center gap-1.5 bg-gray-100 p-1.5 rounded-2xl border border-gray-200">
             <button 
               onClick={() => { setModoBalcaoRapido(true); setTimeout(() => inputCartaoRef.current?.focus(), 150); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${modoBalcaoRapido ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`min-h-[40px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${modoBalcaoRapido ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
             >
-              <Zap size={14} className="text-amber-500" />
+              <Zap size={16} className="text-amber-500" />
               Balcão Rápido
             </button>
             <button 
               onClick={() => setModoBalcaoRapido(false)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${!modoBalcaoRapido ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`min-h-[40px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${!modoBalcaoRapido ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
             >
-              <ClipboardList size={14} />
+              <ClipboardList size={16} />
               Mesas
             </button>
           </div>
@@ -559,33 +596,33 @@ export function Comandas() {
                   <div className="flex items-center justify-between pt-2 border-t border-blue-200">
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-bold text-gray-700">Quantidade:</span>
-                      <div className="flex items-center border border-gray-300 rounded-xl bg-white overflow-hidden">
+                      <div className="flex items-center border border-gray-300 rounded-2xl bg-white overflow-hidden shadow-sm">
                         <button 
                           type="button" 
                           onClick={() => setQtdConferencia(Math.max(1, qtdConferencia - 1))}
-                          className="px-3 py-1.5 hover:bg-gray-100 text-base font-bold text-gray-700"
+                          className="w-12 h-12 flex items-center justify-center hover:bg-gray-100 text-xl font-black text-gray-700 active:scale-95 transition-all"
                         >-</button>
-                        <span className="px-4 py-1.5 font-bold text-base text-gray-900">{qtdConferencia}</span>
+                        <span className="px-5 py-2 font-black text-xl text-gray-900 min-w-[50px] text-center">{qtdConferencia}</span>
                         <button 
                           type="button" 
                           onClick={() => setQtdConferencia(qtdConferencia + 1)}
-                          className="px-3 py-1.5 hover:bg-gray-100 text-base font-bold text-gray-700"
+                          className="w-12 h-12 flex items-center justify-center hover:bg-gray-100 text-xl font-black text-gray-700 active:scale-95 transition-all"
                         >+</button>
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-2.5">
                       <button 
                         type="button" 
                         onClick={() => setProdutoConferencia(null)}
-                        className="px-4 py-2.5 text-gray-600 hover:bg-gray-200 rounded-xl text-sm font-semibold"
+                        className="min-h-[48px] px-5 py-2.5 text-gray-600 hover:bg-gray-200 rounded-xl text-sm font-bold transition-all"
                       >
                         Cancelar
                       </button>
                       <button 
                         type="button" 
                         onClick={handleConfirmarVendaBalcao}
-                        className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-black flex items-center gap-2 shadow-md shadow-emerald-500/20"
+                        className="min-h-[48px] px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-black flex items-center gap-2 shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
                       >
                         <span>Confirmar Saída [Enter]</span>
                         <Check size={18} />
@@ -614,10 +651,11 @@ export function Comandas() {
               </div>
               {comandaBalcaoAtiva && (
                 <button 
-                  onClick={() => fecharComanda(comandaBalcaoAtiva.id)}
-                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-bold"
+                  onClick={() => abrirModalFechamento(comandaBalcaoAtiva)}
+                  className="min-h-[44px] px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
                 >
-                  Encerrar Conta
+                  <Receipt size={16} />
+                  <span>Encerrar & Faturar</span>
                 </button>
               )}
             </div>
@@ -778,12 +816,19 @@ export function Comandas() {
                   </table>
                 </div>
 
-                {comandaSelecionada.status === 'ABERTA' && (
+                {comandaSelecionada.status === 'ABERTA' ? (
                   <button 
-                    onClick={() => fecharComanda(comandaSelecionada.id)}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm"
+                    onClick={() => abrirModalFechamento(comandaSelecionada)}
+                    className="w-full min-h-[48px] bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm text-sm active:scale-98 transition-all"
                   >
-                    <CheckCircle size={18} /> Encerrar Comanda e Registrar Receita
+                    <Receipt size={18} /> Encerrar Comanda & Emitir Fatura Térmica
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => reabrirComprovanteTermico(comandaSelecionada.id)}
+                    className="w-full min-h-[48px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm text-sm active:scale-98 transition-all"
+                  >
+                    <Printer size={18} /> Imprimir Comprovante Térmico (Reimpressão)
                   </button>
                 )}
               </div>
@@ -1004,6 +1049,50 @@ export function Comandas() {
         }
         subtitulo="Aponte a câmera para o QR Code ou código de barras."
       />
+
+      {/* Modal de Fechamento de Comanda com Formas de Pagamento e Trava de Limite */}
+      {isModalFecharOpen && comandaParaFechar && (
+        <FecharComandaModal
+          isOpen={isModalFecharOpen}
+          onClose={() => setIsModalFecharOpen(false)}
+          comandaId={comandaParaFechar.id}
+          totalComanda={comandaParaFechar.total || 0}
+          clienteId={comandaParaFechar.cliente_id}
+          clienteNome={comandaParaFechar.nome_cliente}
+          onSuccess={handleFechamentoSucesso}
+          onAbrirRecarga={() => {
+            if (comandaParaFechar.cliente_id) {
+              abrirRecargaCliente(comandaParaFechar.cliente_id, comandaParaFechar.nome_cliente || 'Obreiro');
+            }
+          }}
+        />
+      )}
+
+      {/* Modal de Comprovante Térmico Portátil e Fatura por Período */}
+      {isModalTermicoOpen && comprovanteAtual && (
+        <ComprovanteTermicoModal
+          isOpen={isModalTermicoOpen}
+          onClose={() => setIsModalTermicoOpen(false)}
+          comprovante={comprovanteAtual}
+          clienteId={comandaParaFechar?.cliente_id || comandaSelecionada?.cliente_id}
+        />
+      )}
+
+      {/* Modal de Inserção de Créditos na Conta do Bar (Isolada da Loja) */}
+      {isModalRecargaOpen && clienteRecarga && (
+        <RecargaBarModal
+          isOpen={isModalRecargaOpen}
+          onClose={() => setIsModalRecargaOpen(false)}
+          clienteId={clienteRecarga.id}
+          clienteNome={clienteRecarga.nome}
+          saldoAtual={clienteRecarga.saldo}
+          onSuccess={(novoSaldo) => {
+            setSucessoFeedback(`Recarga efetuada! Novo saldo na conta do bar: R$ ${novoSaldo.toFixed(2)}`);
+            carregarDados();
+            setTimeout(() => setSucessoFeedback(null), 4000);
+          }}
+        />
+      )}
 
     </div>
   );
