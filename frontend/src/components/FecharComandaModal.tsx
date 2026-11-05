@@ -9,7 +9,8 @@ import {
   Receipt, 
   Coins, 
   PlusCircle, 
-  ShieldAlert 
+  ShieldAlert,
+  RotateCcw
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { DadosComprovante } from './ComprovanteTermicoModal';
@@ -21,6 +22,7 @@ interface FecharComandaModalProps {
   totalComanda: number;
   clienteId?: number | null;
   clienteNome?: string | null;
+  identificadorCartao?: string | null;
   onSuccess: (comprovante: DadosComprovante) => void;
   onAbrirRecarga?: () => void;
 }
@@ -32,12 +34,14 @@ export function FecharComandaModal({
   totalComanda,
   clienteId,
   clienteNome,
+  identificadorCartao,
   onSuccess,
   onAbrirRecarga
 }: FecharComandaModalProps) {
   const [formaPagamento, setFormaPagamento] = useState<string>('pix');
   const [valorRecebido, setValorRecebido] = useState<string>('');
   const [observacao, setObservacao] = useState<string>('');
+  const [devolverCartao, setDevolverCartao] = useState<boolean>(true);
   const [saldoBar, setSaldoBar] = useState<number | null>(null);
   const [carregandoSaldo, setCarregandoSaldo] = useState<boolean>(false);
   const [processando, setProcessando] = useState<boolean>(false);
@@ -108,6 +112,18 @@ export function FecharComandaModal({
         cliente_id: clienteId || undefined
       });
 
+      // Se solicitado, processa a devolução e liberação do cartão genérico no mesmo ato
+      if (devolverCartao && identificadorCartao) {
+        try {
+          await api.post('/cartoes/devolver-coringa', {
+            codigo_cartao: identificadorCartao.trim(),
+            confirmar_pagamento_e_fechamento: false
+          });
+        } catch (errDevolucao) {
+          console.warn("Aviso na liberação do cartão genérico:", errDevolucao);
+        }
+      }
+
       // Busca o comprovante térmico pronto para impressão
       const resComp = await api.get(`/comandas/${comandaId}/comprovante-termico`);
       onSuccess(resComp.data);
@@ -169,6 +185,31 @@ export function FecharComandaModal({
               )}
             </div>
           </div>
+
+          {/* Opção Integrada: Devolução e Liberação do Cartão Genérico */}
+          {identificadorCartao && (
+            <div className="p-3 bg-[#070F1E] border border-[#DDB96B]/30 rounded-xl flex items-center justify-between shadow-inner">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-400 shrink-0">
+                  <RotateCcw size={16} />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs font-bold text-amber-200 block truncate">
+                    Devolver e Liberar Cartão Genérico
+                  </span>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    Cartão: <span className="font-mono text-amber-300 font-bold">{identificadorCartao}</span> volta a ficar livre para o próximo irmão
+                  </p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={devolverCartao}
+                onChange={e => setDevolverCartao(e.target.checked)}
+                className="w-5 h-5 accent-amber-500 rounded cursor-pointer shrink-0 ml-3"
+              />
+            </div>
+          )}
 
           {/* Seleção da Forma de Pagamento (Ergonomia: botões com min-h-[50px] e alvos generosos) */}
           <div>

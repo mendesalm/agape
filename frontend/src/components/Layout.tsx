@@ -413,7 +413,7 @@ export const Layout: React.FC = () => {
               <select
                 value={lojaAtiva}
                 onChange={(e) => handleTrocarLoja(e.target.value)}
-                className="hidden sm:block max-w-[180px] sm:max-w-[240px] text-xs bg-[#0A1428] text-[#FDE68A] border border-[#DDB96B]/30 rounded-lg px-2 py-1.5 truncate"
+                className="hidden md:block max-w-[200px] text-xs bg-[#0A1428] text-[#FDE68A] border border-[#DDB96B]/30 rounded-lg px-2 py-1.5 truncate"
                 title="Trocar Loja Maçônica Ativa"
               >
                 {lojas.map((l) => (
