@@ -1,24 +1,21 @@
-import { useEffect, useState, useRef, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useState, useRef, type FormEvent } from 'react';
 import { api } from '../services/api';
 import { 
   Plus, 
   CreditCard, 
-  ShoppingCart, 
   X, 
   ClipboardList, 
   Barcode, 
-  QrCode, 
   Zap, 
   Check, 
-  ArrowRight,
-  UserCheck,
-  UserPlus,
-  RotateCcw,
-  Camera,
-  Building2,
-  Printer,
-  Receipt,
-  Smartphone
+  RotateCcw, 
+  Camera, 
+  Smartphone,
+  Trash2,
+  Search,
+  Minus,
+  User,
+  CreditCard as CardIcon
 } from 'lucide-react';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
 import { ComprovanteTermicoModal, type DadosComprovante } from '../components/ComprovanteTermicoModal';
@@ -62,36 +59,29 @@ interface Produto {
 export function Comandas() {
   const [comandas, setComandas] = useState<Comanda[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  // Loja Ativa no Contexto / Âmbito
-  const [lojaAtivaInfo, setLojaAtivaInfo] = useState<{ id?: number; nome?: string; numero_loja?: number } | null>(null);
+  // Modo de Operação (Balcão Rápido vs Gestão de Mesas)
+  const [modoBalcaoRapido, setModoBalcaoRapido] = useState(true);
 
   // Estados da Câmera Scanner e Modo PDV Mobile Contínuo
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
   const [cameraTarget, setCameraTarget] = useState<'cartao_balcao' | 'produto_balcao' | 'coringa_associar' | 'coringa_devolver' | 'nova_comanda'>('cartao_balcao');
   const [isPdvMobileModalOpen, setIsPdvMobileModalOpen] = useState(false);
 
-  // Modo de Operação (Balcão Rápido vs Gestão de Mesas)
-  const [modoBalcaoRapido, setModoBalcaoRapido] = useState(true);
-
-  // Estados do Atendimento Rápido no Balcão
+  // Estados do Fluxo Cascateado no Balcão
   const [cartaoClienteInput, setCartaoClienteInput] = useState('');
   const [comandaBalcaoAtiva, setComandaBalcaoAtiva] = useState<Comanda | null>(null);
   const [codigoProdutoInput, setCodigoProdutoInput] = useState('');
   const [produtoConferencia, setProdutoConferencia] = useState<Produto | null>(null);
   const [qtdConferencia, setQtdConferencia] = useState(1);
   const [sucessoFeedback, setSucessoFeedback] = useState<string | null>(null);
+  const [processandoAcao, setProcessandoAcao] = useState(false);
 
-  // Refs para focar automaticamente nos inputs de leitor de código
+  // Refs de foco
   const inputCartaoRef = useRef<HTMLInputElement>(null);
   const inputProdutoRef = useRef<HTMLInputElement>(null);
 
-  // Estados dos Modais
-  const [isModalNovaOpen, setIsModalNovaOpen] = useState(false);
-  const [comandaSelecionada, setComandaSelecionada] = useState<Comanda | null>(null);
-
-  // Modais de Fechamento de Comanda, Térmica e Recarga
+  // Estados dos Modais de Fechamento, Térmica e Recarga
   const [isModalFecharOpen, setIsModalFecharOpen] = useState(false);
   const [comandaParaFechar, setComandaParaFechar] = useState<Comanda | null>(null);
   const [comprovanteAtual, setComprovanteAtual] = useState<DadosComprovante | null>(null);
@@ -99,83 +89,25 @@ export function Comandas() {
   const [isModalRecargaOpen, setIsModalRecargaOpen] = useState(false);
   const [clienteRecarga, setClienteRecarga] = useState<{ id: number; nome: string; saldo?: number } | null>(null);
 
-  // Estados dos Cartões Coringa (Visitantes)
-  const [isModalAssociarCoringaOpen, setIsModalAssociarCoringaOpen] = useState(false);
-  const [isModalDevolverCoringaOpen, setIsModalDevolverCoringaOpen] = useState(false);
+  // Modal Cartões de Visitante (Coringa)
+  const [isModalCoringaAberto, setIsModalCoringaAberto] = useState(false);
+  const [coringaAba, setCoringaAba] = useState<'ENTREGAR' | 'DEVOLVER'>('ENTREGAR');
   const [coringaCodigo, setCoringaCodigo] = useState('');
   const [coringaNome, setCoringaNome] = useState('');
   const [coringaCpf, setCoringaCpf] = useState('');
-  const [coringaTelefone, setCoringaTelefone] = useState('');
-  const [coringaEmail, setCoringaEmail] = useState('');
   const [devolverCodigoCartao, setDevolverCodigoCartao] = useState('');
 
-  // Formulário Nova Comanda
+  // Modal Mesas (Nova Comanda)
+  const [isModalNovaOpen, setIsModalNovaOpen] = useState(false);
+  const [comandaSelecionada, setComandaSelecionada] = useState<Comanda | null>(null);
   const [nomeCliente, setNomeCliente] = useState('');
   const [identificadorCartao, setIdentificadorCartao] = useState('');
-
-  // Formulário Adicionar Item Manual
   const [produtoSelecionadoId, setProdutoSelecionadoId] = useState('');
   const [quantidadeItem, setQuantidadeItem] = useState('1');
 
   useEffect(() => {
     carregarDados();
-    carregarContextoLoja();
   }, []);
-
-  const carregarContextoLoja = () => {
-    try {
-      const lojaSalva = localStorage.getItem('agape_loja_selecionada');
-      if (lojaSalva) {
-        setLojaAtivaInfo(JSON.parse(lojaSalva));
-      } else {
-        const userSalvo = localStorage.getItem('agape_user');
-        if (userSalvo) {
-          const user = JSON.parse(userSalvo);
-          if (user.loja_atual) setLojaAtivaInfo(user.loja_atual);
-        }
-      }
-    } catch (e) {
-      console.warn("Erro ao ler contexto da loja", e);
-    }
-  };
-
-  const handleLeituraCamera = async (codigoLido: string) => {
-    setIsCameraScannerOpen(false);
-    if (!codigoLido) return;
-
-    if (cameraTarget === 'cartao_balcao') {
-      setCartaoClienteInput(codigoLido);
-      try {
-        const res = await api.post('/comandas/identificar-cartao', {
-          identificador_cartao: codigoLido.trim()
-        });
-        setComandaBalcaoAtiva(res.data);
-        setSucessoFeedback(`Cliente identificado: ${res.data.nome_cliente || res.data.identificador_cartao}`);
-        setTimeout(() => setSucessoFeedback(null), 3000);
-        setTimeout(() => inputProdutoRef.current?.focus(), 150);
-        carregarDados();
-      } catch (err: any) {
-        alert(err.response?.data?.detail || "Erro ao identificar cliente pelo QR Code escaneado.");
-      }
-    } else if (cameraTarget === 'produto_balcao') {
-      setCodigoProdutoInput(codigoLido);
-      try {
-        const res = await api.get(`/produtos/codigo/${encodeURIComponent(codigoLido.trim())}`);
-        setProdutoConferencia(res.data);
-        setQtdConferencia(1);
-        setCodigoProdutoInput('');
-      } catch (err: any) {
-        alert(err.response?.data?.detail || `Produto não encontrado para o código: ${codigoLido}`);
-        setCodigoProdutoInput('');
-      }
-    } else if (cameraTarget === 'coringa_associar') {
-      setCoringaCodigo(codigoLido);
-    } else if (cameraTarget === 'coringa_devolver') {
-      setDevolverCodigoCartao(codigoLido);
-    } else if (cameraTarget === 'nova_comanda') {
-      setIdentificadorCartao(codigoLido);
-    }
-  };
 
   const carregarDados = async () => {
     try {
@@ -187,147 +119,216 @@ export function Comandas() {
       setProdutos(respProdutos.data);
     } catch (error) {
       console.error("Erro ao carregar dados", error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  // Associação de Cartão Coringa Reutilizável (Opção B - Balcão)
-  const handleAssociarCoringa = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!coringaCodigo.trim() || !coringaCpf.trim() || !coringaNome.trim()) {
-      alert("Código do Cartão, CPF e Nome são obrigatórios.");
-      return;
-    }
+  /**
+   * Câmera: Leitura de QR Code
+   */
+  const handleLeituraCamera = async (codigoLido: string) => {
+    setIsCameraScannerOpen(false);
+    if (!codigoLido) return;
 
-    try {
-      const res = await api.post('/cartoes/associar-coringa', {
-        codigo_cartao: coringaCodigo.trim(),
-        cliente_cpf: coringaCpf.trim(),
-        cliente_nome: coringaNome.trim(),
-        cliente_telefone: coringaTelefone.trim() || undefined,
-        cliente_email: coringaEmail.trim() || undefined,
-        cpf: coringaCpf.trim(),
-        nome: coringaNome.trim(),
-        telefone: coringaTelefone.trim() || undefined,
-        email: coringaEmail.trim() || undefined
-      });
-      setSucessoFeedback(res.data.mensagem || `Cartão ${coringaCodigo} associado a ${coringaNome}!`);
-      setTimeout(() => setSucessoFeedback(null), 4000);
-      setIsModalAssociarCoringaOpen(false);
-      setCoringaCodigo('');
-      setCoringaNome('');
-      setCoringaCpf('');
-      setCoringaTelefone('');
-      setCoringaEmail('');
-      carregarDados();
-    } catch (err: any) {
-      alert(err.response?.data?.detail || "Erro ao associar cartão coringa.");
+    if (cameraTarget === 'cartao_balcao') {
+      await processarIdentificacaoCliente(codigoLido.trim());
+    } else if (cameraTarget === 'produto_balcao') {
+      await processarBuscaProduto(codigoLido.trim());
+    } else if (cameraTarget === 'coringa_associar') {
+      setCoringaCodigo(codigoLido.trim());
+    } else if (cameraTarget === 'coringa_devolver') {
+      setDevolverCodigoCartao(codigoLido.trim());
+    } else if (cameraTarget === 'nova_comanda') {
+      setIdentificadorCartao(codigoLido.trim());
     }
   };
 
-  // Devolução do Cartão Coringa no Fim do Dia (Check-out)
-  const handleDevolverCoringa = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!devolverCodigoCartao.trim()) return;
-
-    try {
-      const res = await api.post('/cartoes/devolver-coringa', {
-        codigo_cartao: devolverCodigoCartao.trim()
-      });
-      setSucessoFeedback(`Cartão ${devolverCodigoCartao} devolvido com sucesso! Total consumido: R$ ${(res.data.total_consumido || 0).toFixed(2)}`);
-      setTimeout(() => setSucessoFeedback(null), 5000);
-      setIsModalDevolverCoringaOpen(false);
-      setDevolverCodigoCartao('');
-      carregarDados();
-    } catch (err: any) {
-      alert(err.response?.data?.detail || "Erro ao devolver cartão coringa.");
-    }
-  };
-
-  // 1. Identificação do Cliente no Balcão (por Cartão RFID / QR Code / CPF)
-  const handleIdentificarClienteBalcao = async (e?: FormEvent) => {
-    if (e) e.preventDefault();
-    const termo = cartaoClienteInput.trim();
-    if (!termo) return;
-
+  /**
+   * ETAPA 1: Identificar Cliente
+   */
+  const processarIdentificacaoCliente = async (identificador: string) => {
+    if (!identificador.trim()) return;
+    setProcessandoAcao(true);
     try {
       const res = await api.post('/comandas/identificar-cartao', {
-        identificador_cartao: termo
+        identificador_cartao: identificador.trim()
       });
       setComandaBalcaoAtiva(res.data);
+      setCartaoClienteInput('');
       setSucessoFeedback(`Cliente identificado: ${res.data.nome_cliente || res.data.identificador_cartao}`);
       setTimeout(() => setSucessoFeedback(null), 3000);
-      
-      // Passa o foco para o leitor de produtos
-      setTimeout(() => inputProdutoRef.current?.focus(), 150);
       carregarDados();
     } catch (err: any) {
-      alert(err.response?.data?.detail || "Erro ao identificar cliente.");
+      alert(err.response?.data?.detail || "Erro ao identificar cliente pelo QR Code / CPF informado.");
+    } finally {
+      setProcessandoAcao(false);
     }
   };
 
-  // 2. Bipagem do Produto no Balcão (por Código de Barras EAN ou Tag QR Code)
-  const handleBiparProdutoBalcao = async (e?: FormEvent) => {
-    if (e) e.preventDefault();
-    const codigo = codigoProdutoInput.trim();
-    if (!codigo) return;
+  const handleIdentificarClienteSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    processarIdentificacaoCliente(cartaoClienteInput);
+  };
 
+  /**
+   * ETAPA 2: Buscar Produto para Conferência
+   */
+  const processarBuscaProduto = async (codigo: string) => {
+    if (!codigo.trim()) return;
+    setProcessandoAcao(true);
     try {
-      const res = await api.get(`/produtos/codigo/${encodeURIComponent(codigo)}`);
+      const res = await api.get(`/produtos/codigo/${encodeURIComponent(codigo.trim())}`);
       setProdutoConferencia(res.data);
       setQtdConferencia(1);
       setCodigoProdutoInput('');
     } catch (err: any) {
       alert(err.response?.data?.detail || `Produto não encontrado para o código: ${codigo}`);
       setCodigoProdutoInput('');
+    } finally {
+      setProcessandoAcao(false);
     }
   };
 
-  // 3. Conferência na Frente do Cliente & Confirmação com ENTER (Pós-Pago)
-  const handleConfirmarVendaBalcao = async () => {
+  const handleBiparProdutoSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    processarBuscaProduto(codigoProdutoInput);
+  };
+
+  /**
+   * CONFIRMAÇÃO EXPLÍCITA: Adicionar Item na Comanda
+   */
+  const handleConfirmarInclusaoItem = async () => {
     if (!comandaBalcaoAtiva || !produtoConferencia) return;
 
+    setProcessandoAcao(true);
     try {
       await api.post(`/comandas/${comandaBalcaoAtiva.id}/itens`, {
         produto_id: produtoConferencia.id,
         quantidade: qtdConferencia
       });
 
-      // Recarrega a comanda ativa para atualizar o saldo
+      // Recarrega a comanda ativa para refletir os itens e o saldo
       const res = await api.get(`/comandas/${comandaBalcaoAtiva.id}`);
       setComandaBalcaoAtiva(res.data);
-      
-      const msg = `${qtdConferencia}x ${produtoConferencia.nome} lançado na conta de ${res.data.nome_cliente || res.data.identificador_cartao}!`;
-      setSucessoFeedback(msg);
-      setTimeout(() => setSucessoFeedback(null), 4000);
 
-      // Limpa a conferência e volta o foco para o próximo produto
+      setSucessoFeedback(`+${qtdConferencia}x ${produtoConferencia.nome} adicionado ao pedido!`);
+      setTimeout(() => setSucessoFeedback(null), 3500);
+
+      // Limpa a conferência após adição confirmada
       setProdutoConferencia(null);
       setQtdConferencia(1);
-      setTimeout(() => inputProdutoRef.current?.focus(), 100);
       carregarDados();
     } catch (err: any) {
-      alert(err.response?.data?.detail || "Erro ao lançar item na comanda.");
+      alert(err.response?.data?.detail || "Erro ao adicionar item à comanda.");
+    } finally {
+      setProcessandoAcao(false);
     }
   };
 
-  const handleKeyDownBalcao = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && produtoConferencia) {
-      e.preventDefault();
-      handleConfirmarVendaBalcao();
+  /**
+   * Estornar/Remover Item da Comanda
+   */
+  const handleRemoverItem = async (itemId: number) => {
+    if (!comandaBalcaoAtiva) return;
+    if (!confirm("Deseja realmente remover este item da comanda? O estoque será devolvido à gôndola.")) return;
+
+    setProcessandoAcao(true);
+    try {
+      const res = await api.delete(`/comandas/${comandaBalcaoAtiva.id}/itens/${itemId}`);
+      setComandaBalcaoAtiva(res.data);
+      setSucessoFeedback("Item estornado com sucesso!");
+      setTimeout(() => setSucessoFeedback(null), 3000);
+      carregarDados();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Erro ao estornar item.");
+    } finally {
+      setProcessandoAcao(false);
     }
   };
 
-  const finalizarAtendimentoBalcao = () => {
+  /**
+   * Reiniciar atendimento
+   */
+  const handleTrocarCliente = () => {
     setComandaBalcaoAtiva(null);
-    setCartaoClienteInput('');
     setProdutoConferencia(null);
     setQtdConferencia(1);
-    setTimeout(() => inputCartaoRef.current?.focus(), 100);
+    setCartaoClienteInput('');
+    setCodigoProdutoInput('');
   };
 
-  // Modal Tradicional Nova Comanda
+  /**
+   * ETAPA 3: Fechamento Deliberado
+   */
+  const abrirModalFechamento = (comanda: Comanda) => {
+    setComandaParaFechar(comanda);
+    setIsModalFecharOpen(true);
+  };
+
+  const handleFechamentoSucesso = (comprovante: DadosComprovante) => {
+    setComprovanteAtual(comprovante);
+    setIsModalTermicoOpen(true);
+    setSucessoFeedback(`Comanda #${comprovante.comanda_id} encerrada com sucesso! Emitindo comprovante térmico...`);
+    if (comandaBalcaoAtiva?.id === comprovante.comanda_id) {
+      setComandaBalcaoAtiva(null);
+    }
+    if (comandaSelecionada?.id === comprovante.comanda_id) {
+      setComandaSelecionada(null);
+    }
+    carregarDados();
+    setTimeout(() => setSucessoFeedback(null), 4000);
+  };
+
+  const abrirRecargaCliente = (clienteId: number, nome: string, saldo?: number) => {
+    setClienteRecarga({ id: clienteId, nome, saldo });
+    setIsModalRecargaOpen(true);
+  };
+
+  const getProdutoNome = (id: number) => {
+    const prod = produtos.find(p => p.id === id);
+    return prod ? prod.nome : `Produto #${id}`;
+  };
+
+  // Funções de Cartão Coringa (Visitantes)
+  const handleAssociarCoringa = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!coringaCodigo.trim() || !coringaCpf.trim() || !coringaNome.trim()) {
+      alert("Código do Cartão, CPF e Nome são obrigatórios.");
+      return;
+    }
+    try {
+      const res = await api.post('/cartoes/associar-coringa', {
+        codigo_cartao: coringaCodigo.trim(),
+        cliente_cpf: coringaCpf.trim(),
+        cliente_nome: coringaNome.trim()
+      });
+      setSucessoFeedback(res.data.mensagem || `Cartão ${coringaCodigo} associado!`);
+      setTimeout(() => setSucessoFeedback(null), 4000);
+      setIsModalCoringaAberto(false);
+      setCoringaCodigo(''); setCoringaNome(''); setCoringaCpf('');
+      carregarDados();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Erro ao associar cartão.");
+    }
+  };
+
+  const handleDevolverCoringa = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!devolverCodigoCartao.trim()) return;
+    try {
+      const res = await api.post('/cartoes/devolver-coringa', {
+        codigo_cartao: devolverCodigoCartao.trim()
+      });
+      setSucessoFeedback(`Cartão ${devolverCodigoCartao} devolvido com sucesso! Total consumido: R$ ${(res.data.total_consumido || 0).toFixed(2)}`);
+      setTimeout(() => setSucessoFeedback(null), 5000);
+      setIsModalCoringaAberto(false);
+      setDevolverCodigoCartao('');
+      carregarDados();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Erro ao devolver cartão.");
+    }
+  };
+
+  // Funções de Mesas Tradicionais
   const abrirNovaComanda = async (e: FormEvent) => {
     e.preventDefault();
     try {
@@ -360,710 +361,621 @@ export function Comandas() {
     }
   };
 
-  const abrirModalFechamento = (comanda: Comanda) => {
-    setComandaParaFechar(comanda);
-    setIsModalFecharOpen(true);
-  };
-
-  const handleFechamentoSucesso = (comprovante: DadosComprovante) => {
-    setComprovanteAtual(comprovante);
-    setIsModalTermicoOpen(true);
-    setSucessoFeedback(`Comanda #${comprovante.comanda_id} encerrada com sucesso! Emitindo comprovante térmico...`);
-    if (comandaBalcaoAtiva?.id === comprovante.comanda_id) {
-      setComandaBalcaoAtiva(null);
-    }
-    if (comandaSelecionada?.id === comprovante.comanda_id) {
-      setComandaSelecionada(null);
-    }
-    carregarDados();
-    setTimeout(() => setSucessoFeedback(null), 4000);
-  };
-
-  const reabrirComprovanteTermico = async (comanda_id: number) => {
-    try {
-      const res = await api.get(`/comandas/${comanda_id}/comprovante-termico`);
-      setComprovanteAtual(res.data);
-      setIsModalTermicoOpen(true);
-    } catch (err: any) {
-      alert(err.response?.data?.detail || "Erro ao gerar comprovante térmico.");
-    }
-  };
-
-  const abrirRecargaCliente = (clienteId: number, nome: string, saldo?: number) => {
-    setClienteRecarga({ id: clienteId, nome, saldo });
-    setIsModalRecargaOpen(true);
-  };
-
-  const getProdutoNome = (id: number) => {
-    const prod = produtos.find(p => p.id === id);
-    return prod ? prod.nome : `Produto #${id}`;
-  };
-
   return (
-    <div className="space-y-6" onKeyDown={handleKeyDownBalcao}>
+    <div className="space-y-4 max-w-full overflow-x-hidden">
       
-      {/* Barra de Controle de Modos */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 pb-4">
+      {/* ============================================================== */}
+      {/* 1. CABEÇALHO SIMÉTRICO E CONTROLE DE MODO                      */}
+      {/* ============================================================== */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#DDB96B]/20 pb-3">
         <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
-              <ClipboardList className="text-blue-600 w-8 h-8" />
-              Comandas & PDV Balcão
-            </h1>
-            {lojaAtivaInfo && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-xs font-bold shadow-sm">
-                <Building2 size={13} className="text-amber-700" />
-                {lojaAtivaInfo.numero_loja ? `PDV: Loja Nº ${lojaAtivaInfo.numero_loja}` : `PDV: ${lojaAtivaInfo.nome}`}
-              </span>
-            )}
-          </div>
-          <p className="text-gray-500 text-sm mt-0.5">
-            Atendimento presencial no balcão com identificação do cliente por QR/Cartão ou gestão por mesas.
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#FDE68A] flex items-center gap-2">
+            <ClipboardList className="text-[#DDB96B] w-6 h-6" />
+            Atendimento & Comandas
+          </h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Fluxo cascateado de balcão ou gestão de mesas
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Botão de Destaque: Modo PDV Celular / Scanner Contínuo */}
-          <button
-            onClick={() => setIsPdvMobileModalOpen(true)}
-            className="min-h-[44px] px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm transition-all"
-            title="Abrir o Scanner Contínuo para Celular (Lê Cliente -> Lê Produtos -> Finaliza)"
-          >
-            <Smartphone size={17} />
-            <span>PDV Celular (Scanner Contínuo)</span>
-          </button>
-
-          {/* Ações de Cartão Coringa (Visitantes) */}
-          <button
-            onClick={() => setIsModalAssociarCoringaOpen(true)}
-            className="min-h-[44px] px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm transition-all active:scale-98"
-          >
-            <UserPlus size={16} />
-            <span>Entregar Cartão Coringa</span>
-          </button>
-
-          <button
-            onClick={() => setIsModalDevolverCoringaOpen(true)}
-            className="min-h-[44px] px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm transition-all active:scale-98"
-          >
-            <RotateCcw size={16} />
-            <span>Devolver Cartão</span>
-          </button>
-
-          <div className="flex items-center gap-1.5 bg-gray-100 p-1.5 rounded-2xl border border-gray-200">
-            <button 
-              onClick={() => { setModoBalcaoRapido(true); setTimeout(() => inputCartaoRef.current?.focus(), 150); }}
-              className={`min-h-[40px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${modoBalcaoRapido ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {/* Segmented Control Simétrico */}
+          <div className="grid grid-cols-2 p-1 rounded-xl bg-[#0A1428] border border-[#DDB96B]/25 w-full sm:w-64">
+            <button
+              onClick={() => setModoBalcaoRapido(true)}
+              className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                modoBalcaoRapido
+                  ? 'bg-[#DDB96B] text-[#070F1E] shadow-sm'
+                  : 'text-slate-300 hover:text-white'
+              }`}
             >
-              <Zap size={16} className="text-amber-500" />
-              Balcão Rápido
+              <Zap size={14} />
+              <span>Balcão</span>
             </button>
-            <button 
+            <button
               onClick={() => setModoBalcaoRapido(false)}
-              className={`min-h-[40px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${!modoBalcaoRapido ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                !modoBalcaoRapido
+                  ? 'bg-[#DDB96B] text-[#070F1E] shadow-sm'
+                  : 'text-slate-300 hover:text-white'
+              }`}
             >
-              <ClipboardList size={16} />
-              Mesas
+              <ClipboardList size={14} />
+              <span>Mesas</span>
             </button>
           </div>
+
+          {/* Botão Secundário para Cartões Coringa */}
+          <button
+            onClick={() => setIsModalCoringaAberto(true)}
+            className="min-h-[40px] px-3 py-1.5 rounded-xl bg-[#0A1428] border border-slate-700 hover:border-[#DDB96B]/40 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0"
+            title="Gerenciar cartões coringa para visitantes"
+          >
+            <CardIcon size={14} />
+            <span className="hidden sm:inline">Visitantes</span>
+          </button>
         </div>
       </div>
 
       {/* FEEDBACK FLUTUANTE */}
       {sucessoFeedback && (
-        <div className="bg-emerald-500 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 text-sm font-semibold animate-bounce">
-          <Check size={18} /> {sucessoFeedback}
+        <div className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 text-xs sm:text-sm font-semibold animate-fadeIn">
+          <Check size={16} /> {sucessoFeedback}
         </div>
       )}
 
       {/* ============================================================== */}
-      {/* MODO 1: BALCÃO RÁPIDO (OPERADOR BIPA CARTÃO DO CLIENTE + PRODUTO) */}
+      {/* 2. MODO BALCÃO: FLUXO CASCATEADO EM 3 ETAPAS                  */}
       {/* ============================================================== */}
       {modoBalcaoRapido && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="space-y-4">
           
-          {/* Lado Esquerdo: Área Operacional de Bipagem */}
-          <div className="lg:col-span-7 space-y-6">
-            
-            {/* ETAPA 1: Identificar o Cliente / Destinatário */}
-            <div className={`p-6 rounded-2xl border transition-all ${comandaBalcaoAtiva ? 'bg-white border-emerald-200 ring-2 ring-emerald-500/20' : 'bg-white border-gray-200 shadow-sm'}`}>
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <UserCheck size={16} className="text-blue-600" /> Passo 1: Destinatário da Venda
+          {/* INDICADOR VISUAL DE CASCATA */}
+          <div className="grid grid-cols-3 gap-1.5 text-center text-xs font-bold py-1">
+            <div className={`p-2 rounded-lg border transition-colors ${
+              !comandaBalcaoAtiva
+                ? 'bg-[#DDB96B]/15 border-[#DDB96B] text-[#FDE68A]'
+                : 'bg-emerald-950/40 border-emerald-600/40 text-emerald-400'
+            }`}>
+              1. Cliente
+            </div>
+            <div className={`p-2 rounded-lg border transition-colors ${
+              comandaBalcaoAtiva && !produtoConferencia
+                ? 'bg-[#DDB96B]/15 border-[#DDB96B] text-[#FDE68A]'
+                : comandaBalcaoAtiva?.itens?.length
+                ? 'bg-emerald-950/40 border-emerald-600/40 text-emerald-400'
+                : 'bg-[#0A1428]/50 border-slate-800 text-slate-500'
+            }`}>
+              2. Produtos
+            </div>
+            <div className={`p-2 rounded-lg border transition-colors ${
+              comandaBalcaoAtiva?.itens?.length
+                ? 'bg-blue-950/40 border-blue-600/40 text-blue-400'
+                : 'bg-[#0A1428]/50 border-slate-800 text-slate-500'
+            }`}>
+              3. Cobrança
+            </div>
+          </div>
+
+          {/* ========================================================== */}
+          {/* ETAPA 1: SE NENHUM CLIENTE SELECIONADO                     */}
+          {/* ========================================================== */}
+          {!comandaBalcaoAtiva ? (
+            <div className="p-5 sm:p-6 rounded-2xl bg-[#0A1428] border border-[#DDB96B]/25 space-y-5 shadow-lg">
+              <div className="text-center sm:text-left">
+                <span className="text-[10px] font-bold text-[#DDB96B] uppercase tracking-widest block">
+                  Etapa Inicial
                 </span>
-                {comandaBalcaoAtiva && (
-                  <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full flex items-center gap-1">
-                    <Check size={14} /> Cliente Ativo
-                  </span>
-                )}
+                <h2 className="text-lg sm:text-xl font-bold text-white mt-0.5">
+                  Quem é o destinatário desta venda?
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Aponte a câmera para o QR Code do Irmão/Cartão ou digite CPF/CIM abaixo.
+                </p>
               </div>
 
-              {!comandaBalcaoAtiva ? (
-                <form onSubmit={handleIdentificarClienteBalcao} className="flex gap-2">
+              {/* Botões de Ação Simétricos para Câmera / Celular */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setCameraTarget('cartao_balcao'); setIsCameraScannerOpen(true); }}
+                  className="min-h-[50px] px-4 py-3 bg-[#0E1C36] hover:bg-[#13274c] border border-[#DDB96B]/40 text-[#FDE68A] rounded-xl font-bold text-sm shadow-sm flex items-center justify-center gap-2.5 transition-all cursor-pointer"
+                >
+                  <Camera size={18} className="text-[#DDB96B]" />
+                  <span>Ler QR Code do Cliente (Câmera)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPdvMobileModalOpen(true)}
+                  className="min-h-[50px] px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-sm flex items-center justify-center gap-2.5 transition-all cursor-pointer"
+                >
+                  <Smartphone size={18} />
+                  <span>Modo PDV Celular Contínuo</span>
+                </button>
+              </div>
+
+              {/* Divisor Visual */}
+              <div className="relative flex items-center justify-center">
+                <div className="border-t border-slate-800 w-full" />
+                <span className="bg-[#0A1428] px-3 text-[11px] uppercase tracking-wider text-slate-500 font-semibold absolute">
+                  ou busque manualmente
+                </span>
+              </div>
+
+              {/* Formulário de Identificação Simétrico */}
+              <form onSubmit={handleIdentificarClienteSubmit} className="space-y-3">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <div className="relative flex-1">
-                    <QrCode className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                    <input 
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input
                       ref={inputCartaoRef}
-                      type="text" 
-                      value={cartaoClienteInput} 
+                      type="text"
+                      value={cartaoClienteInput}
                       onChange={e => setCartaoClienteInput(e.target.value)}
-                      placeholder="Bipe o Cartão QR Code ou digite o CPF do cliente..."
-                      className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 text-base font-medium outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+                      placeholder="Digite o CPF, CIM ou número do cartão..."
+                      className="w-full min-h-[48px] pl-10 pr-4 py-2.5 rounded-xl bg-[#070F1E] border border-slate-700 focus:border-[#DDB96B] text-white text-sm outline-none transition-colors"
                       autoFocus
                     />
                   </div>
                   <button
-                    type="button"
-                    onClick={() => { setCameraTarget('cartao_balcao'); setIsCameraScannerOpen(true); }}
-                    className="px-4 py-3 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold text-sm shadow-sm flex items-center gap-1.5 transition-colors"
-                    title="Abrir câmera para escanear QR Code do Cartão"
+                    type="submit"
+                    disabled={processandoAcao || !cartaoClienteInput.trim()}
+                    className="min-h-[48px] px-6 py-2.5 bg-[#DDB96B] hover:bg-[#FDE68A] text-[#070F1E] rounded-xl font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
                   >
-                    <Camera size={18} className="text-indigo-600" />
-                    <span>Câmera</span>
+                    <span>Localizar</span>
                   </button>
-                  <button type="submit" className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-sm flex items-center gap-1.5">
-                    <span>Identificar</span>
-                    <ArrowRight size={16} />
+                </div>
+              </form>
+            </div>
+          ) : (
+            /* ========================================================== */
+            /* ETAPA 2: CLIENTE IDENTIFICADO ➔ LANÇAR PRODUTOS           */
+            /* ========================================================== */
+            <div className="space-y-4">
+              
+              {/* CARD RESUMO DO CLIENTE SELECIONADO */}
+              <div className="p-4 rounded-2xl bg-[#0A1428] border border-emerald-600/40 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-md">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-950 border border-emerald-500/40 text-emerald-400 flex items-center justify-center font-bold text-base shrink-0">
+                    <User size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-700/50">
+                        Cliente Ativo
+                      </span>
+                      <span className="text-xs text-slate-400 font-mono">
+                        Comanda #{comandaBalcaoAtiva.id}
+                      </span>
+                    </div>
+                    <h3 className="text-base sm:text-lg font-bold text-white truncate mt-0.5">
+                      {comandaBalcaoAtiva.nome_cliente || 'Consumidor Identificado'}
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
+                  <div className="text-left sm:text-right">
+                    <span className="text-[10px] text-slate-400 uppercase block font-semibold">Total Acumulado</span>
+                    <span className="text-xl font-black text-emerald-400">
+                      R$ {(comandaBalcaoAtiva.total || 0).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleTrocarCliente}
+                    className="min-h-[42px] px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw size={14} />
+                    <span>Trocar</span>
                   </button>
-                </form>
-              ) : (
-                <div className="flex justify-between items-center bg-gray-50 p-4 rounded-xl border border-gray-200">
+                </div>
+              </div>
+
+              {/* CARD DE ADIÇÃO DE PRODUTOS */}
+              <div className="p-5 rounded-2xl bg-[#0A1428] border border-[#DDB96B]/20 space-y-4 shadow-md">
+                <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="font-extrabold text-lg text-gray-900">{comandaBalcaoAtiva.nome_cliente || 'Cliente Identificado'}</h3>
-                    <p className="text-xs text-gray-500">
-                      Cartão/Tag: <span className="font-mono font-semibold">{comandaBalcaoAtiva.identificador_cartao || `#${comandaBalcaoAtiva.id}`}</span> • Comanda #{comandaBalcaoAtiva.id}
+                    <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                      <Barcode size={18} className="text-[#DDB96B]" />
+                      Adicionar Itens ao Pedido
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Aponte a câmera para a lata/garrafa ou digite o código
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="text-xs text-gray-400 uppercase">Gasto Acumulado</div>
-                      <div className="font-black text-xl text-blue-600">R$ {(comandaBalcaoAtiva.total || 0).toFixed(2)}</div>
-                    </div>
-                    <button 
-                      onClick={finalizarAtendimentoBalcao}
-                      className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-semibold"
-                    >
-                      Trocar Cliente
-                    </button>
-                  </div>
                 </div>
-              )}
-            </div>
 
-            {/* ETAPA 2 & 3: Bipagem do Produto e Conferência */}
-            <div className={`p-6 rounded-2xl border bg-white ${!comandaBalcaoAtiva ? 'opacity-50 pointer-events-none border-gray-200' : 'border-blue-200 shadow-sm'}`}>
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <QrCode size={16} className="text-blue-600" /> Passo 2: Bipar QR Code de Fábrica ou Código de Barras
-                </span>
-                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-medium">Lata / Garrafa / Embalagem</span>
+                {/* Grade Simétrica para Bipagem */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setCameraTarget('produto_balcao'); setIsCameraScannerOpen(true); }}
+                    className="min-h-[48px] px-4 py-2.5 bg-[#0E1C36] hover:bg-[#13274c] border border-blue-500/40 text-blue-300 rounded-xl font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Camera size={18} className="text-blue-400" />
+                    <span>Bipar Produto (Câmera)</span>
+                  </button>
+
+                  <form onSubmit={handleBiparProdutoSubmit} className="flex gap-2">
+                    <input
+                      ref={inputProdutoRef}
+                      type="text"
+                      value={codigoProdutoInput}
+                      onChange={e => setCodigoProdutoInput(e.target.value)}
+                      placeholder="Código de barras ou QR tag..."
+                      className="min-h-[48px] flex-1 px-3.5 py-2 rounded-xl bg-[#070F1E] border border-slate-700 text-white text-sm outline-none focus:border-[#DDB96B]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!codigoProdutoInput.trim()}
+                      className="min-h-[48px] px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-sm cursor-pointer disabled:opacity-40"
+                    >
+                      Buscar
+                    </button>
+                  </form>
+                </div>
+
+                {/* CARD DE CONFERÊNCIA EXPLÍCITA DO PRODUTO (NADA É ADICIONADO SEM O CLIQUE) */}
+                {produtoConferencia && (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-[#0E1C36] border-2 border-[#DDB96B] space-y-4 animate-slideUp">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] font-bold text-[#DDB96B] uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#DDB96B]/15 border border-[#DDB96B]/30">
+                          Confirmar Inclusão
+                        </span>
+                        <h4 className="text-lg sm:text-xl font-black text-white mt-1">
+                          {produtoConferencia.nome}
+                        </h4>
+                        <p className="text-xs text-slate-400">
+                          {produtoConferencia.marca ? `Marca: ${produtoConferencia.marca} • ` : ''}
+                          Unitário: R$ {produtoConferencia.preco_venda.toFixed(2)}
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase text-slate-400 font-semibold block">Subtotal</span>
+                        <span className="text-xl sm:text-2xl font-black text-emerald-400">
+                          R$ {(produtoConferencia.preco_venda * qtdConferencia).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Seletor Simétrico de Quantidade */}
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-[#070F1E] border border-slate-800">
+                      <span className="text-xs font-bold text-slate-300 ml-2">Quantidade:</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setQtdConferencia(prev => Math.max(1, prev - 1))}
+                          className="min-h-[44px] min-w-[44px] rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center justify-center cursor-pointer"
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <span className="min-w-[36px] text-center text-lg font-bold text-white">
+                          {qtdConferencia}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setQtdConferencia(prev => prev + 1)}
+                          className="min-h-[44px] min-w-[44px] rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center justify-center cursor-pointer"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Botões Simétricos de Confirmação Deliberada */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={handleConfirmarInclusaoItem}
+                        disabled={processandoAcao}
+                        className="min-h-[50px] px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
+                      >
+                        <Check size={18} />
+                        <span>Confirmar e Adicionar</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => { setProdutoConferencia(null); setQtdConferencia(1); }}
+                        className="min-h-[50px] px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm flex items-center justify-center cursor-pointer transition-colors"
+                      >
+                        <span>Cancelar</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <form onSubmit={handleBiparProdutoBalcao} className="flex gap-2 mb-6">
-                <div className="relative flex-1">
-                  <QrCode className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                  <input 
-                    ref={inputProdutoRef}
-                    type="text" 
-                    value={codigoProdutoInput} 
-                    onChange={e => setCodigoProdutoInput(e.target.value)}
-                    placeholder="Bipe o QR Code de fábrica ou código de barras da lata..."
-                    className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 text-base font-medium outline-none focus:ring-2 focus:ring-blue-500 shadow-inner font-mono text-sm"
-                    disabled={!comandaBalcaoAtiva}
-                  />
+              {/* LISTA DE ITENS LANÇADOS NA COMANDA ATIVA */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#0A1428] border border-slate-800 space-y-3">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-300 uppercase tracking-wider">
+                    Itens no Pedido ({comandaBalcaoAtiva.itens?.length || 0})
+                  </h4>
                 </div>
-                <button
-                  type="button"
-                  disabled={!comandaBalcaoAtiva}
-                  onClick={() => { setCameraTarget('produto_balcao'); setIsCameraScannerOpen(true); }}
-                  className="px-4 py-3 bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm shadow-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
-                  title="Abrir câmera para escanear código do produto"
-                >
-                  <Camera size={18} className="text-slate-600" />
-                  <span>Câmera</span>
-                </button>
-                <button type="submit" disabled={!comandaBalcaoAtiva} className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-sm">
-                  Buscar
-                </button>
-              </form>
 
-              {/* Card de Conferência na Frente do Cliente */}
-              {produtoConferencia ? (
-                <div className="p-5 bg-blue-50/70 border-2 border-blue-400 rounded-2xl space-y-4 animate-fadeIn">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest bg-blue-100 px-2 py-0.5 rounded-full">
-                        Conferir com o Cliente
-                      </span>
-                      <h3 className="text-2xl font-black text-gray-900 mt-1">{produtoConferencia.nome}</h3>
-                      <p className="text-xs text-gray-500">{produtoConferencia.marca ? `Marca: ${produtoConferencia.marca} • ` : ''}Preço Unitário: R$ {produtoConferencia.preco_venda.toFixed(2)}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs text-gray-500">Subtotal</span>
-                      <div className="text-3xl font-extrabold text-blue-700">
-                        R$ {(produtoConferencia.preco_venda * qtdConferencia).toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-blue-200">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-bold text-gray-700">Quantidade:</span>
-                      <div className="flex items-center border border-gray-300 rounded-2xl bg-white overflow-hidden shadow-sm">
-                        <button 
-                          type="button" 
-                          onClick={() => setQtdConferencia(Math.max(1, qtdConferencia - 1))}
-                          className="w-12 h-12 flex items-center justify-center hover:bg-gray-100 text-xl font-black text-gray-700 active:scale-95 transition-all"
-                        >-</button>
-                        <span className="px-5 py-2 font-black text-xl text-gray-900 min-w-[50px] text-center">{qtdConferencia}</span>
-                        <button 
-                          type="button" 
-                          onClick={() => setQtdConferencia(qtdConferencia + 1)}
-                          className="w-12 h-12 flex items-center justify-center hover:bg-gray-100 text-xl font-black text-gray-700 active:scale-95 transition-all"
-                        >+</button>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2.5">
-                      <button 
-                        type="button" 
-                        onClick={() => setProdutoConferencia(null)}
-                        className="min-h-[48px] px-5 py-2.5 text-gray-600 hover:bg-gray-200 rounded-xl text-sm font-bold transition-all"
-                      >
-                        Cancelar
-                      </button>
-                      <button 
-                        type="button" 
-                        onClick={handleConfirmarVendaBalcao}
-                        className="min-h-[48px] px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-black flex items-center gap-2 shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
-                      >
-                        <span>Confirmar Saída [Enter]</span>
-                        <Check size={18} />
-                      </button>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-gray-500 text-center italic">
-                    Ao confirmar, a cerveja é liberada imediatamente. O cliente <strong>não precisa pagar nesta hora</strong> (pós-pago na comanda).
+                {!comandaBalcaoAtiva.itens?.length ? (
+                  <p className="text-xs text-slate-500 py-3 text-center">
+                    Nenhum item adicionado ainda. Bipe o código do produto acima.
                   </p>
-                </div>
-              ) : (
-                <div className="p-8 border-2 border-dashed border-gray-200 rounded-2xl text-center text-gray-400">
-                  <Barcode className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p className="text-sm font-medium">Aguardando bipagem do produto no leitor...</p>
+                ) : (
+                  <div className="divide-y divide-slate-800">
+                    {comandaBalcaoAtiva.itens.map(item => (
+                      <div key={item.id} className="py-2.5 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-white truncate">
+                            {item.produto_nome || getProdutoNome(item.produto_id)}
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {item.quantidade}x R$ {item.valor_unitario.toFixed(2)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-black text-slate-200">
+                            R$ {(item.quantidade * item.valor_unitario).toFixed(2)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoverItem(item.id)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors"
+                            title="Remover item da comanda"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ========================================================== */}
+              {/* ETAPA 3: BARRA DE FECHAMENTO DELIBERADO                   */}
+              {/* ========================================================== */}
+              {comandaBalcaoAtiva && (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-[#0E1C36] to-[#0A1428] border border-[#DDB96B]/30 flex flex-col sm:flex-row justify-between items-center gap-3 shadow-xl">
+                  <div>
+                    <span className="text-xs text-slate-400 uppercase font-semibold">Total a Cobrar</span>
+                    <div className="text-2xl sm:text-3xl font-black text-[#FDE68A]">
+                      R$ {(comandaBalcaoAtiva.total || 0).toFixed(2)}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => abrirModalFechamento(comandaBalcaoAtiva)}
+                    className="w-full sm:w-auto min-h-[50px] px-8 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm sm:text-base shadow-lg flex items-center justify-center gap-2.5 transition-all cursor-pointer"
+                  >
+                    <CreditCard size={20} />
+                    <span>Cobrar e Finalizar Venda</span>
+                  </button>
                 </div>
               )}
+
             </div>
+          )}
+
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* 3. MODO MESAS: GESTÃO TRADICIONAL                             */}
+      {/* ============================================================== */}
+      {!modoBalcaoRapido && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
+              Comandas Abertas em Mesas
+            </h3>
+            <button
+              onClick={() => setIsModalNovaOpen(true)}
+              className="min-h-[40px] px-4 py-2 bg-[#DDB96B] hover:bg-[#FDE68A] text-[#070F1E] rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer"
+            >
+              <Plus size={16} />
+              <span>Abrir Comanda / Mesa</span>
+            </button>
           </div>
 
-          {/* Lado Direito: Histórico da Comanda do Cliente em Tempo Real */}
-          <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-full min-h-[450px]">
-            <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-3">
-              <div>
-                <h3 className="font-bold text-gray-900 text-lg">Itens Consumidos na Conta</h3>
-                <p className="text-xs text-gray-400">Extrato atualizado da comanda ativa</p>
-              </div>
-              {comandaBalcaoAtiva && (
-                <button 
-                  onClick={() => abrirModalFechamento(comandaBalcaoAtiva)}
-                  className="min-h-[44px] px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
-                >
-                  <Receipt size={16} />
-                  <span>Encerrar & Faturar</span>
-                </button>
-              )}
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-              {!comandaBalcaoAtiva ? (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center py-16">
-                  <CreditCard className="w-12 h-12 text-gray-300 mb-2" />
-                  <p className="text-sm font-medium">Nenhum cliente ativo no momento.</p>
-                  <p className="text-xs text-gray-400">Bipe o cartão na etapa 1 para abrir a conta.</p>
-                </div>
-              ) : comandaBalcaoAtiva.itens.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center py-16">
-                  <ShoppingCart className="w-12 h-12 text-gray-300 mb-2" />
-                  <p className="text-sm font-medium">Comanda vazia.</p>
-                  <p className="text-xs text-gray-400">Bipe produtos para registrar os consumos.</p>
-                </div>
-              ) : (
-                comandaBalcaoAtiva.itens.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100">
-                    <div>
-                      <div className="font-bold text-gray-800 text-sm">{item.quantidade}x {item.produto_nome || getProdutoNome(item.produto_id)}</div>
-                      <div className="text-[11px] text-gray-400">R$ {item.valor_unitario.toFixed(2)} cada</div>
-                    </div>
-                    <div className="font-black text-gray-900 text-sm">
-                      R$ {(item.quantidade * item.valor_unitario).toFixed(2)}
-                    </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {comandas.filter(c => c.status === 'ABERTA').map(c => (
+              <div key={c.id} className="p-4 rounded-xl bg-[#0A1428] border border-slate-800 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-xs text-[#DDB96B] font-bold font-mono">
+                      Mesa / {c.identificador_cartao || `#${c.id}`}
+                    </span>
+                    <h4 className="text-base font-bold text-white mt-0.5 truncate max-w-[180px]">
+                      {c.nome_cliente || 'Consumidor'}
+                    </h4>
                   </div>
-                ))
-              )}
-            </div>
+                  <span className="text-lg font-black text-emerald-400">
+                    R$ {(c.total || 0).toFixed(2)}
+                  </span>
+                </div>
 
-            {comandaBalcaoAtiva && (
-              <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
-                <span className="font-bold text-gray-600">Total Acumulado:</span>
-                <span className="font-black text-2xl text-blue-600">R$ {(comandaBalcaoAtiva.total || 0).toFixed(2)}</span>
+                <div className="text-xs text-slate-400">
+                  {c.itens?.length || 0} {c.itens?.length === 1 ? 'item' : 'itens'}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
+                  <button
+                    onClick={() => { setComandaSelecionada(c); }}
+                    className="min-h-[38px] px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold cursor-pointer"
+                  >
+                    Ver Itens
+                  </button>
+                  <button
+                    onClick={() => abrirModalFechamento(c)}
+                    className="min-h-[38px] px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer"
+                  >
+                    Fechar
+                  </button>
+                </div>
               </div>
-            )}
+            ))}
           </div>
         </div>
       )}
 
       {/* ============================================================== */}
-      {/* MODO 2: VISÃO GERAL DE MESAS E COMANDAS (VISÃO CONVENCIONAL) */}
+      {/* MODAL SIMÉTRICO DE CARTÕES CORINGA (VISITANTES)                */}
       {/* ============================================================== */}
-      {!modoBalcaoRapido && (
-        <div className="flex flex-col lg:flex-row h-[calc(100vh-14rem)] gap-6">
-          {/* Coluna Esquerda: Lista de Comandas */}
-          <div className="w-full lg:w-1/2 flex flex-col border-r border-gray-200 pr-6 h-full">
-            <div className="flex justify-between items-center mb-4 shrink-0">
-              <h2 className="font-bold text-xl text-gray-800">Contas Abertas</h2>
-              <button 
-                onClick={() => setIsModalNovaOpen(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-sm"
+      {isModalCoringaAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md bg-[#0A1428] border border-[#DDB96B]/30 rounded-2xl p-5 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <CardIcon size={18} className="text-[#DDB96B]" />
+                Cartões Físicos de Visitante
+              </h3>
+              <button
+                onClick={() => setIsModalCoringaAberto(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
               >
-                <Plus size={16} /> Abrir Conta
+                <X size={20} />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-              {loading ? (
-                <div className="text-center text-gray-400 py-10">Carregando comandas...</div>
-              ) : comandas.length === 0 ? (
-                <div className="text-center text-gray-400 py-10">Nenhuma comanda aberta.</div>
-              ) : (
-                comandas.map(comanda => (
-                  <div 
-                    key={comanda.id}
-                    onClick={() => setComandaSelecionada(comanda)}
-                    className={`bg-white p-4 rounded-xl shadow-sm border transition-all cursor-pointer hover:shadow-md ${comandaSelecionada?.id === comanda.id ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-200'}`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex items-center space-x-2">
-                        <CreditCard className="text-blue-500" size={18} />
-                        <span className="font-bold text-gray-900">{comanda.identificador_cartao || `Mesa #${comanda.id}`}</span>
-                      </div>
-                      <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${comanda.status === 'ABERTA' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>
-                        {comanda.status}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-end">
-                      <div className="text-xs text-gray-500">
-                        Cliente: {comanda.nome_cliente || 'Anônimo'} <br/>
-                        Abertura: {new Date(comanda.data_abertura).toLocaleTimeString()}
-                      </div>
-                      <div className="text-lg font-black text-gray-900">
-                        R$ {(comanda.total || 0).toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+            {/* Abas Simétricas */}
+            <div className="grid grid-cols-2 p-1 rounded-xl bg-[#070F1E] border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setCoringaAba('ENTREGAR')}
+                className={`min-h-[38px] rounded-lg text-xs font-bold transition-all ${
+                  coringaAba === 'ENTREGAR' ? 'bg-[#DDB96B] text-[#070F1E]' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Entregar Cartão
+              </button>
+              <button
+                type="button"
+                onClick={() => setCoringaAba('DEVOLVER')}
+                className={`min-h-[38px] rounded-lg text-xs font-bold transition-all ${
+                  coringaAba === 'DEVOLVER' ? 'bg-[#DDB96B] text-[#070F1E]' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Devolver Cartão
+              </button>
             </div>
-          </div>
 
-          {/* Coluna Direita: Detalhes da Comanda Selecionada */}
-          <div className="w-full lg:w-1/2 flex flex-col h-full bg-gray-50 rounded-2xl p-6 border border-gray-200">
-            {comandaSelecionada ? (
-              <div className="flex flex-col h-full">
-                <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
-                  <div>
-                    <h3 className="text-xl font-black text-gray-900">{comandaSelecionada.identificador_cartao || `Mesa #${comandaSelecionada.id}`}</h3>
-                    <p className="text-xs text-gray-500">{comandaSelecionada.nome_cliente || 'Cliente Balcão'}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs text-gray-400">Total da Conta</span>
-                    <div className="text-2xl font-black text-blue-600">R$ {(comandaSelecionada.total || 0).toFixed(2)}</div>
-                  </div>
-                </div>
-
-                {comandaSelecionada.status === 'ABERTA' && (
-                  <form onSubmit={adicionarItemManual} className="flex gap-2 mb-4 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
-                    <select 
+            {coringaAba === 'ENTREGAR' ? (
+              <form onSubmit={handleAssociarCoringa} className="space-y-3">
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Código do Cartão Coringa *</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
                       required
-                      value={produtoSelecionadoId} 
-                      onChange={e => setProdutoSelecionadoId(e.target.value)}
-                      className="flex-1 px-3 py-2 border rounded-lg text-sm bg-white outline-none"
-                    >
-                      <option value="" disabled>Selecione um Produto...</option>
-                      {produtos.map(p => (
-                        <option key={p.id} value={p.id}>{p.nome} - R$ {p.preco_venda.toFixed(2)}</option>
-                      ))}
-                    </select>
-                    <input 
-                      type="number" 
-                      min="1" 
-                      required 
-                      value={quantidadeItem} 
-                      onChange={e=>setQuantidadeItem(e.target.value)} 
-                      className="w-16 px-2 py-2 border rounded-lg text-sm text-center" 
+                      value={coringaCodigo}
+                      onChange={e => setCoringaCodigo(e.target.value)}
+                      placeholder="Ex: CARTAO-01"
+                      className="min-h-[44px] flex-1 px-3 rounded-xl bg-[#070F1E] border border-slate-700 text-white text-sm"
                     />
-                    <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm">
-                      Lançar
+                    <button
+                      type="button"
+                      onClick={() => { setCameraTarget('coringa_associar'); setIsCameraScannerOpen(true); }}
+                      className="min-h-[44px] px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl"
+                    >
+                      <Camera size={18} />
                     </button>
-                  </form>
-                )}
-
-                <div className="flex-1 overflow-y-auto bg-white rounded-xl border border-gray-200 shadow-inner mb-4">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 font-semibold text-gray-600">
-                      <tr>
-                        <th className="p-3">Qtd</th>
-                        <th className="p-3">Produto</th>
-                        <th className="p-3 text-right">V. Unit</th>
-                        <th className="p-3 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {comandaSelecionada.itens.map((it, i) => (
-                        <tr key={i}>
-                          <td className="p-3 font-bold">{it.quantidade}x</td>
-                          <td className="p-3">{it.produto_nome || getProdutoNome(it.produto_id)}</td>
-                          <td className="p-3 text-right text-gray-500">R$ {it.valor_unitario.toFixed(2)}</td>
-                          <td className="p-3 text-right font-bold text-gray-900">R$ {(it.quantidade * it.valor_unitario).toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  </div>
                 </div>
-
-                {comandaSelecionada.status === 'ABERTA' ? (
-                  <button 
-                    onClick={() => abrirModalFechamento(comandaSelecionada)}
-                    className="w-full min-h-[48px] bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm text-sm active:scale-98 transition-all"
-                  >
-                    <Receipt size={18} /> Encerrar Comanda & Emitir Fatura Térmica
-                  </button>
-                ) : (
-                  <button 
-                    onClick={() => reabrirComprovanteTermico(comandaSelecionada.id)}
-                    className="w-full min-h-[48px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm text-sm active:scale-98 transition-all"
-                  >
-                    <Printer size={18} /> Imprimir Comprovante Térmico (Reimpressão)
-                  </button>
-                )}
-              </div>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">CPF do Visitante *</label>
+                  <input
+                    type="text"
+                    required
+                    value={coringaCpf}
+                    onChange={e => setCoringaCpf(e.target.value)}
+                    placeholder="Somente números"
+                    className="min-h-[44px] w-full px-3 rounded-xl bg-[#070F1E] border border-slate-700 text-white text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Nome Completo *</label>
+                  <input
+                    type="text"
+                    required
+                    value={coringaNome}
+                    onChange={e => setCoringaNome(e.target.value)}
+                    placeholder="Nome do visitante ou convidado"
+                    className="min-h-[44px] w-full px-3 rounded-xl bg-[#070F1E] border border-slate-700 text-white text-sm"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full min-h-[48px] bg-[#DDB96B] hover:bg-[#FDE68A] text-[#070F1E] font-bold rounded-xl text-sm"
+                >
+                  Confirmar Entrega
+                </button>
+              </form>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                <ClipboardList className="w-12 h-12 text-gray-300 mb-2" />
-                <p className="text-sm font-medium">Selecione uma comanda ao lado para visualizar.</p>
-              </div>
+              <form onSubmit={handleDevolverCoringa} className="space-y-3">
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Código do Cartão a Devolver *</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      value={devolverCodigoCartao}
+                      onChange={e => setDevolverCodigoCartao(e.target.value)}
+                      placeholder="Ex: CARTAO-01"
+                      className="min-h-[44px] flex-1 px-3 rounded-xl bg-[#070F1E] border border-slate-700 text-white text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => { setCameraTarget('coringa_devolver'); setIsCameraScannerOpen(true); }}
+                      className="min-h-[44px] px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl"
+                    >
+                      <Camera size={18} />
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  className="w-full min-h-[48px] bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-sm"
+                >
+                  Concluir Devolução
+                </button>
+              </form>
             )}
           </div>
         </div>
       )}
 
-      {/* Modal Nova Comanda */}
-      {isModalNovaOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900">Abrir Nova Conta / Mesa</h3>
-              <button onClick={() => setIsModalNovaOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-            </div>
-            <form onSubmit={abrirNovaComanda} className="p-6 space-y-4">
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs font-semibold text-gray-700 uppercase">Identificador (Nº Mesa ou Cartão)</label>
-                  <button
-                    type="button"
-                    onClick={() => { setCameraTarget('nova_comanda'); setIsCameraScannerOpen(true); }}
-                    className="px-2 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded text-[11px] font-bold flex items-center gap-1 transition-colors"
-                  >
-                    <Camera size={12} /> Câmera QR
-                  </button>
-                </div>
-                <input type="text" required value={identificadorCartao} onChange={e=>setIdentificadorCartao(e.target.value)} className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ex: MESA-04 ou CARTAO-88" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Nome do Cliente (Opcional)</label>
-                <input type="text" value={nomeCliente} onChange={e=>setNomeCliente(e.target.value)} className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ex: João Silva" />
-              </div>
-              
-              <div className="pt-2 flex justify-end gap-2">
-                <button type="button" onClick={() => setIsModalNovaOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl text-sm font-medium">Cancelar</button>
-                <button type="submit" className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-sm">Abrir Conta</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* ============================================================== */}
+      {/* MODAIS DO SISTEMA                                              */}
+      {/* ============================================================== */}
 
-      {/* Modal Associar Cartão Coringa Reutilizável (Opção B - Visitante) */}
-      {isModalAssociarCoringaOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-indigo-50/50">
-              <div>
-                <h3 className="text-lg font-extrabold text-indigo-950 flex items-center gap-2">
-                  <UserPlus className="text-indigo-600" size={20} />
-                  Entregar Cartão Coringa Reutilizável
-                </h3>
-                <p className="text-xs text-indigo-600/80">Opção B: Cliente sem cadastro no app que usará cartão temporário do bar.</p>
-              </div>
-              <button onClick={() => setIsModalAssociarCoringaOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-            </div>
-            
-            <form onSubmit={handleAssociarCoringa} className="p-6 space-y-3.5">
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs font-bold text-gray-700 uppercase">Bipar ou Digitar Código do Cartão *</label>
-                  <button
-                    type="button"
-                    onClick={() => { setCameraTarget('coringa_associar'); setIsCameraScannerOpen(true); }}
-                    className="px-2 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 rounded text-[11px] font-bold flex items-center gap-1 transition-colors"
-                  >
-                    <Camera size={12} /> Câmera QR
-                  </button>
-                </div>
-                <input 
-                  type="text" 
-                  required 
-                  value={coringaCodigo} 
-                  onChange={e=>setCoringaCodigo(e.target.value)} 
-                  className="w-full px-3.5 py-2.5 border border-indigo-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-indigo-50/30 font-mono font-bold" 
-                  placeholder="Ex: CARD-001 ou bipe a tag RFID/QR"
-                  autoFocus 
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">CPF do Cliente * (Obrigatório para multitenant)</label>
-                <input 
-                  type="text" 
-                  required 
-                  value={coringaCpf} 
-                  onChange={e=>setCoringaCpf(e.target.value)} 
-                  className="w-full px-3.5 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500" 
-                  placeholder="000.000.000-00" 
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nome Completo *</label>
-                <input 
-                  type="text" 
-                  required 
-                  value={coringaNome} 
-                  onChange={e=>setCoringaNome(e.target.value)} 
-                  className="w-full px-3.5 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500" 
-                  placeholder="Nome do visitante" 
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Telefone (WhatsApp)</label>
-                  <input 
-                    type="text" 
-                    value={coringaTelefone} 
-                    onChange={e=>setCoringaTelefone(e.target.value)} 
-                    className="w-full px-3.5 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500" 
-                    placeholder="(00) 00000-0000" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">E-mail</label>
-                  <input 
-                    type="email" 
-                    value={coringaEmail} 
-                    onChange={e=>setCoringaEmail(e.target.value)} 
-                    className="w-full px-3.5 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500" 
-                    placeholder="email@exemplo.com" 
-                  />
-                </div>
-              </div>
-
-              <p className="text-[11px] text-gray-500 bg-gray-50 p-2.5 rounded-lg border border-gray-200">
-                O cartão ficará vinculado ao CPF deste cliente durante toda a sua estadia. Ao final do expediente ou saída, o cliente devolve o cartão e o operador faz a desassociação segura.
-              </p>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button type="button" onClick={() => setIsModalAssociarCoringaOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl text-sm font-medium">Cancelar</button>
-                <button type="submit" className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-sm">
-                  Associar e Ativar Cartão
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Devolver Cartão Coringa (Check-out) */}
-      {isModalDevolverCoringaOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-amber-50/50">
-              <div>
-                <h3 className="text-lg font-extrabold text-amber-950 flex items-center gap-2">
-                  <RotateCcw className="text-amber-600" size={20} />
-                  Devolução de Cartão (Check-out)
-                </h3>
-                <p className="text-xs text-amber-600/80">Libera o cartão físico para a gaveta mantendo o histórico de auditoria.</p>
-              </div>
-              <button onClick={() => setIsModalDevolverCoringaOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-            </div>
-
-            <form onSubmit={handleDevolverCoringa} className="p-6 space-y-4">
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs font-bold text-gray-700 uppercase">Bipar ou Digitar Código do Cartão</label>
-                  <button
-                    type="button"
-                    onClick={() => { setCameraTarget('coringa_devolver'); setIsCameraScannerOpen(true); }}
-                    className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded text-[11px] font-bold flex items-center gap-1 transition-colors"
-                  >
-                    <Camera size={12} /> Câmera QR
-                  </button>
-                </div>
-                <input 
-                  type="text" 
-                  required 
-                  value={devolverCodigoCartao} 
-                  onChange={e=>setDevolverCodigoCartao(e.target.value)} 
-                  className="w-full px-3.5 py-2.5 border border-amber-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500 bg-amber-50/30 font-mono font-bold" 
-                  placeholder="Ex: CARD-001"
-                  autoFocus 
-                />
-              </div>
-
-              <p className="text-[11px] text-gray-500">
-                Ao confirmar, a comanda do cliente será finalizada, o vínculo será desativado com data/hora registradas e o cartão voltará ao status <strong>DISPONÍVEL</strong>.
-              </p>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button type="button" onClick={() => setIsModalDevolverCoringaOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl text-sm font-medium">Cancelar</button>
-                <button type="submit" className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold shadow-sm">
-                  Confirmar Devolução
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Leitor de QR Code / Código com Câmera */}
+      {/* Leitor Câmera Simples */}
       <LeitorQrCameraModal
         isOpen={isCameraScannerOpen}
         onClose={() => setIsCameraScannerOpen(false)}
         onScanSuccess={handleLeituraCamera}
         titulo={
           cameraTarget === 'cartao_balcao'
-            ? 'Escanear Cartão / QR do Cliente'
-            : cameraTarget === 'produto_balcao'
-            ? 'Escanear Produto (Lata / Embalagem)'
-            : cameraTarget === 'coringa_associar'
-            ? 'Escanear Cartão Coringa (Entrega)'
-            : cameraTarget === 'coringa_devolver'
-            ? 'Escanear Cartão Coringa (Devolução)'
-            : 'Escanear Identificador da Mesa/Cartão'
+            ? 'Escanear QR Code do Irmão / Cartão'
+            : 'Escanear Código da Embalagem / Lata'
         }
-        subtitulo="Aponte a câmera para o QR Code ou código de barras."
       />
 
-      {/* Modal de Fechamento de Comanda com Formas de Pagamento e Trava de Limite */}
+      {/* Scanner Contínuo Mobile */}
+      <PdvMobileScannerModal
+        aberto={isPdvMobileModalOpen}
+        aoFechar={() => setIsPdvMobileModalOpen(false)}
+        aoSolicitarFechamento={(comanda) => {
+          setIsPdvMobileModalOpen(false);
+          abrirModalFechamento(comanda);
+        }}
+        aoAtualizarDadosGerais={carregarDados}
+      />
+
+      {/* Fechar Comanda */}
       {isModalFecharOpen && comandaParaFechar && (
         <FecharComandaModal
           isOpen={isModalFecharOpen}
@@ -1081,7 +993,7 @@ export function Comandas() {
         />
       )}
 
-      {/* Modal de Comprovante Térmico Portátil e Fatura por Período */}
+      {/* Comprovante Térmico */}
       {isModalTermicoOpen && comprovanteAtual && (
         <ComprovanteTermicoModal
           isOpen={isModalTermicoOpen}
@@ -1091,7 +1003,7 @@ export function Comandas() {
         />
       )}
 
-      {/* Modal de Inserção de Créditos na Conta do Bar (Isolada da Loja) */}
+      {/* Recarga do Bar */}
       {isModalRecargaOpen && clienteRecarga && (
         <RecargaBarModal
           isOpen={isModalRecargaOpen}
@@ -1100,23 +1012,132 @@ export function Comandas() {
           clienteNome={clienteRecarga.nome}
           saldoAtual={clienteRecarga.saldo}
           onSuccess={(novoSaldo) => {
-            setSucessoFeedback(`Recarga efetuada! Novo saldo na conta do bar: R$ ${novoSaldo.toFixed(2)}`);
+            setSucessoFeedback(`Recarga efetuada! Novo saldo no bar: R$ ${novoSaldo.toFixed(2)}`);
             carregarDados();
             setTimeout(() => setSucessoFeedback(null), 4000);
           }}
         />
       )}
 
-      {/* Modal Modo PDV Celular (Scanner Contínuo com Transição Automática Cliente -> Produto -> Fechamento) */}
-      <PdvMobileScannerModal
-        aberto={isPdvMobileModalOpen}
-        aoFechar={() => setIsPdvMobileModalOpen(false)}
-        aoSolicitarFechamento={(comanda) => {
-          setIsPdvMobileModalOpen(false);
-          abrirModalFechamento(comanda);
-        }}
-        aoAtualizarDadosGerais={carregarDados}
-      />
+      {/* Modal Mesas: Nova Comanda */}
+      {isModalNovaOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md bg-[#0A1428] border border-[#DDB96B]/30 rounded-2xl p-5 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Abrir Nova Comanda / Mesa</h3>
+              <button onClick={() => setIsModalNovaOpen(false)} className="text-slate-400 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={abrirNovaComanda} className="space-y-3">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Identificador da Mesa / Cartão *</label>
+                <input
+                  type="text"
+                  required
+                  value={identificadorCartao}
+                  onChange={e => setIdentificadorCartao(e.target.value)}
+                  placeholder="Ex: Mesa 04 ou Cartão 12"
+                  className="min-h-[44px] w-full px-3 rounded-xl bg-[#070F1E] border border-slate-700 text-white text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Nome do Cliente (Opcional)</label>
+                <input
+                  type="text"
+                  value={nomeCliente}
+                  onChange={e => setNomeCliente(e.target.value)}
+                  placeholder="Nome do Irmão ou Convidado"
+                  className="min-h-[44px] w-full px-3 rounded-xl bg-[#070F1E] border border-slate-700 text-white text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full min-h-[48px] bg-[#DDB96B] hover:bg-[#FDE68A] text-[#070F1E] font-bold rounded-xl text-sm"
+              >
+                Criar Comanda
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Mesas: Detalhes da Comanda */}
+      {comandaSelecionada && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-lg bg-[#0A1428] border border-[#DDB96B]/30 rounded-2xl p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-white">
+                  {comandaSelecionada.nome_cliente || `Mesa ${comandaSelecionada.identificador_cartao}`}
+                </h3>
+                <p className="text-xs text-slate-400 font-mono">Comanda #{comandaSelecionada.id}</p>
+              </div>
+              <button onClick={() => setComandaSelecionada(null)} className="text-slate-400 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Adicionar item manual */}
+            <form onSubmit={adicionarItemManual} className="flex gap-2">
+              <select
+                value={produtoSelecionadoId}
+                onChange={e => setProdutoSelecionadoId(e.target.value)}
+                required
+                className="flex-1 min-h-[44px] px-3 rounded-xl bg-[#070F1E] border border-slate-700 text-white text-sm"
+              >
+                <option value="">Selecione um produto...</option>
+                {produtos.map(p => (
+                  <option key={p.id} value={p.id}>{p.nome} - R$ {p.preco_venda.toFixed(2)}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min="1"
+                value={quantidadeItem}
+                onChange={e => setQuantidadeItem(e.target.value)}
+                className="w-20 min-h-[44px] px-2 rounded-xl bg-[#070F1E] border border-slate-700 text-white text-sm text-center"
+              />
+              <button
+                type="submit"
+                className="px-4 min-h-[44px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm"
+              >
+                +
+              </button>
+            </form>
+
+            {/* Itens */}
+            <div className="divide-y divide-slate-800 max-h-60 overflow-y-auto">
+              {comandaSelecionada.itens?.map(item => (
+                <div key={item.id} className="py-2 flex justify-between items-center text-sm">
+                  <div>
+                    <p className="font-bold text-white">{item.produto_nome || getProdutoNome(item.produto_id)}</p>
+                    <p className="text-xs text-slate-400">{item.quantidade}x R$ {item.valor_unitario.toFixed(2)}</p>
+                  </div>
+                  <span className="font-bold text-emerald-400">R$ {(item.quantidade * item.valor_unitario).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 flex justify-between items-center">
+              <div>
+                <span className="text-xs text-slate-400 block">Total</span>
+                <span className="text-xl font-black text-[#FDE68A]">R$ {(comandaSelecionada.total || 0).toFixed(2)}</span>
+              </div>
+              <button
+                onClick={() => {
+                  const c = comandaSelecionada;
+                  setComandaSelecionada(null);
+                  abrirModalFechamento(c);
+                }}
+                className="min-h-[44px] px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm"
+              >
+                Fechar Comanda
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

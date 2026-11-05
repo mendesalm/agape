@@ -82,6 +82,20 @@ class ComandaService:
 
         # 2. Se não achou por coringa, checa se o identificador é o próprio CPF ou CIM do cliente
         if not cliente_id_vinculado:
+            # Trava de segurança: impede que código de barras de produto abra comanda fantasma de cliente
+            res_prod_check = await self.db.execute(
+                select(Produto).where(
+                    (Produto.codigo_barras == identificador_limpo) |
+                    (Produto.qr_code_tag == identificador_limpo)
+                )
+            )
+            prod_encontrado = res_prod_check.scalars().first()
+            if prod_encontrado:
+                raise RegraNegocioException(
+                    f"O código escaneado pertence ao produto '{prod_encontrado.nome}'. "
+                    f"Aponte a câmera para o QR Code do CLIENTE (ou digite CPF/CIM)."
+                )
+
             res_cli = await self.db.execute(
                 select(Cliente).where(
                     (Cliente.cpf == identificador_limpo) |
@@ -157,6 +171,45 @@ class ComandaService:
         await self.db.commit()
 
         logger.info(f"{dados.quantidade}x {produto.nome} adicionado à comanda #{comanda_id} (Operador #{operador_id}).")
+        return await self.obter_comanda(comanda_id)
+
+    async def remover_item(self, comanda_id: int, item_id: int, operador_id: Optional[int] = None):
+        """
+        Remove um item adicionado por engano a uma comanda aberta, estornando
+        o estoque para a gôndola e recalculando o total da comanda.
+        """
+        comanda = await self.obter_comanda(comanda_id)
+        if comanda.status != StatusComanda.ABERTA:
+            raise RegraNegocioException(f"Não é possível remover itens. A comanda está {comanda.status.value}.")
+
+        res_item = await self.db.execute(
+            select(ItemComanda).where(
+                ItemComanda.id == item_id,
+                ItemComanda.comanda_id == comanda_id
+            )
+        )
+        item = res_item.scalar_one_or_none()
+        if not item:
+            raise NaoEncontradoException(f"Item #{item_id} na comanda #{comanda_id}")
+
+        # Estorna o estoque para a gôndola do primeiro lote ativo
+        from app.models.estoque import LoteEstoque
+        res_lote = await self.db.execute(
+            select(LoteEstoque).where(
+                LoteEstoque.produto_id == item.produto_id,
+                LoteEstoque.ativo == True
+            ).order_by(LoteEstoque.data_validade.asc())
+        )
+        lote = res_lote.scalars().first()
+        if lote:
+            lote.quantidade_gondola += item.quantidade
+            self.db.add(lote)
+
+        # Remove o item
+        await self.db.delete(item)
+        await self.db.commit()
+
+        logger.info(f"Item #{item_id} estornado da comanda #{comanda_id} (Operador #{operador_id}).")
         return await self.obter_comanda(comanda_id)
 
     async def fechar_comanda(

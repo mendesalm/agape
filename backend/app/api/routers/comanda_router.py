@@ -78,6 +78,17 @@ async def adicionar_item_comanda(
     servico = ComandaService(db, usuario.tenant_id)
     return await servico.adicionar_item(comanda_id, dados, operador_id=usuario.id)
 
+@router.delete("/{comanda_id}/itens/{item_id}", response_model=ComandaResponse)
+async def remover_item_comanda(
+    comanda_id: int,
+    item_id: int,
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """Remove um item lançado por engano e estorna a quantidade ao estoque de gôndola."""
+    servico = ComandaService(db, usuario.tenant_id)
+    return await servico.remover_item(comanda_id, item_id, operador_id=usuario.id)
+
 @router.patch("/{comanda_id}/fechar", response_model=ComandaResponse)
 async def fechar_comanda(
     comanda_id: int, 

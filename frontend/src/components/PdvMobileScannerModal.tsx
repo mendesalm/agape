@@ -250,6 +250,18 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
     const comandaAtual = comandaAtivaRef.current;
 
     if (passoAtual === 'CLIENTE') {
+      // Trava de segurança: impede que código de barras de produto seja lido como cliente
+      if (/^(\d{13}|HEIN|COCA|AGUA|PROD)/i.test(codigo.trim())) {
+        dispararFeedback(false);
+        setMensagemStatus("Código de PRODUTO detectado! Aponte primeiro para o QR Code do CLIENTE.");
+        setTipoAlerta('erro');
+        setTimeout(() => {
+          setMensagemStatus(null);
+          pausadoRef.current = false;
+        }, 2500);
+        return;
+      }
+
       // 1. Identificar Cliente / Cartão
       setCarregandoAcao(true);
       setMensagemStatus(`Identificando cartão / cliente...`);
@@ -583,41 +595,30 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
             </div>
           </div>
 
-          {/* Botões de Ação Imediata (Mínimo 48px de altura) */}
+          {/* Botões de Ação Simétricos com Confirmação Explícita */}
           <div className="grid grid-cols-2 gap-3 pt-1">
             <button
               type="button"
               disabled={carregandoAcao}
               onClick={handleAdicionarEBiparProximo}
-              className="min-h-[50px] px-4 py-3 bg-blue-600 hover:bg-blue-500 active:scale-98 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              className="min-h-[50px] px-4 py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
             >
-              <Plus size={18} />
-              <span>Bipar Próximo</span>
+              <Check size={18} />
+              <span>Confirmar Inclusão</span>
             </button>
 
             <button
               type="button"
               disabled={carregandoAcao}
-              onClick={handleFinalizarECobrar}
-              className="min-h-[50px] px-4 py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-            >
-              <CreditCard size={18} />
-              <span>Cobrar Venda</span>
-            </button>
-          </div>
-
-          {/* Descartar leitura errônea */}
-          <div className="text-center pt-1">
-            <button
-              type="button"
               onClick={() => {
                 setProdutoConferencia(null);
                 setQtdConferencia(1);
                 pausadoRef.current = false;
               }}
-              className="text-xs text-slate-400 hover:text-slate-200 py-1"
+              className="min-h-[50px] px-4 py-3 bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-300 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
-              Cancelar este item e voltar a escanear
+              <X size={18} />
+              <span>Descartar Item</span>
             </button>
           </div>
         </div>
@@ -635,7 +636,7 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
               </span>
               <button
                 onClick={handleTrocarCliente}
-                className="text-[10px] text-blue-400 hover:underline flex items-center gap-0.5 ml-1"
+                className="text-[10px] text-blue-400 hover:underline flex items-center gap-0.5 ml-1 cursor-pointer"
                 title="Trocar cliente"
               >
                 <RotateCcw size={10} /> Trocar
@@ -653,11 +654,12 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
 
           <button
             type="button"
+            disabled={!comandaAtiva.itens?.length}
             onClick={handleFinalizarECobrar}
-            className="min-h-[48px] px-5 py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl font-bold text-sm shadow-md flex items-center gap-2 transition-transform"
+            className="min-h-[48px] px-5 py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl font-bold text-sm shadow-md flex items-center gap-2 transition-transform disabled:opacity-40 cursor-pointer"
           >
             <CreditCard size={18} />
-            <span>Cobrar</span>
+            <span>Ir para Pagamento</span>
           </button>
         </footer>
       )}

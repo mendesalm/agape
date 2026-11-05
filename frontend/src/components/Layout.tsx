@@ -387,33 +387,33 @@ export const Layout: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#070F1E]">
-        {/* Top Context Banner (Desktop & Mobile) */}
-        <header className="vidro-escuro border-b border-[#DDB96B]/20 px-4 sm:px-6 py-2.5 flex items-center justify-between shrink-0 z-30">
-          <div className="flex items-center space-x-3">
+        {/* Top Context Banner (Desktop & Mobile) - 100% responsivo sem extrapolação */}
+        <header className="vidro-escuro border-b border-[#DDB96B]/20 px-3 sm:px-6 py-2.5 flex items-center justify-between shrink-0 z-30 w-full max-w-full overflow-hidden">
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden p-2 rounded-xl text-[#DDB96B] hover:bg-white/5"
+              className="lg:hidden p-1.5 sm:p-2 rounded-xl text-[#DDB96B] hover:bg-white/5 shrink-0"
+              aria-label="Abrir menu lateral"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
               <Building2 className="w-4 h-4 text-[#DDB96B] shrink-0" />
-              <span className="text-xs text-slate-400 hidden sm:inline">Âmbito Operacional:</span>
-              <span className="text-xs sm:text-sm font-bold text-[#FDE68A] truncate max-w-[200px] sm:max-w-md">
+              <span className="text-xs sm:text-sm font-bold text-[#FDE68A] truncate">
                 {lojaAtivaNome || 'Carregando Loja...'}
               </span>
-              <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#DDB96B]/15 text-[#DDB96B] border border-[#DDB96B]/30">
+              <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#DDB96B]/15 text-[#DDB96B] border border-[#DDB96B]/30 shrink-0">
                 Armazém & Display Isolados
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 shrink-0">
             {isSuperAdmin && lojas.length > 0 && (
               <select
                 value={lojaAtiva}
                 onChange={(e) => handleTrocarLoja(e.target.value)}
-                className="max-w-[170px] sm:max-w-[240px] text-xs bg-[#0A1428] text-[#FDE68A] border border-[#DDB96B]/30 rounded-lg px-2.5 py-1.5"
+                className="hidden sm:block max-w-[180px] sm:max-w-[240px] text-xs bg-[#0A1428] text-[#FDE68A] border border-[#DDB96B]/30 rounded-lg px-2 py-1.5 truncate"
                 title="Trocar Loja Maçônica Ativa"
               >
                 {lojas.map((l) => (
@@ -423,7 +423,7 @@ export const Layout: React.FC = () => {
                 ))}
               </select>
             )}
-            <div className="w-8 h-8 rounded-lg bg-sigma-gold flex items-center justify-center font-bold text-xs">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-sigma-gold flex items-center justify-center font-bold text-xs shrink-0">
               {user?.nome ? user.nome.charAt(0).toUpperCase() : 'U'}
             </div>
           </div>
