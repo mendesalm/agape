@@ -15,6 +15,7 @@ from app.schemas.comanda_schema import (
     ComprovanteTermicoResponse
 )
 from app.models.comanda import Comanda, ItemComanda, StatusComanda
+from app.models.produto import Produto
 from app.models.cliente import Cliente, CartaoFisico, VinculoCartaoCliente, CarteiraCliente, TipoTransacaoCarteira
 from app.models.estabelecimento import Estabelecimento
 from app.models.usuario import Usuario
@@ -80,7 +81,7 @@ class ComandaService:
             cliente_id_vinculado = vinculo.cliente.id
             nome_encontrado = vinculo.cliente.nome
 
-        # 2. Se não achou por coringa, checa se o identificador é o próprio CPF ou CIM do cliente
+        # 2. Se não achou por coringa, checa se o identificador é CPF, CIM ou Nome do cliente
         if not cliente_id_vinculado:
             # Trava de segurança: impede que código de barras de produto abra comanda fantasma de cliente
             res_prod_check = await self.db.execute(
@@ -96,17 +97,56 @@ class ComandaService:
                     f"Aponte a câmera para o QR Code do CLIENTE (ou digite CPF/CIM)."
                 )
 
+            cpf_digitos = identificador_limpo.replace('.', '').replace('-', '').replace('/', '').strip()
             res_cli = await self.db.execute(
                 select(Cliente).where(
                     (Cliente.cpf == identificador_limpo) |
+                    (Cliente.cpf == cpf_digitos) |
                     (Cliente.cim == identificador_limpo) |
-                    (Cliente.cpf == f"CIM:{identificador_limpo}")
+                    (Cliente.cpf == f"CIM:{identificador_limpo}") |
+                    (Cliente.nome.ilike(f"%{identificador_limpo}%"))
                 )
             )
             cli = res_cli.scalars().first()
             if cli:
                 cliente_id_vinculado = cli.id
                 nome_encontrado = cli.nome
+            else:
+                # 3. Tenta localizar na tabela 'obreiros' do lojas_db e sincronizar on-the-fly
+                try:
+                    from sqlalchemy import text
+                    res_ob = await self.db.execute(
+                        text("""
+                            SELECT id, nome_completo, cpf, cim, email 
+                            FROM obreiros 
+                            WHERE REPLACE(REPLACE(COALESCE(cpf, ''), '.', ''), '-', '') = :cpf_limpo
+                               OR TRIM(COALESCE(cim, '')) = :raw
+                               OR LOWER(COALESCE(nome_completo, '')) LIKE :nome_like
+                            LIMIT 1
+                        """),
+                        {
+                            "cpf_limpo": cpf_digitos,
+                            "raw": identificador_limpo,
+                            "nome_like": f"%{identificador_limpo.lower()}%"
+                        }
+                    )
+                    row_ob = res_ob.mappings().first()
+                    if row_ob:
+                        novo_cli = Cliente(
+                            nome=row_ob["nome_completo"],
+                            cpf=row_ob["cpf"] or f"CIM:{row_ob['cim']}",
+                            cim=row_ob["cim"],
+                            email=row_ob["email"],
+                            obreiro_esigma_id=row_ob["id"],
+                            tipo_consumidor="IRMAO_QUADRO"
+                        )
+                        self.db.add(novo_cli)
+                        await self.db.commit()
+                        await self.db.refresh(novo_cli)
+                        cliente_id_vinculado = novo_cli.id
+                        nome_encontrado = novo_cli.nome
+                except Exception as e_ob:
+                    logger.warning(f"Erro ao buscar obreiro no lojas_db: {e_ob}")
 
         if not comanda:
             dados = ComandaCreate(
@@ -124,7 +164,7 @@ class ComandaService:
                     comanda.nome_cliente = nome_encontrado
                 await self.db.commit()
 
-        return self._enriquecer_comanda(comanda)
+        return await self.obter_comanda(comanda.id)
 
     async def abrir_comanda(self, dados: ComandaCreate):
         if dados.identificador_cartao:
