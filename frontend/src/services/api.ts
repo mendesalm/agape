@@ -12,12 +12,21 @@ export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || defaultBaseUrl,
 });
 
-// Interceptor para injetar o Token JWT automaticamente em todas as requisições
+// Interceptor para injetar o Token JWT e o Tenant ativo automaticamente em todas as requisições
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('bipfy_token') || localStorage.getItem('barix_token');
+    const token =
+      localStorage.getItem('bipfy_token') ||
+      localStorage.getItem('barix_token') ||
+      localStorage.getItem('@Barix:token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    const tenantId =
+      localStorage.getItem('@Barix:tenant_id') ||
+      localStorage.getItem('bipfy_tenant_id');
+    if (tenantId) {
+      config.headers['X-Estabelecimento-ID'] = tenantId;
     }
     return config;
   },
@@ -25,3 +34,5 @@ api.interceptors.request.use(
     return Promise.reject(error);
   }
 );
+
+export default api;

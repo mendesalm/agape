@@ -5,10 +5,16 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#070e1c",
-  "theme_color": "#070e1c",
+  "background_color": "#070F1E",
+  "theme_color": "#070F1E",
   "orientation": "portrait-primary",
   "icons": [
+    {
+      "src": "/icone-agape.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    },
     {
       "src": "/icon-192.png",
       "type": "image/png",
@@ -19,12 +25,6 @@
       "src": "/icon-512.png",
       "type": "image/png",
       "sizes": "512x512",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/favicon.svg",
-      "type": "image/svg+xml",
-      "sizes": "any",
       "purpose": "any maskable"
     }
   ]

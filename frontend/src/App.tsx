@@ -12,7 +12,10 @@ import { EquipeAgape } from './pages/EquipeAgape';
 import { api } from './services/api';
 
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
-  const token = localStorage.getItem('bipfy_token') || localStorage.getItem('barix_token');
+  const token =
+    localStorage.getItem('bipfy_token') ||
+    localStorage.getItem('barix_token') ||
+    localStorage.getItem('@Barix:token');
   if (!token) {
     return <Navigate to="/login" replace />;
   }
@@ -22,24 +25,30 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
 export default function App() {
   const [processandoSso, setProcessandoSso] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return Boolean(params.get('sso_token'));
+    return Boolean(params.get('sso_token') || params.get('token'));
   });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const ssoToken = params.get('sso_token');
+    const ssoToken = params.get('sso_token') || params.get('token');
     if (ssoToken) {
-      api.post('/auth/sso', { sso_token: ssoToken })
+      api
+        .post('/auth/sso', { sso_token: ssoToken, token: ssoToken })
         .then((res) => {
           localStorage.setItem('bipfy_token', res.data.access_token);
+          localStorage.setItem('@Barix:token', res.data.access_token);
           if (res.data.usuario) {
-            localStorage.setItem('bipfy_user', JSON.stringify(res.data.usuario));
+            const userStr = JSON.stringify(res.data.usuario);
+            localStorage.setItem('bipfy_user', userStr);
+            localStorage.setItem('@Barix:user', userStr);
           }
           params.delete('sso_token');
+          params.delete('token');
           window.location.href = '/app';
         })
         .catch(() => {
           params.delete('sso_token');
+          params.delete('token');
           setProcessandoSso(false);
         });
     }
@@ -47,8 +56,9 @@ export default function App() {
 
   if (processandoSso) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center text-white font-sans">
-        Conectando ao e-Sigma Ágape via Single Sign-On...
+      <div className="min-h-screen bg-[#070F1E] flex flex-col items-center justify-center text-[#FDE68A] font-cinzel gap-4">
+        <img src="/agape.svg" alt="Ágape" className="w-20 h-20 animate-pulse" />
+        <span>Conectando ao e-Sigma Ágape via Single Sign-On...</span>
       </div>
     );
   }
@@ -56,21 +66,23 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={<Login />} />
+        <Route path="/landing" element={<Landing />} />
         <Route path="/login" element={<Login />} />
-        
-        {/* Rota Protegida com Layout */}
-        <Route 
-          path="/app" 
+
+        {/* Rota Protegida com Layout Soberano e-Sigma */}
+        <Route
+          path="/app"
           element={
             <ProtectedRoute>
               <Layout />
             </ProtectedRoute>
-          } 
+          }
         >
           <Route index element={<Dashboard />} />
           <Route path="produtos" element={<Produtos />} />
           <Route path="comandas" element={<Comandas />} />
+          <Route path="equipe" element={<EquipeAgape />} />
           <Route path="equipe-agape" element={<EquipeAgape />} />
           <Route path="auditoria" element={<Auditoria />} />
           <Route path="instancias" element={<Instancias />} />
