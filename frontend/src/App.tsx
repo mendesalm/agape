@@ -3,8 +3,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import { Layout } from './components/Layout';
 import { Produtos } from './pages/Produtos';
+import { GerenteLogistica } from './pages/GerenteLogistica';
 import { Comandas } from './pages/Comandas';
 import { Dashboard } from './pages/Dashboard';
+import { GerenteFinanceiro } from './pages/GerenteFinanceiro';
 import { Landing } from './pages/Landing';
 import { Auditoria } from './pages/Auditoria';
 import { Instancias } from './pages/Instancias';
@@ -79,9 +81,13 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Dashboard />} />
-          <Route path="produtos" element={<Produtos />} />
+          <Route index element={<GerenteFinanceiro />} />
+          <Route path="financeiro" element={<GerenteFinanceiro />} />
+          <Route path="logistica" element={<GerenteLogistica />} />
+          <Route path="produtos" element={<GerenteLogistica />} />
+          <Route path="produtos-legado" element={<Produtos />} />
           <Route path="comandas" element={<Comandas />} />
+          <Route path="dashboard-legado" element={<Dashboard />} />
           <Route path="equipe" element={<EquipeAgape />} />
           <Route path="equipe-agape" element={<EquipeAgape />} />
           <Route path="auditoria" element={<Auditoria />} />

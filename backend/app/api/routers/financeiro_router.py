@@ -56,13 +56,62 @@ async def obter_resumo_financeiro(
     result_comandas = await db.execute(query_comandas)
     total_comandas = result_comandas.scalar() or 0
 
+    # 5. Receitas por Forma de Pagamento
+    query_fp = select(
+        Comanda.forma_pagamento,
+        func.sum(Comanda.valor_total)
+    ).where(
+        Comanda.tenant_id == tenant_id,
+        Comanda.status == StatusComanda.FECHADA
+    ).group_by(Comanda.forma_pagamento)
+    res_fp = await db.execute(query_fp)
+    formas_pgto = {}
+    for fp, total in res_fp.all():
+        if fp:
+            formas_pgto[fp.lower()] = float(total or 0.0)
+
+    # 6. Saldos Devedores / Inadimplência do Bar
+    from app.models.cliente import CarteiraCliente, Cliente
+    query_devedores = select(
+        Cliente.nome,
+        Cliente.cim,
+        Cliente.telefone,
+        CarteiraCliente.saldo
+    ).join(
+        Cliente, Cliente.id == CarteiraCliente.cliente_id
+    ).where(
+        CarteiraCliente.tenant_id == tenant_id,
+        CarteiraCliente.saldo < 0
+    ).order_by(CarteiraCliente.saldo.asc())
+    res_dev = await db.execute(query_devedores)
+    lista_devedores = []
+    inadimplencia_total = 0.0
+    for nome, cim, tel, saldo in res_dev.all():
+        debito = abs(float(saldo))
+        inadimplencia_total += debito
+        lista_devedores.append({
+            "nome": nome,
+            "cim": cim,
+            "telefone": tel,
+            "saldo_devedor": debito
+        })
+
     return {
         "faturamento": float(faturamento),
         "despesas": float(despesas_gerais),
         "prejuizo_quebras": float(prejuizo_quebras),
         "lucro_bruto": float(faturamento - despesas_gerais - prejuizo_quebras),
         "total_comandas_fechadas": total_comandas,
-        "ticket_medio": float(faturamento / total_comandas) if total_comandas > 0 else 0.0
+        "ticket_medio": float(faturamento / total_comandas) if total_comandas > 0 else 0.0,
+        "receitas_por_forma_pagamento": {
+            "pix": formas_pgto.get("pix", 0.0),
+            "cartao_debito": formas_pgto.get("cartao_debito", 0.0),
+            "cartao_credito": formas_pgto.get("cartao_credito", 0.0),
+            "dinheiro": formas_pgto.get("dinheiro", 0.0),
+            "saldo_bar_fiado": formas_pgto.get("saldo_bar_fiado", 0.0)
+        },
+        "inadimplencia_total": float(inadimplencia_total),
+        "devedores": lista_devedores
     }
 
 @router.get("/auditoria")

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard,
   UtensilsCrossed,
   Package,
   ShieldAlert,
@@ -12,7 +11,8 @@ import {
   ChevronRight,
   Users,
   ExternalLink,
-  Shield
+  Shield,
+  DollarSign
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -138,15 +138,15 @@ export const Layout: React.FC = () => {
 
   const navItems = isOperadorPuro
     ? [
-        { path: '/app/comandas', label: 'Salão & Comandas', icon: UtensilsCrossed },
-        { path: '/app/produtos', label: 'Estoque (Armazém/Display)', icon: Package }
+        { path: '/app/comandas', label: 'Salão (Vendedor)', icon: UtensilsCrossed },
+        { path: '/app/logistica', label: 'Estoque (Balcão)', icon: Package }
       ]
     : [
-        { path: '/app', label: 'Visão Geral da Loja', icon: LayoutDashboard },
-        { path: '/app/comandas', label: 'Salão & Comandas', icon: UtensilsCrossed },
-        { path: '/app/produtos', label: 'Estoque (Armazém/Display)', icon: Package },
+        { path: '/app/financeiro', label: 'Gerente: Financeiro', icon: DollarSign },
+        { path: '/app/logistica', label: 'Gerente: Logística', icon: Package },
+        { path: '/app/comandas', label: 'Vendedor: Salão & PDV', icon: UtensilsCrossed },
         { path: '/app/equipe', label: 'Equipe do Bar', icon: Users },
-        { path: '/app/auditoria', label: 'Auditoria Financeira', icon: ShieldAlert }
+        { path: '/app/auditoria', label: 'Auditoria & Logs', icon: ShieldAlert }
       ];
 
   if (isSuperAdmin) {
