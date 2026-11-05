@@ -14,12 +14,12 @@ import {
   Trash2, 
   Search, 
   Minus, 
-  User, 
   UserPlus, 
   ChevronRight, 
   ArrowLeft,
   CheckCircle2,
-  Clock
+  Clock,
+  UserCheck
 } from 'lucide-react';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
 import { ComprovanteTermicoModal, type DadosComprovante } from '../components/ComprovanteTermicoModal';
@@ -42,6 +42,8 @@ interface Comanda {
   operador_id?: number;
   forma_pagamento?: string;
   nome_cliente?: string;
+  cliente_cim?: string;
+  cliente_foto?: string;
   identificador_cartao?: string;
   status: 'ABERTA' | 'FECHADA' | 'CANCELADA';
   data_abertura: string;
@@ -79,6 +81,7 @@ export function Comandas() {
 
   // Estados do Fluxo de Consumo
   const [cartaoClienteInput, setCartaoClienteInput] = useState('');
+  const [tipoBuscaManual, setTipoBuscaManual] = useState<'CPF' | 'CIM' | 'NOME'>('CPF');
   const [comandaBalcaoAtiva, setComandaBalcaoAtiva] = useState<Comanda | null>(null);
   const [codigoProdutoInput, setCodigoProdutoInput] = useState('');
   const [produtoConferencia, setProdutoConferencia] = useState<Produto | null>(null);
@@ -366,6 +369,34 @@ export function Comandas() {
     );
   });
 
+  const renderAvatarIrmao = (nome?: string, fotoUrl?: string) => {
+    if (fotoUrl) {
+      return (
+        <img
+          src={fotoUrl}
+          alt={nome || 'Irmão'}
+          className="w-12 h-12 rounded-2xl object-cover border border-[#10B981]/50 shrink-0"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = 'none';
+          }}
+        />
+      );
+    }
+    const iniciais = nome
+      ? nome
+          .split(' ')
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((p) => p[0].toUpperCase())
+          .join('')
+      : 'IR';
+    return (
+      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#10B981]/25 to-[#0B1326] border border-[#10B981]/40 text-[#4EDEA3] flex items-center justify-center font-extrabold text-sm shrink-0 tracking-wider font-mono">
+        {iniciais}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4 max-w-full overflow-x-hidden text-slate-100">
       
@@ -638,12 +669,12 @@ export function Comandas() {
 
           {/* FLUXO CASCATEADO: PASSO 1 (IDENTIFICAR CLIENTE) OU PASSO 2 (BIPAR PRODUTOS) */}
           {!comandaBalcaoAtiva ? (
-            <div className="p-5 sm:p-6 rounded-2xl bg-[#0A1428] border border-emerald-500/30 space-y-5 shadow-lg">
+            <div className="p-5 sm:p-6 rounded-3xl bg-[#0B1326] border border-[#334155] space-y-5 shadow-2xl">
               <div>
-                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest block">
+                <span className="text-[10px] font-extrabold text-[#4EDEA3] uppercase tracking-widest block font-mono">
                   Identificação do Destinatário
                 </span>
-                <h2 className="text-lg sm:text-xl font-bold text-white mt-0.5">
+                <h2 className="text-lg sm:text-xl font-extrabold text-white mt-1">
                   Quem está consumindo agora?
                 </h2>
                 <p className="text-xs text-slate-400 mt-1">
@@ -656,33 +687,75 @@ export function Comandas() {
                 <button
                   type="button"
                   onClick={() => { setCameraTarget('cartao_balcao'); setIsCameraScannerOpen(true); }}
-                  className="min-h-[50px] px-4 py-3 bg-[#0E1C36] hover:bg-[#13274c] border border-emerald-500/40 text-emerald-300 rounded-xl font-bold text-sm shadow-sm flex items-center justify-center gap-2.5 transition-all cursor-pointer"
+                  className="min-h-[52px] px-4 py-3 bg-[#131B2E] hover:bg-[#1E293B] border border-[#334155] text-slate-200 rounded-2xl font-bold text-sm shadow-sm flex items-center justify-center gap-2.5 transition-all cursor-pointer"
                 >
-                  <Camera size={18} className="text-emerald-400" />
-                  <span>Ler QR Code do Cliente (Câmera)</span>
+                  <Camera size={18} className="text-[#38BDF8]" />
+                  <span>Ler QR Code do Irmão (Câmera)</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setIsPdvMobileModalOpen(true)}
-                  className="min-h-[50px] px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-sm flex items-center justify-center gap-2.5 transition-all cursor-pointer"
+                  className="min-h-[52px] px-4 py-3 bg-[#10B981] hover:bg-[#059669] text-[#0B1326] rounded-2xl font-extrabold text-sm shadow-md flex items-center justify-center gap-2.5 transition-all cursor-pointer active:scale-98"
                 >
                   <Smartphone size={18} />
                   <span>Modo Scanner Contínuo Mobile</span>
                 </button>
               </div>
 
-              {/* Divisor */}
-              <div className="relative flex items-center justify-center">
-                <div className="border-t border-slate-800 w-full" />
-                <span className="bg-[#0A1428] px-3 text-[11px] uppercase tracking-wider text-slate-500 font-semibold absolute">
-                  ou digite manualmente
-                </span>
-              </div>
+              {/* 3 TILES SIMÉTRICOS DE BUSCA MANUAL (Padrão Stitch) */}
+              <div className="pt-2 border-t border-[#334155]">
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 font-mono">
+                    Digitação Manual • Selecione o Método:
+                  </span>
+                </div>
 
-              {/* Busca Manual */}
-              <form onSubmit={handleIdentificarClienteSubmit} className="space-y-3">
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setTipoBuscaManual('CPF'); inputCartaoRef.current?.focus(); }}
+                    className={`min-h-[58px] p-2 rounded-2xl border font-bold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                      tipoBuscaManual === 'CPF'
+                        ? 'bg-[#10B981]/20 border-[#10B981] text-[#4EDEA3] ring-1 ring-[#10B981]'
+                        : 'bg-[#131B2E] border-[#334155] text-slate-300 hover:bg-[#1E293B]'
+                    }`}
+                  >
+                    <UserCheck className="w-5 h-5" />
+                    <span className="text-xs">CPF</span>
+                    <span className="text-[9px] text-slate-400">Buscar CPF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setTipoBuscaManual('CIM'); inputCartaoRef.current?.focus(); }}
+                    className={`min-h-[58px] p-2 rounded-2xl border font-bold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                      tipoBuscaManual === 'CIM'
+                        ? 'bg-[#F59E0B]/20 border-[#F59E0B] text-[#FFB95F] ring-1 ring-[#F59E0B]'
+                        : 'bg-[#131B2E] border-[#334155] text-slate-300 hover:bg-[#1E293B]'
+                    }`}
+                  >
+                    <Barcode className="w-5 h-5" />
+                    <span className="text-xs">CIM</span>
+                    <span className="text-[9px] text-slate-400">Cód. Obreiro</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setTipoBuscaManual('NOME'); inputCartaoRef.current?.focus(); }}
+                    className={`min-h-[58px] p-2 rounded-2xl border font-bold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                      tipoBuscaManual === 'NOME'
+                        ? 'bg-[#38BDF8]/20 border-[#38BDF8] text-[#7BD0FF] ring-1 ring-[#38BDF8]'
+                        : 'bg-[#131B2E] border-[#334155] text-slate-300 hover:bg-[#1E293B]'
+                    }`}
+                  >
+                    <Search className="w-5 h-5" />
+                    <span className="text-xs">NOME / CARTÃO</span>
+                    <span className="text-[9px] text-slate-400">Nome ou Crachá</span>
+                  </button>
+                </div>
+
+                <form onSubmit={handleIdentificarClienteSubmit} className="mt-3 flex gap-2">
                   <div className="relative flex-1">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                     <input
@@ -690,75 +763,98 @@ export function Comandas() {
                       type="text"
                       value={cartaoClienteInput}
                       onChange={e => setCartaoClienteInput(e.target.value)}
-                      placeholder="CPF, CIM ou código do cartão..."
-                      className="w-full min-h-[48px] pl-10 pr-4 py-2.5 rounded-xl bg-[#070F1E] border border-slate-700 focus:border-emerald-500 text-white text-sm outline-none transition-colors"
+                      placeholder={
+                        tipoBuscaManual === 'CPF'
+                          ? 'Digite os 11 dígitos do CPF...'
+                          : tipoBuscaManual === 'CIM'
+                          ? 'Digite o CIM maçônico (ex: 272875)...'
+                          : 'Digite o nome do irmão ou código do cartão...'
+                      }
+                      className="w-full min-h-[48px] pl-10 pr-4 py-2.5 rounded-xl bg-[#131B2E] border border-[#334155] focus:border-[#10B981] text-white text-sm outline-none transition-colors font-mono"
                       autoFocus
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={processandoAcao || !cartaoClienteInput.trim()}
-                    className="min-h-[48px] px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+                    className="min-h-[48px] px-6 py-2.5 bg-[#10B981] hover:bg-[#059669] text-[#0B1326] rounded-xl font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-40 cursor-pointer active:scale-95"
                   >
                     <span>Localizar</span>
                   </button>
-                </div>
-              </form>
+                </form>
+              </div>
             </div>
           ) : (
             /* CLIENTE SELECIONADO: BIPAGEM & ACÚMULO NO PEDIDO */
             <div className="space-y-4">
               
-              {/* Card Resumo do Cliente Ativo */}
-              <div className="p-4 rounded-2xl bg-[#0A1428] border border-emerald-600/40 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-md">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-950 border border-emerald-500/40 text-emerald-400 flex items-center justify-center font-bold text-base shrink-0">
-                    <User size={20} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-700/50">
-                        Consumo Ativo
-                      </span>
-                      <span className="text-xs text-slate-400 font-mono">
-                        Comanda #{comandaBalcaoAtiva.id}
-                      </span>
+              {/* CARD OFICIAL DO IRMÃO SELECIONADO (Padrão Stitch) */}
+              <div className="p-4 sm:p-5 rounded-3xl bg-[#131B2E] border border-[#334155] shadow-xl space-y-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    {renderAvatarIrmao(comandaBalcaoAtiva.nome_cliente, comandaBalcaoAtiva.cliente_foto)}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-md bg-[#10B981]/15 text-[#4EDEA3] border border-[#10B981]/30 font-mono">
+                          Irmão Liberado
+                        </span>
+                        {comandaBalcaoAtiva.cliente_cim && (
+                          <span className="text-xs text-slate-400 font-mono font-bold">
+                            CIM: {comandaBalcaoAtiva.cliente_cim}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-base sm:text-lg font-extrabold text-white truncate mt-1">
+                        Ir.'. {comandaBalcaoAtiva.nome_cliente || 'Consumidor'}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        Comanda: <span className="text-[#F59E0B] font-bold">{comandaBalcaoAtiva.identificador_cartao || `#${comandaBalcaoAtiva.id}`}</span>
+                      </p>
                     </div>
-                    <h3 className="text-base sm:text-lg font-bold text-white truncate mt-0.5">
-                      {comandaBalcaoAtiva.nome_cliente || 'Consumidor'}
-                    </h3>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
-                  <div className="text-left sm:text-right">
-                    <span className="text-[10px] text-slate-400 uppercase block font-semibold">Total Consumido</span>
-                    <span className="text-xl font-black text-emerald-400">
-                      R$ {(comandaBalcaoAtiva.total || 0).toFixed(2)}
-                    </span>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => { setComandaBalcaoAtiva(null); setProdutoConferencia(null); }}
-                    className="min-h-[42px] px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                    className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-slate-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors"
+                    title="Trocar Irmão"
                   >
                     <RotateCcw size={14} />
                     <span>Trocar</span>
                   </button>
                 </div>
+
+                {/* Subcard de Telemetria e Total Consumido */}
+                <div className="grid grid-cols-2 p-3.5 bg-[#0B1326] rounded-2xl border border-[#334155] gap-3">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block font-mono">
+                      Itens no Pedido
+                    </span>
+                    <span className="text-sm font-bold text-slate-200 font-mono">
+                      {comandaBalcaoAtiva.itens?.length || 0} {comandaBalcaoAtiva.itens?.length === 1 ? 'item' : 'itens'}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block font-mono">
+                      Total Consumido
+                    </span>
+                    <span className="text-xl sm:text-2xl font-black text-[#4EDEA3] font-mono">
+                      R$ {(comandaBalcaoAtiva.total || 0).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Bipagem do Produto */}
-              <div className="p-5 rounded-2xl bg-[#0A1428] border border-[#DDB96B]/20 space-y-4 shadow-md">
+              <div className="p-5 rounded-3xl bg-[#0B1326] border border-[#334155] space-y-4 shadow-xl">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                      <Barcode size={18} className="text-[#DDB96B]" />
+                    <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+                      <Barcode size={18} className="text-[#F59E0B]" />
                       Adicionar Itens ao Pedido
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Aponte a câmera para a lata/garrafa ou digite o código
+                      Aponte a câmera para a lata/garrafa ou digite o código de barras
                     </p>
                   </div>
                 </div>
@@ -767,9 +863,9 @@ export function Comandas() {
                   <button
                     type="button"
                     onClick={() => { setCameraTarget('produto_balcao'); setIsCameraScannerOpen(true); }}
-                    className="min-h-[48px] px-4 py-2.5 bg-[#0E1C36] hover:bg-[#13274c] border border-blue-500/40 text-blue-300 rounded-xl font-bold text-sm shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                    className="min-h-[48px] px-4 py-2.5 bg-[#131B2E] hover:bg-[#1E293B] border border-[#334155] text-slate-200 rounded-xl font-bold text-sm shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-colors"
                   >
-                    <Camera size={18} className="text-blue-400" />
+                    <Camera size={18} className="text-[#38BDF8]" />
                     <span>Bipar Produto (Câmera)</span>
                   </button>
 
@@ -780,73 +876,87 @@ export function Comandas() {
                       value={codigoProdutoInput}
                       onChange={e => setCodigoProdutoInput(e.target.value)}
                       placeholder="Código de barras ou QR tag..."
-                      className="min-h-[48px] flex-1 px-3.5 py-2 rounded-xl bg-[#070F1E] border border-slate-700 text-white text-sm outline-none focus:border-[#DDB96B]"
+                      className="min-h-[48px] flex-1 px-3.5 py-2 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-sm outline-none focus:border-[#10B981] font-mono"
                     />
                     <button
                       type="submit"
                       disabled={!codigoProdutoInput.trim()}
-                      className="min-h-[48px] px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-sm cursor-pointer disabled:opacity-40"
+                      className="min-h-[48px] px-5 bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-white rounded-xl font-bold text-sm cursor-pointer disabled:opacity-40 transition-colors"
                     >
                       Buscar
                     </button>
                   </form>
                 </div>
 
-                {/* Card de Conferência com Confirmação Deliberada */}
+                {/* Card de Conferência com Confirmação Deliberada & Multiplicadores */}
                 {produtoConferencia && (
-                  <div className="p-4 sm:p-5 rounded-2xl bg-[#0E1C36] border-2 border-[#DDB96B] space-y-4 animate-slideUp">
+                  <div className="p-4 sm:p-5 rounded-2xl bg-[#131B2E] border-2 border-[#10B981] space-y-4 animate-slideUp shadow-2xl">
                     <div className="flex justify-between items-start">
-                      <div>
-                        <span className="text-[10px] font-bold text-[#DDB96B] uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#DDB96B]/15 border border-[#DDB96B]/30">
+                      <div className="min-w-0 flex-1 pr-2">
+                        <span className="text-[10px] font-extrabold text-[#4EDEA3] uppercase tracking-wider px-2 py-0.5 rounded-md bg-[#10B981]/15 border border-[#10B981]/30 font-mono">
                           Confirmar Inclusão
                         </span>
-                        <h4 className="text-lg sm:text-xl font-black text-white mt-1">
+                        <h4 className="text-lg sm:text-xl font-extrabold text-white mt-1 truncate">
                           {produtoConferencia.nome}
                         </h4>
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-slate-400 font-mono mt-0.5">
                           {produtoConferencia.marca ? `Marca: ${produtoConferencia.marca} • ` : ''}
                           Unitário: R$ {produtoConferencia.preco_venda.toFixed(2)}
                         </p>
                       </div>
 
-                      <div className="text-right">
-                        <span className="text-[10px] uppercase text-slate-400 font-semibold block">Subtotal</span>
-                        <span className="text-xl sm:text-2xl font-black text-emerald-400">
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] uppercase text-slate-400 font-bold block font-mono">Subtotal</span>
+                        <span className="text-2xl font-black text-[#4EDEA3] font-mono">
                           R$ {(produtoConferencia.preco_venda * qtdConferencia).toFixed(2)}
                         </span>
                       </div>
                     </div>
 
-                    {/* Quantidade */}
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-[#070F1E] border border-slate-800">
+                    {/* Stepper de Quantidade */}
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0B1326] border border-[#334155]">
                       <span className="text-xs font-bold text-slate-300 ml-2">Quantidade:</span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <button
                           type="button"
                           onClick={() => setQtdConferencia(prev => Math.max(1, prev - 1))}
-                          className="min-h-[44px] min-w-[44px] rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center justify-center cursor-pointer"
+                          className="min-h-[44px] min-w-[44px] rounded-lg bg-[#1E293B] hover:bg-[#334155] text-white font-extrabold flex items-center justify-center cursor-pointer transition-all active:scale-95"
                         >
-                          <Minus size={16} />
+                          <Minus size={18} />
                         </button>
-                        <span className="min-w-[36px] text-center text-lg font-bold text-white">
+                        <span className="min-w-[36px] text-center text-xl font-black text-white font-mono">
                           {qtdConferencia}
                         </span>
                         <button
                           type="button"
                           onClick={() => setQtdConferencia(prev => prev + 1)}
-                          className="min-h-[44px] min-w-[44px] rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center justify-center cursor-pointer"
+                          className="min-h-[44px] min-w-[44px] rounded-lg bg-[#1E293B] hover:bg-[#334155] text-white font-extrabold flex items-center justify-center cursor-pointer transition-all active:scale-95"
                         >
-                          <Plus size={16} />
+                          <Plus size={18} />
                         </button>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Atalhos Rápidos (+1, +2, +5, +10) */}
+                    <div className="grid grid-cols-4 gap-2">
+                      {[1, 2, 5, 10].map((inc) => (
+                        <button
+                          key={inc}
+                          type="button"
+                          onClick={() => setQtdConferencia(prev => prev + inc)}
+                          className="min-h-[38px] rounded-xl bg-[#0B1326] hover:bg-[#1E293B] border border-[#334155] text-xs font-bold text-[#F59E0B] font-mono flex items-center justify-center active:scale-95 cursor-pointer"
+                        >
+                          +{inc}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <button
                         type="button"
                         onClick={handleConfirmarInclusaoItem}
                         disabled={processandoAcao}
-                        className="min-h-[50px] px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
+                        className="min-h-[50px] px-5 py-3 rounded-xl bg-[#10B981] hover:bg-[#059669] text-[#0B1326] font-extrabold text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
                       >
                         <Check size={18} />
                         <span>Confirmar e Adicionar</span>
@@ -855,7 +965,7 @@ export function Comandas() {
                       <button
                         type="button"
                         onClick={() => { setProdutoConferencia(null); setQtdConferencia(1); }}
-                        className="min-h-[50px] px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm flex items-center justify-center cursor-pointer"
+                        className="min-h-[50px] px-5 py-3 rounded-xl bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-slate-300 font-bold text-sm flex items-center justify-center cursor-pointer transition-all"
                       >
                         <span>Cancelar</span>
                       </button>
@@ -865,8 +975,8 @@ export function Comandas() {
               </div>
 
               {/* Lista dos Itens Já Adicionados nesta Comanda */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-[#0A1428] border border-slate-800 space-y-3">
-                <h4 className="text-xs sm:text-sm font-bold text-slate-300 uppercase tracking-wider">
+              <div className="p-4 sm:p-5 rounded-3xl bg-[#0B1326] border border-[#334155] space-y-3 shadow-lg">
+                <h4 className="text-xs sm:text-sm font-extrabold text-slate-300 uppercase tracking-wider font-mono">
                   Itens Acumulados no Pedido ({comandaBalcaoAtiva.itens?.length || 0})
                 </h4>
 
@@ -875,25 +985,25 @@ export function Comandas() {
                     Nenhum item adicionado ainda. Bipe o código do produto acima.
                   </p>
                 ) : (
-                  <div className="divide-y divide-slate-800">
+                  <div className="divide-y divide-[#334155]">
                     {comandaBalcaoAtiva.itens.map(item => (
                       <div key={item.id} className="py-2.5 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-white truncate">
                             {item.produto_nome || getProdutoNome(item.produto_id)}
                           </p>
-                          <p className="text-xs text-slate-400">
+                          <p className="text-xs text-slate-400 font-mono">
                             {item.quantidade}x R$ {item.valor_unitario.toFixed(2)}
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-sm font-black text-slate-200">
+                          <span className="text-sm font-black text-[#4EDEA3] font-mono">
                             R$ {(item.quantidade * item.valor_unitario).toFixed(2)}
                           </span>
                           <button
                             type="button"
                             onClick={() => handleRemoverItem(item.id)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors cursor-pointer"
+                            className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors cursor-pointer"
                             title="Remover item da comanda"
                           >
                             <Trash2 size={16} />
@@ -905,8 +1015,17 @@ export function Comandas() {
                 )}
               </div>
 
-              {/* Botão de Conclusão do Atendimento Atual */}
-              <div className="pt-2">
+              {/* Botões de Decisão e Fechamento */}
+              <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => abrirModalFechamento(comandaBalcaoAtiva)}
+                  className="w-full min-h-[50px] px-6 py-3 rounded-xl bg-[#10B981] hover:bg-[#059669] text-[#0B1326] font-extrabold text-sm sm:text-base shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                >
+                  <CreditCard size={18} />
+                  <span>Ir para Pagamento / Check-out</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -914,10 +1033,10 @@ export function Comandas() {
                     setProdutoConferencia(null);
                     setVisaoSalao('HUB');
                   }}
-                  className="w-full min-h-[50px] px-6 py-3 rounded-xl bg-[#DDB96B] hover:bg-[#FDE68A] text-[#070F1E] font-extrabold text-sm sm:text-base shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
+                  className="w-full min-h-[50px] px-6 py-3 rounded-xl bg-[#131B2E] hover:bg-[#1E293B] border border-[#334155] text-slate-200 font-bold text-sm sm:text-base shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
                 >
                   <CheckCircle2 size={18} />
-                  <span>Concluir Atendimento e Liberar Balcão</span>
+                  <span>Liberar Balcão (Próximo)</span>
                 </button>
               </div>
 
@@ -1132,6 +1251,8 @@ export function Comandas() {
           totalComanda={comandaParaFechar.total || 0}
           clienteId={comandaParaFechar.cliente_id}
           clienteNome={comandaParaFechar.nome_cliente}
+          clienteCim={comandaParaFechar.cliente_cim}
+          clienteFoto={comandaParaFechar.cliente_foto}
           identificadorCartao={comandaParaFechar.identificador_cartao}
           onSuccess={handleFechamentoSucesso}
           onAbrirRecarga={() => {

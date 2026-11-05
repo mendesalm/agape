@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { 
   X, 
-  UserCheck, 
   Barcode, 
   Check, 
   Plus, 
@@ -11,7 +10,10 @@ import {
   RefreshCw, 
   AlertCircle,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  Undo2,
+  Trash2,
+  ShoppingCart
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -35,6 +37,8 @@ interface Comanda {
   cliente_id?: number;
   operador_id?: number;
   nome_cliente?: string;
+  cliente_cim?: string;
+  cliente_foto?: string;
   identificador_cartao?: string;
   status: 'ABERTA' | 'FECHADA' | 'CANCELADA';
   data_abertura: string;
@@ -54,6 +58,7 @@ interface Produto {
   codigo_barras?: string;
   qr_code_tag?: string;
   marca?: string;
+  foto_url?: string;
 }
 
 interface PdvMobileScannerModalProps {
@@ -64,7 +69,7 @@ interface PdvMobileScannerModalProps {
 }
 
 /**
- * Emite um bipe sonoro de alta frequência simulando leitor de código de barras profissional
+ * Emite um bipe sonoro simulando leitor de código de barras profissional
  */
 const emitirBeepSonoro = (sucesso = true) => {
   try {
@@ -75,7 +80,6 @@ const emitirBeepSonoro = (sucesso = true) => {
     const gain = audioCtx.createGain();
 
     osc.type = 'sine';
-    // Frequência mais aguda para leitura de produto (1200Hz), grave para alerta (400Hz)
     osc.frequency.setValueAtTime(sucesso ? 1200 : 400, audioCtx.currentTime);
     gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (sucesso ? 0.1 : 0.25));
@@ -85,16 +89,44 @@ const emitirBeepSonoro = (sucesso = true) => {
     osc.start();
     osc.stop(audioCtx.currentTime + (sucesso ? 0.1 : 0.25));
   } catch {
-    // Silencioso caso a política de áudio restrinja sem interação prévia
+    // Silencioso se bloqueado pelo navegador
   }
 };
 
 /**
- * Componente PDV Mobile Scanner Contínuo
- * Transição automática e contínua:
- * Passo 1: Leitura do QR Code do Irmão/Cartão
- * Passo 2: Leitura direta do Código de Barras / QR Code de Fábrica do Produto
- * Passo 3: Conferência de Quantidade e Decisão (Bipar Próximo ou Fechar/Cobrar)
+ * Renderiza o avatar do Irmão com foto (se disponível) ou monograma/iniciais
+ */
+const renderAvatarIrmao = (nome?: string, fotoUrl?: string) => {
+  if (fotoUrl) {
+    return (
+      <img
+        src={fotoUrl}
+        alt={nome || 'Irmão'}
+        className="w-10 h-10 rounded-xl object-cover border border-[#10B981]/50 shrink-0"
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.display = 'none';
+        }}
+      />
+    );
+  }
+  const iniciais = nome
+    ? nome
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((p) => p[0].toUpperCase())
+        .join('')
+    : 'IR';
+  return (
+    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#10B981]/20 to-[#0B1326] border border-[#10B981]/40 text-[#4EDEA3] flex items-center justify-center font-extrabold text-xs shrink-0 tracking-wider font-mono">
+      {iniciais}
+    </div>
+  );
+};
+
+/**
+ * Componente PDV Mobile Scanner Contínuo (Design System: Tactile Velocity)
+ * 100% responsivo, simétrico e à prova de cliques acidentais.
  */
 export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
   aberto,
@@ -107,6 +139,8 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
   const [comandaAtiva, setComandaAtiva] = useState<Comanda | null>(null);
   const [produtoConferencia, setProdutoConferencia] = useState<Produto | null>(null);
   const [qtdConferencia, setQtdConferencia] = useState<number>(1);
+  const [ultimoItemBipado, setUltimoItemBipado] = useState<{ id: number; nome: string; valor: number; qtd: number } | null>(null);
+  const [modoVisualizacao, setModoVisualizacao] = useState<'SCANNER' | 'CARRINHO'>('SCANNER');
 
   // Estados de Interface e Câmera
   const [carregandoAcao, setCarregandoAcao] = useState<boolean>(false);
@@ -116,14 +150,13 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
   const [cameras, setCameras] = useState<{ id: string; label: string }[]>([]);
   const [cameraIdx, setCameraIdx] = useState<number>(0);
 
-  // Refs de controle de ciclo de leitura sem parar a câmera
+  // Refs de controle de ciclo de leitura
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const pausadoRef = useRef<boolean>(false);
   const passoRef = useRef<'CLIENTE' | 'PRODUTO'>('CLIENTE');
   const comandaAtivaRef = useRef<Comanda | null>(null);
   const containerId = 'agape-pdv-camera-viewport';
 
-  // Sincroniza refs para acesso síncrono no callback do scanner
   useEffect(() => {
     passoRef.current = passo;
   }, [passo]);
@@ -133,7 +166,7 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
   }, [comandaAtiva]);
 
   /**
-   * Encerra com segurança o scanner e libera o hardware da câmera
+   * Encerra com segurança o hardware da câmera
    */
   const pararScanner = async () => {
     const scanner = scannerRef.current;
@@ -144,7 +177,7 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
         }
         scanner.clear();
       } catch {
-        // Ignora erros ao parar câmera já descartada
+        // Ignora erros ao parar
       }
       scannerRef.current = null;
     }
@@ -154,7 +187,7 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
    * Inicialização da Câmera
    */
   useEffect(() => {
-    if (!aberto) {
+    if (!aberto || modoVisualizacao === 'CARRINHO') {
       pararScanner();
       return;
     }
@@ -181,11 +214,11 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
             setCameras(listaCameras);
           }
         } catch {
-          // Continua para fallback facingMode
+          // Fallback facingMode
         }
 
         const config = {
-          fps: 14,
+          fps: 16,
           qrbox: { width: 260, height: 260 },
           aspectRatio: 1.0
         };
@@ -197,7 +230,6 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
 
         if (listaCameras.length > 0) {
           let idxEscolhido = cameraIdx % listaCameras.length;
-          // Prioriza câmera traseira se houver mais de uma
           if (cameraIdx === 0 && listaCameras.length > 1) {
             const backIdx = listaCameras.findIndex((c) =>
               /back|traseira|rear|environment/i.test(c.label)
@@ -211,7 +243,7 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
       } catch (err: unknown) {
         if (!cancelado) {
           const msg = err instanceof Error ? err.message : String(err);
-          setErroCamera(`Não foi possível iniciar a câmera: ${msg}. Verifique as permissões do dispositivo.`);
+          setErroCamera(`Não foi possível iniciar a câmera: ${msg}. Verifique as permissões.`);
         }
       }
     };
@@ -222,10 +254,10 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
       cancelado = true;
       pararScanner();
     };
-  }, [aberto, cameraIdx]);
+  }, [aberto, cameraIdx, modoVisualizacao]);
 
   /**
-   * Dispara feedback tátil e sonoro
+   * Dispara feedback sonoro e tátil
    */
   const dispararFeedback = (sucesso = true) => {
     emitirBeepSonoro(sucesso);
@@ -243,7 +275,7 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
    */
   const processarCodigo = async (codigo: string) => {
     if (!codigo) return;
-    pausadoRef.current = true; // Pausa novas leituras imediatas
+    pausadoRef.current = true;
     dispararFeedback(true);
 
     const passoAtual = passoRef.current;
@@ -253,7 +285,7 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
       // Trava de segurança: impede que código de barras de produto seja lido como cliente
       if (/^(\d{13}|HEIN|COCA|AGUA|PROD)/i.test(codigo.trim())) {
         dispararFeedback(false);
-        setMensagemStatus("Código de PRODUTO detectado! Aponte primeiro para o QR Code do CLIENTE.");
+        setMensagemStatus("Código de PRODUTO detectado! Aponte primeiro para o QR do Irmão.");
         setTipoAlerta('erro');
         setTimeout(() => {
           setMensagemStatus(null);
@@ -262,9 +294,8 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
         return;
       }
 
-      // 1. Identificar Cliente / Cartão
       setCarregandoAcao(true);
-      setMensagemStatus(`Identificando cartão / cliente...`);
+      setMensagemStatus(`Identificando Irmão / Cartão...`);
       setTipoAlerta('info');
 
       try {
@@ -274,16 +305,15 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
         const comandaRecebida: Comanda = res.data;
         setComandaAtiva(comandaRecebida);
         setPasso('PRODUTO');
-        setMensagemStatus(`Cliente identificado: ${comandaRecebida.nome_cliente || comandaRecebida.identificador_cartao}`);
+        setMensagemStatus(`Identificado: Ir.'. ${comandaRecebida.nome_cliente || comandaRecebida.identificador_cartao}`);
         setTipoAlerta('sucesso');
 
         if (aoAtualizarDadosGerais) aoAtualizarDadosGerais();
 
-        // Breve pausa para o operador direcionar a câmera para o produto
         setTimeout(() => {
           setMensagemStatus(null);
           pausadoRef.current = false;
-        }, 900);
+        }, 800);
       } catch (err: any) {
         dispararFeedback(false);
         const erroMsg = err.response?.data?.detail || "Cartão/Cliente não identificado. Tente novamente.";
@@ -297,7 +327,6 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
         setCarregandoAcao(false);
       }
     } else {
-      // 2. Identificar Produto
       if (!comandaAtual) {
         setPasso('CLIENTE');
         pausadoRef.current = false;
@@ -305,7 +334,7 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
       }
 
       setCarregandoAcao(true);
-      setMensagemStatus(`Buscando produto...`);
+      setMensagemStatus(`Consultando produto...`);
       setTipoAlerta('info');
 
       try {
@@ -314,7 +343,6 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
         setProdutoConferencia(produto);
         setQtdConferencia(1);
         setMensagemStatus(null);
-        // Mantém pausadoRef = true enquanto o operador confere a quantidade no card
       } catch (err: any) {
         dispararFeedback(false);
         const erroMsg = err.response?.data?.detail || `Produto não cadastrado para o código lido.`;
@@ -331,9 +359,9 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
   };
 
   /**
-   * Adiciona o produto na comanda e reativa a câmera para bipar o próximo
+   * Adiciona o produto na comanda e reativa a câmera
    */
-  const handleAdicionarEBiparProximo = async () => {
+  const handleAdicionarEBiparProximo = async (irParaCarrinho = false) => {
     if (!comandaAtiva || !produtoConferencia) return;
 
     setCarregandoAcao(true);
@@ -343,24 +371,38 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
         quantidade: qtdConferencia
       });
 
-      // Atualiza os dados da comanda ativa
       const res = await api.get(`/comandas/${comandaAtiva.id}`);
-      setComandaAtiva(res.data);
+      const comandaAtualizada: Comanda = res.data;
+      setComandaAtiva(comandaAtualizada);
+
+      // Encontra o item recém-inserido para permitir o botão 'Anular' imediato
+      const ultimoItem = comandaAtualizada.itens?.slice(-1)[0];
+      if (ultimoItem) {
+        setUltimoItemBipado({
+          id: ultimoItem.id,
+          nome: produtoConferencia.nome,
+          valor: produtoConferencia.preco_venda,
+          qtd: qtdConferencia
+        });
+      }
 
       dispararFeedback(true);
-      setMensagemStatus(`+${qtdConferencia}x ${produtoConferencia.nome} lançado!`);
+      setMensagemStatus(`+${qtdConferencia}x ${produtoConferencia.nome} lançado com sucesso!`);
       setTipoAlerta('sucesso');
 
       if (aoAtualizarDadosGerais) aoAtualizarDadosGerais();
 
-      // Fecha a conferência e reativa o scanner
       setProdutoConferencia(null);
       setQtdConferencia(1);
 
-      setTimeout(() => {
-        setMensagemStatus(null);
-        pausadoRef.current = false;
-      }, 700);
+      if (irParaCarrinho) {
+        setModoVisualizacao('CARRINHO');
+      } else {
+        setTimeout(() => {
+          setMensagemStatus(null);
+          pausadoRef.current = false;
+        }, 700);
+      }
     } catch (err: any) {
       dispararFeedback(false);
       alert(err.response?.data?.detail || "Erro ao adicionar item à comanda.");
@@ -371,77 +413,96 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
   };
 
   /**
-   * Adiciona o item atual (se houver) e abre o fluxo de fechamento/cobrança
+   * Estorna / Anula o último item bipado diretamente da tela do leitor
    */
-  const handleFinalizarECobrar = async () => {
-    if (!comandaAtiva) return;
-
-    // Se estiver com produto pendente de conferência, adiciona antes de fechar
-    if (produtoConferencia) {
-      setCarregandoAcao(true);
-      try {
-        await api.post(`/comandas/${comandaAtiva.id}/itens`, {
-          produto_id: produtoConferencia.id,
-          quantidade: qtdConferencia
-        });
-        const res = await api.get(`/comandas/${comandaAtiva.id}`);
-        setComandaAtiva(res.data);
-        if (aoAtualizarDadosGerais) aoAtualizarDadosGerais();
-        setProdutoConferencia(null);
-        aoSolicitarFechamento(res.data);
-      } catch (err: any) {
-        alert(err.response?.data?.detail || "Erro ao adicionar item.");
-        return;
-      } finally {
-        setCarregandoAcao(false);
-      }
-    } else {
-      aoSolicitarFechamento(comandaAtiva);
+  const handleAnularUltimoBipado = async () => {
+    if (!comandaAtiva || !ultimoItemBipado) return;
+    setCarregandoAcao(true);
+    try {
+      const res = await api.delete(`/comandas/${comandaAtiva.id}/itens/${ultimoItemBipado.id}`);
+      setComandaAtiva(res.data);
+      setUltimoItemBipado(null);
+      dispararFeedback(true);
+      setMensagemStatus(`Item estornado com sucesso.`);
+      setTipoAlerta('info');
+      if (aoAtualizarDadosGerais) aoAtualizarDadosGerais();
+      setTimeout(() => setMensagemStatus(null), 2000);
+    } catch (err: any) {
+      dispararFeedback(false);
+      alert(err.response?.data?.detail || "Erro ao anular item.");
+    } finally {
+      setCarregandoAcao(false);
     }
   };
 
   /**
-   * Reseta o cliente atual para iniciar atendimento de outro obreiro
+   * Remove item a partir da visualização de carrinho
    */
+  const handleRemoverItemCarrinho = async (itemId: number) => {
+    if (!comandaAtiva) return;
+    setCarregandoAcao(true);
+    try {
+      const res = await api.delete(`/comandas/${comandaAtiva.id}/itens/${itemId}`);
+      setComandaAtiva(res.data);
+      dispararFeedback(true);
+      if (aoAtualizarDadosGerais) aoAtualizarDadosGerais();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Erro ao remover item.");
+    } finally {
+      setCarregandoAcao(false);
+    }
+  };
+
   const handleTrocarCliente = () => {
     setComandaAtiva(null);
     setProdutoConferencia(null);
-    setQtdConferencia(1);
+    setUltimoItemBipado(null);
     setPasso('CLIENTE');
-    setMensagemStatus(null);
+    setModoVisualizacao('SCANNER');
     pausadoRef.current = false;
-  };
-
-  /**
-   * Alterna a câmera utilizada
-   */
-  const alternarCamera = () => {
-    if (cameras.length > 1) {
-      setCameraIdx((prev) => (prev + 1) % cameras.length);
-    }
   };
 
   if (!aberto) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-950 text-white font-sans overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-[#0B1326] text-white flex flex-col font-sans select-none overflow-hidden animate-fadeIn">
       
       {/* ============================================================== */}
-      {/* TOPO FIXO: BARRA DE NAVEGAÇÃO E IDENTIFICAÇÃO DO CLIENTE       */}
+      {/* TOPO: STATUS DO TERMINAL, IDENTIFICAÇÃO E CONTROLES DE CÂMERA   */}
       {/* ============================================================== */}
-      <header className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between z-20 shadow-md">
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="font-extrabold text-sm uppercase tracking-wide text-slate-200">
-            PDV Celular Contínuo
-          </span>
+      <header className="px-4 py-3 bg-[#131B2E] border-b border-[#334155] flex items-center justify-between shrink-0 z-30 shadow-md">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          {comandaAtiva ? (
+            renderAvatarIrmao(comandaAtiva.nome_cliente, comandaAtiva.cliente_foto)
+          ) : (
+            <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-[#38BDF8] shrink-0 font-mono">
+              PDV
+            </div>
+          )}
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#4EDEA3] flex items-center gap-1 font-mono">
+                <span className="w-2 h-2 rounded-full bg-[#10B981] animate-ping" />
+                {comandaAtiva ? 'Comanda Ativa' : 'Check-in do Irmão'}
+              </span>
+              {comandaAtiva?.cliente_cim && (
+                <span className="text-[10px] text-slate-400 font-mono">
+                  CIM: {comandaAtiva.cliente_cim}
+                </span>
+              )}
+            </div>
+            <h2 className="text-sm sm:text-base font-extrabold text-white truncate leading-tight">
+              {comandaAtiva?.nome_cliente ? `Ir.'. ${comandaAtiva.nome_cliente}` : 'Aponte para o QR do Irmão'}
+            </h2>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {cameras.length > 1 && (
+        <div className="flex items-center gap-2 shrink-0">
+          {cameras.length > 1 && modoVisualizacao === 'SCANNER' && (
             <button
-              onClick={alternarCamera}
-              className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors"
+              onClick={() => setCameraIdx((prev) => prev + 1)}
+              className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-slate-300 border border-[#334155] flex items-center justify-center transition-colors cursor-pointer"
               title="Trocar Câmera"
             >
               <RefreshCw size={18} />
@@ -450,38 +511,52 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
 
           <button
             onClick={aoFechar}
-            className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl bg-slate-800 hover:bg-rose-950/50 hover:text-rose-400 text-slate-300 flex items-center justify-center transition-colors"
-            title="Fechar Scanner"
+            className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl bg-[#1E293B] hover:bg-rose-950/60 hover:text-rose-400 text-slate-300 border border-[#334155] flex items-center justify-center transition-colors cursor-pointer"
+            title="Fechar"
           >
             <X size={20} />
           </button>
         </div>
       </header>
 
-      {/* BANNER DO PASSO ATIVO */}
-      <div className={`px-4 py-2.5 text-xs sm:text-sm font-bold flex items-center justify-between transition-colors shadow-sm ${
-        passo === 'CLIENTE' ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white'
-      }`}>
-        <div className="flex items-center gap-2">
-          {passo === 'CLIENTE' ? <UserCheck size={18} /> : <Barcode size={18} />}
-          <span>
-            {passo === 'CLIENTE'
-              ? 'PASSO 1: Aponte para o QR Code do Irmão / Cartão'
-              : 'PASSO 2: Aponte para o Código de Barras / QR do Produto'}
-          </span>
-        </div>
-        {passo === 'PRODUTO' && (
-          <span className="text-[11px] bg-emerald-800/60 px-2 py-0.5 rounded-full font-mono">
-            {comandaAtiva?.itens?.length || 0} itens
-          </span>
-        )}
-      </div>
+      {/* ============================================================== */}
+      {/* SELETOR DE MODO: LEITOR CONTÍNUO VS CARRINHO                   */}
+      {/* ============================================================== */}
+      {comandaAtiva && (
+        <div className="grid grid-cols-2 bg-[#0B1326] p-2 gap-2 border-b border-[#334155]">
+          <button
+            type="button"
+            onClick={() => setModoVisualizacao('SCANNER')}
+            className={`min-h-[44px] rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              modoVisualizacao === 'SCANNER'
+                ? 'bg-[#10B981] text-[#0B1326] shadow-md font-extrabold'
+                : 'bg-[#131B2E] text-slate-300 border border-[#334155] hover:bg-[#1E293B]'
+            }`}
+          >
+            <Barcode size={16} />
+            <span>Leitor Contínuo</span>
+          </button>
 
-      {/* FEEDBACK DE STATUS / ALERTA FLUTUANTE */}
+          <button
+            type="button"
+            onClick={() => setModoVisualizacao('CARRINHO')}
+            className={`min-h-[44px] rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              modoVisualizacao === 'CARRINHO'
+                ? 'bg-[#10B981] text-[#0B1326] shadow-md font-extrabold'
+                : 'bg-[#131B2E] text-slate-300 border border-[#334155] hover:bg-[#1E293B]'
+            }`}
+          >
+            <ShoppingCart size={16} />
+            <span>Itens na Comanda ({comandaAtiva.itens?.length || 0})</span>
+          </button>
+        </div>
+      )}
+
+      {/* FEEDBACK DE STATUS FLUTUANTE */}
       {mensagemStatus && (
         <div className={`mx-4 mt-2 p-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-lg animate-fadeIn z-30 ${
-          tipoAlerta === 'sucesso' ? 'bg-emerald-500 text-white' :
-          tipoAlerta === 'erro' ? 'bg-rose-600 text-white' : 'bg-blue-500 text-white'
+          tipoAlerta === 'sucesso' ? 'bg-[#10B981] text-[#0B1326] font-extrabold' :
+          tipoAlerta === 'erro' ? 'bg-rose-600 text-white' : 'bg-[#38BDF8] text-[#0B1326] font-bold'
         }`}>
           {tipoAlerta === 'sucesso' ? <Check size={18} /> :
            tipoAlerta === 'erro' ? <AlertCircle size={18} /> : <Sparkles size={18} />}
@@ -490,163 +565,263 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
       )}
 
       {/* ============================================================== */}
-      {/* ÁREA DA CÂMERA (VIEWPORT RESPONSIVO EM TELA CHEIA)            */}
+      {/* CORPO PRINCIPAL: CÂMERA SCANNER OU CARRINHO                   */}
       {/* ============================================================== */}
-      <main className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
-        {erroCamera ? (
-          <div className="p-6 text-center max-w-sm space-y-4">
-            <AlertCircle size={48} className="mx-auto text-rose-500" />
-            <p className="text-sm text-slate-300">{erroCamera}</p>
+      {modoVisualizacao === 'SCANNER' ? (
+        <main className="relative flex-1 bg-black flex flex-col justify-between overflow-hidden">
+          
+          {erroCamera ? (
+            <div className="p-6 text-center max-w-sm mx-auto my-auto space-y-4">
+              <AlertCircle size={48} className="mx-auto text-rose-500" />
+              <p className="text-sm text-slate-300">{erroCamera}</p>
+              <button
+                onClick={() => setCameraIdx((prev) => prev + 1)}
+                className="min-h-[48px] px-6 py-3 rounded-xl bg-[#10B981] text-[#0B1326] font-extrabold text-sm shadow-md cursor-pointer"
+              >
+                Tentar Novamente
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Elemento de vídeo do scanner */}
+              <div 
+                id={containerId} 
+                className="w-full h-full flex items-center justify-center [&>video]:object-cover [&>video]:w-full [&>video]:h-full"
+              />
+
+              {/* RETÍCULO TÁTIL (Cantoneiras Âmbar / Esmeralda + Linha de Varredura) */}
+              <div className="absolute pointer-events-none inset-0 flex items-center justify-center">
+                <div className={`w-64 h-64 border-2 rounded-2xl relative transition-all duration-300 ${
+                  passo === 'CLIENTE' ? 'border-[#38BDF8]/80 shadow-[0_0_30px_rgba(56,189,248,0.25)]' : 'border-[#F59E0B]/80 shadow-[0_0_30px_rgba(245,158,11,0.25)]'
+                }`}>
+                  {/* Cantoneiras Táteis */}
+                  <span className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-white rounded-tl-lg" />
+                  <span className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-white rounded-tr-lg" />
+                  <span className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-white rounded-bl-lg" />
+                  <span className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-white rounded-br-lg" />
+
+                  {/* Linha de Varredura */}
+                  <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-[#4EDEA3] to-transparent animate-pulse absolute top-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+
+              {/* Dica de Enquadramento */}
+              <div className="absolute top-4 inset-x-4 text-center pointer-events-none">
+                <span className="inline-block px-3.5 py-1.5 rounded-full bg-[#0B1326]/85 backdrop-blur-md text-[11px] font-bold text-slate-200 border border-[#334155] shadow-lg">
+                  {passo === 'CLIENTE' 
+                    ? 'Centralize o QR Code do Irmão ou Cartão Genérico' 
+                    : 'Aponte para o código de barras ou tag QR da bebida'}
+                </span>
+              </div>
+
+              {/* BLOCO ÚLTIMO BIPADO COM BOTÃO ANULAR (Padrão Stitch) */}
+              {ultimoItemBipado && passo === 'PRODUTO' && !produtoConferencia && (
+                <div className="absolute bottom-20 inset-x-4 p-3 rounded-2xl bg-[#131B2E]/95 backdrop-blur-md border border-[#334155] flex items-center justify-between shadow-2xl z-20 animate-slideUp">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-[#10B981]/20 border border-[#10B981]/40 flex items-center justify-center font-bold text-xs text-[#4EDEA3] shrink-0 font-mono">
+                      {ultimoItemBipado.qtd}x
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] uppercase font-extrabold text-[#F59E0B] block tracking-wider">
+                        Último Bipado
+                      </span>
+                      <h4 className="text-xs sm:text-sm font-bold text-white truncate">
+                        {ultimoItemBipado.nome}
+                      </h4>
+                      <span className="text-xs font-mono font-bold text-[#4EDEA3]">
+                        R$ {(ultimoItemBipado.valor * ultimoItemBipado.qtd).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAnularUltimoBipado}
+                    disabled={carregandoAcao}
+                    className="min-h-[42px] px-3.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shrink-0 ml-2"
+                  >
+                    <Undo2 size={14} />
+                    <span>Anular</span>
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+        </main>
+      ) : (
+        /* VISUALIZAÇÃO DE CARRINHO / ITENS DA COMANDA */
+        <main className="flex-1 bg-[#0B1326] p-4 overflow-y-auto space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-[#334155]">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Itens Registrados ({comandaAtiva?.itens?.length || 0})
+            </span>
             <button
-              onClick={() => setCameraIdx((prev) => prev + 1)}
-              className="min-h-[48px] px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md"
+              onClick={() => setModoVisualizacao('SCANNER')}
+              className="text-xs font-bold text-[#4EDEA3] hover:underline flex items-center gap-1 cursor-pointer"
             >
-              Tentar Novamente
+              <Plus size={14} />
+              <span>Bipar Mais Itens</span>
             </button>
           </div>
-        ) : (
-          <>
-            {/* Elemento onde a biblioteca html5-qrcode injeta o stream de vídeo */}
-            <div 
-              id={containerId} 
-              className="w-full h-full flex items-center justify-center [&>video]:object-cover [&>video]:w-full [&>video]:h-full"
-            />
 
-            {/* Guia visual de enquadramento (Mira do Leitor) */}
-            <div className="absolute pointer-events-none inset-0 flex items-center justify-center">
-              <div className={`w-64 h-64 border-2 rounded-3xl relative transition-all duration-300 ${
-                passo === 'CLIENTE' ? 'border-blue-400/80 shadow-[0_0_30px_rgba(59,130,246,0.3)]' : 'border-emerald-400/80 shadow-[0_0_30px_rgba(16,185,129,0.3)]'
-              }`}>
-                {/* Cantoneiras estilizadas */}
-                <span className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-white rounded-tl-xl" />
-                <span className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-white rounded-tr-xl" />
-                <span className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-white rounded-bl-xl" />
-                <span className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-white rounded-br-xl" />
-
-                {/* Linha de escaneamento animada */}
-                <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-white to-transparent animate-pulse absolute top-1/2 -translate-y-1/2" />
-              </div>
+          {!comandaAtiva?.itens?.length ? (
+            <div className="text-center py-12 text-slate-400 space-y-2">
+              <ShoppingCart className="mx-auto text-slate-600" size={40} />
+              <p className="text-sm font-bold">Nenhum item lançado ainda.</p>
+              <p className="text-xs text-slate-500">Volte ao leitor para escanear cervejas, doses e porções.</p>
             </div>
+          ) : (
+            <div className="space-y-2.5">
+              {comandaAtiva.itens.map((item) => (
+                <div
+                  key={item.id}
+                  className="p-3.5 rounded-2xl bg-[#131B2E] border border-[#334155] flex items-center justify-between gap-3 shadow-md"
+                >
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-sm font-bold text-white truncate">
+                      {item.produto_nome || `Produto #${item.produto_id}`}
+                    </h4>
+                    <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-400 font-mono">
+                      <span>{item.quantidade}x R$ {item.valor_unitario.toFixed(2)}</span>
+                      <span>•</span>
+                      <span className="text-[#4EDEA3] font-bold">
+                        R$ {(item.quantidade * item.valor_unitario).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
 
-            {/* Dica flutuante inferior sobre o visor */}
-            <div className="absolute bottom-4 left-4 right-4 text-center pointer-events-none">
-              <span className="inline-block px-3 py-1.5 rounded-full bg-slate-900/85 backdrop-blur-md text-[11px] font-medium text-slate-300 border border-slate-700/60 shadow-lg">
-                {passo === 'CLIENTE' 
-                  ? 'Centralize o QR Code do obreiro ou cartão de visitante' 
-                  : 'Centralize o código de barras ou tag QR da garrafa/lata'}
-              </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoverItemCarrinho(item.id)}
+                    className="min-h-[42px] min-w-[42px] p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/25 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Remover Item"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
             </div>
-          </>
-        )}
-      </main>
+          )}
+        </main>
+      )}
 
       {/* ============================================================== */}
-      {/* BOTTOM SHEET: CONFERÊNCIA DO PRODUTO BIPADO                   */}
+      {/* BOTTOM SHEET: CONFERÊNCIA DE QUANTIDADE (Ajuste Rápido)        */}
       {/* ============================================================== */}
       {produtoConferencia && (
-        <div className="bg-slate-900 border-t border-slate-700 p-5 rounded-t-3xl shadow-2xl z-40 animate-slideUp space-y-4">
+        <div className="bg-[#131B2E] border-t border-[#334155] p-5 rounded-t-3xl shadow-2xl z-40 animate-slideUp space-y-4">
           <div className="flex justify-between items-start">
-            <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-2.5 py-0.5 rounded-full">
+            <div className="min-w-0 flex-1 pr-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#4EDEA3] bg-[#10B981]/15 border border-[#10B981]/30 px-2.5 py-0.5 rounded-md font-mono">
                 Produto Identificado
               </span>
-              <h3 className="text-xl font-black text-white mt-1 leading-snug">
+              <h3 className="text-lg sm:text-xl font-extrabold text-white mt-1.5 leading-snug truncate">
                 {produtoConferencia.nome}
               </h3>
-              <p className="text-xs text-slate-400">
-                {produtoConferencia.marca ? `Marca: ${produtoConferencia.marca} • ` : ''}
+              <p className="text-xs text-slate-400 font-mono mt-0.5">
                 Unitário: R$ {produtoConferencia.preco_venda.toFixed(2)}
               </p>
             </div>
 
-            <div className="text-right">
-              <span className="text-[10px] uppercase text-slate-400 font-bold">Subtotal</span>
-              <div className="text-2xl font-black text-emerald-400">
+            <div className="text-right shrink-0">
+              <span className="text-[10px] uppercase text-slate-400 font-bold font-mono">Subtotal</span>
+              <div className="text-2xl font-black text-[#4EDEA3] font-mono">
                 R$ {(produtoConferencia.preco_venda * qtdConferencia).toFixed(2)}
               </div>
             </div>
           </div>
 
-          {/* Seletor Ergonômico de Quantidade (Min 48px Touch Target) */}
-          <div className="flex items-center justify-between bg-slate-950 p-2.5 rounded-2xl border border-slate-800">
+          {/* Stepper Ergonômico de Quantidade */}
+          <div className="flex items-center justify-between bg-[#0B1326] p-2.5 rounded-2xl border border-[#334155]">
             <span className="text-xs font-bold text-slate-300 ml-2">Quantidade:</span>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setQtdConferencia((prev) => Math.max(1, prev - 1))}
-                className="min-h-[48px] min-w-[48px] rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-bold flex items-center justify-center transition-transform"
+                className="min-h-[48px] min-w-[48px] rounded-xl bg-[#1E293B] hover:bg-[#334155] text-white font-extrabold flex items-center justify-center transition-all active:scale-95 cursor-pointer"
                 title="Diminuir"
               >
-                <Minus size={18} />
+                <Minus size={20} />
               </button>
 
-              <span className="text-xl font-black text-white min-w-[36px] text-center">
+              <span className="text-2xl font-black text-white min-w-[40px] text-center font-mono">
                 {qtdConferencia}
               </span>
 
               <button
                 type="button"
                 onClick={() => setQtdConferencia((prev) => prev + 1)}
-                className="min-h-[48px] min-w-[48px] rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-bold flex items-center justify-center transition-transform"
+                className="min-h-[48px] min-w-[48px] rounded-xl bg-[#1E293B] hover:bg-[#334155] text-white font-extrabold flex items-center justify-center transition-all active:scale-95 cursor-pointer"
                 title="Aumentar"
               >
-                <Plus size={18} />
+                <Plus size={20} />
               </button>
             </div>
           </div>
 
+          {/* Atalhos Rápidos (+1, +2, +5, +10) */}
+          <div className="grid grid-cols-4 gap-2">
+            {[1, 2, 5, 10].map((incremento) => (
+              <button
+                key={incremento}
+                type="button"
+                onClick={() => setQtdConferencia((prev) => prev + incremento)}
+                className="min-h-[42px] rounded-xl bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-xs font-bold text-[#F59E0B] font-mono flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+              >
+                +{incremento}
+              </button>
+            ))}
+          </div>
+
           {/* Botões de Ação Simétricos com Confirmação Explícita */}
-          <div className="grid grid-cols-2 gap-3 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
             <button
               type="button"
               disabled={carregandoAcao}
-              onClick={handleAdicionarEBiparProximo}
-              className="min-h-[50px] px-4 py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+              onClick={() => handleAdicionarEBiparProximo(false)}
+              className="min-h-[52px] px-4 py-3 bg-[#10B981] hover:bg-[#059669] text-[#0B1326] rounded-xl font-extrabold text-sm shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer active:scale-98"
             >
-              <Check size={18} />
-              <span>Confirmar Inclusão</span>
+              <Check size={20} />
+              <span>Adicionar e Continuar Bipando</span>
             </button>
 
             <button
               type="button"
               disabled={carregandoAcao}
-              onClick={() => {
-                setProdutoConferencia(null);
-                setQtdConferencia(1);
-                pausadoRef.current = false;
-              }}
-              className="min-h-[50px] px-4 py-3 bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-300 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+              onClick={() => handleAdicionarEBiparProximo(true)}
+              className="min-h-[52px] px-4 py-3 bg-[#1E293B] hover:bg-[#334155] text-slate-200 border border-[#334155] rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
             >
-              <X size={18} />
-              <span>Descartar Item</span>
+              <ShoppingCart size={18} />
+              <span>Adicionar e Ir para Carrinho</span>
             </button>
           </div>
         </div>
       )}
 
       {/* ============================================================== */}
-      {/* BARRA INFERIOR FIXA: RESUMO DA COMANDA E BOTÃO DE COBRANÇA     */}
+      {/* BARRA INFERIOR FIXA: TOTAIS E BOTÃO DE CHECK-OUT               */}
       {/* ============================================================== */}
       {!produtoConferencia && comandaAtiva && (
-        <footer className="bg-slate-900 border-t border-slate-800 p-4 z-30 shadow-2xl flex items-center justify-between gap-3">
+        <footer className="bg-[#131B2E] border-t border-[#334155] p-4 z-30 shadow-2xl flex items-center justify-between gap-3 shrink-0">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <span className="font-semibold text-slate-200 truncate">
-                {comandaAtiva.nome_cliente || `Cartão ${comandaAtiva.identificador_cartao}`}
+              <span className="font-bold text-slate-200 truncate">
+                Ir.'. {comandaAtiva.nome_cliente || `Cartão ${comandaAtiva.identificador_cartao}`}
               </span>
               <button
                 onClick={handleTrocarCliente}
-                className="text-[10px] text-blue-400 hover:underline flex items-center gap-0.5 ml-1 cursor-pointer"
-                title="Trocar cliente"
+                className="text-[10px] text-[#38BDF8] hover:underline flex items-center gap-0.5 ml-1 cursor-pointer font-bold"
+                title="Trocar Irmão"
               >
                 <RotateCcw size={10} /> Trocar
               </button>
             </div>
             <div className="flex items-baseline gap-2 mt-0.5">
-              <span className="text-xl font-black text-emerald-400">
+              <span className="text-2xl font-black text-[#4EDEA3] font-mono">
                 R$ {(comandaAtiva.total || 0).toFixed(2)}
               </span>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-slate-400 font-mono">
                 ({comandaAtiva.itens?.length || 0} {comandaAtiva.itens?.length === 1 ? 'item' : 'itens'})
               </span>
             </div>
@@ -655,8 +830,11 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
           <button
             type="button"
             disabled={!comandaAtiva.itens?.length}
-            onClick={handleFinalizarECobrar}
-            className="min-h-[48px] px-5 py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl font-bold text-sm shadow-md flex items-center gap-2 transition-transform disabled:opacity-40 cursor-pointer"
+            onClick={() => {
+              aoFechar();
+              aoSolicitarFechamento(comandaAtiva);
+            }}
+            className="min-h-[50px] px-6 py-3 bg-[#10B981] hover:bg-[#059669] active:scale-95 text-[#0B1326] rounded-xl font-extrabold text-sm shadow-lg flex items-center gap-2 transition-all disabled:opacity-40 cursor-pointer"
           >
             <CreditCard size={18} />
             <span>Ir para Pagamento</span>
