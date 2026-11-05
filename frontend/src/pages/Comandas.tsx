@@ -17,12 +17,14 @@ import {
   Camera,
   Building2,
   Printer,
-  Receipt
+  Receipt,
+  Smartphone
 } from 'lucide-react';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
 import { ComprovanteTermicoModal, type DadosComprovante } from '../components/ComprovanteTermicoModal';
 import { FecharComandaModal } from '../components/FecharComandaModal';
 import { RecargaBarModal } from '../components/RecargaBarModal';
+import { PdvMobileScannerModal } from '../components/PdvMobileScannerModal';
 
 interface ItemComanda {
   id: number;
@@ -65,9 +67,10 @@ export function Comandas() {
   // Loja Ativa no Contexto / Âmbito
   const [lojaAtivaInfo, setLojaAtivaInfo] = useState<{ id?: number; nome?: string; numero_loja?: number } | null>(null);
 
-  // Estados da Câmera Scanner
+  // Estados da Câmera Scanner e Modo PDV Mobile Contínuo
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
   const [cameraTarget, setCameraTarget] = useState<'cartao_balcao' | 'produto_balcao' | 'coringa_associar' | 'coringa_devolver' | 'nova_comanda'>('cartao_balcao');
+  const [isPdvMobileModalOpen, setIsPdvMobileModalOpen] = useState(false);
 
   // Modo de Operação (Balcão Rápido vs Gestão de Mesas)
   const [modoBalcaoRapido, setModoBalcaoRapido] = useState(true);
@@ -420,6 +423,16 @@ export function Comandas() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Botão de Destaque: Modo PDV Celular / Scanner Contínuo */}
+          <button
+            onClick={() => setIsPdvMobileModalOpen(true)}
+            className="min-h-[44px] px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm transition-all"
+            title="Abrir o Scanner Contínuo para Celular (Lê Cliente -> Lê Produtos -> Finaliza)"
+          >
+            <Smartphone size={17} />
+            <span>PDV Celular (Scanner Contínuo)</span>
+          </button>
+
           {/* Ações de Cartão Coringa (Visitantes) */}
           <button
             onClick={() => setIsModalAssociarCoringaOpen(true)}
@@ -541,9 +554,9 @@ export function Comandas() {
             <div className={`p-6 rounded-2xl border bg-white ${!comandaBalcaoAtiva ? 'opacity-50 pointer-events-none border-gray-200' : 'border-blue-200 shadow-sm'}`}>
               <div className="flex justify-between items-center mb-3">
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <QrCode size={16} className="text-purple-600" /> Passo 2: Bipar QR Code de Fábrica ou Código de Barras
+                  <QrCode size={16} className="text-blue-600" /> Passo 2: Bipar QR Code de Fábrica ou Código de Barras
                 </span>
-                <span className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full font-medium">Lata / Garrafa / Embalagem</span>
+                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-medium">Lata / Garrafa / Embalagem</span>
               </div>
 
               <form onSubmit={handleBiparProdutoBalcao} className="flex gap-2 mb-6">
@@ -563,10 +576,10 @@ export function Comandas() {
                   type="button"
                   disabled={!comandaBalcaoAtiva}
                   onClick={() => { setCameraTarget('produto_balcao'); setIsCameraScannerOpen(true); }}
-                  className="px-4 py-3 bg-purple-50 border border-purple-200 hover:bg-purple-100 text-purple-700 rounded-xl font-bold text-sm shadow-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  className="px-4 py-3 bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm shadow-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
                   title="Abrir câmera para escanear código do produto"
                 >
-                  <Camera size={18} className="text-purple-600" />
+                  <Camera size={18} className="text-slate-600" />
                   <span>Câmera</span>
                 </button>
                 <button type="submit" disabled={!comandaBalcaoAtiva} className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-sm">
@@ -1093,6 +1106,17 @@ export function Comandas() {
           }}
         />
       )}
+
+      {/* Modal Modo PDV Celular (Scanner Contínuo com Transição Automática Cliente -> Produto -> Fechamento) */}
+      <PdvMobileScannerModal
+        aberto={isPdvMobileModalOpen}
+        aoFechar={() => setIsPdvMobileModalOpen(false)}
+        aoSolicitarFechamento={(comanda) => {
+          setIsPdvMobileModalOpen(false);
+          abrirModalFechamento(comanda);
+        }}
+        aoAtualizarDadosGerais={carregarDados}
+      />
 
     </div>
   );
