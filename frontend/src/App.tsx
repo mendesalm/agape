@@ -7,6 +7,7 @@ import { GerenteLogistica } from './pages/GerenteLogistica';
 import { Comandas } from './pages/Comandas';
 import { Dashboard } from './pages/Dashboard';
 import { GerenteFinanceiro } from './pages/GerenteFinanceiro';
+import { PortalCliente } from './pages/PortalCliente';
 import { Landing } from './pages/Landing';
 import { Auditoria } from './pages/Auditoria';
 import { Instancias } from './pages/Instancias';
@@ -87,6 +88,8 @@ export default function App() {
           <Route path="produtos" element={<GerenteLogistica />} />
           <Route path="produtos-legado" element={<Produtos />} />
           <Route path="comandas" element={<Comandas />} />
+          <Route path="cliente" element={<PortalCliente />} />
+          <Route path="portal-cliente" element={<PortalCliente />} />
           <Route path="dashboard-legado" element={<Dashboard />} />
           <Route path="equipe" element={<EquipeAgape />} />
           <Route path="equipe-agape" element={<EquipeAgape />} />
