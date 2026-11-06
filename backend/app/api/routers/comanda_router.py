@@ -21,7 +21,7 @@ from app.services.carteira_service import CarteiraService
 from app.api.dependencias import obter_usuario_logado
 from app.models.usuario import Usuario
 from app.models.cliente import Cliente, CarteiraCliente, CartaoFisico, VinculoCartaoCliente, StatusCartaoFisico
-from app.models.comanda import Comanda
+from app.models.comanda import Comanda, ItemComanda
 
 router = APIRouter(prefix="/comandas", tags=["Comandas Eletrônicas & PDV Bar (SaaS)"])
 
@@ -169,7 +169,7 @@ async def _montar_detalhes_cliente(db: AsyncSession, cliente: Cliente, tenant_id
     res_comanda = await db.execute(
         select(Comanda)
         .options(
-            selectinload(Comanda.itens),
+            selectinload(Comanda.itens).selectinload(ItemComanda.produto),
             selectinload(Comanda.cliente)
         )
         .where(
@@ -242,7 +242,7 @@ async def quitar_comanda_cliente(
     res_comanda = await db.execute(
         select(Comanda)
         .options(
-            selectinload(Comanda.itens),
+            selectinload(Comanda.itens).selectinload(ItemComanda.produto),
             selectinload(Comanda.cliente)
         )
         .where(
@@ -402,7 +402,7 @@ async def listar_faturas_cliente(
     res = await db.execute(
         select(Comanda)
         .options(
-            selectinload(Comanda.itens),
+            selectinload(Comanda.itens).selectinload(ItemComanda.produto),
             selectinload(Comanda.cliente)
         )
         .where(

@@ -1,11 +1,9 @@
 // Service Worker PWA para e-Sigma Ágape
-const CACHE_NAME = 'agape-pwa-cache-v1';
+const CACHE_NAME = 'agape-pwa-cache-v3';
 const STATIC_ASSETS = [
   '/',
-  '/index.html',
   '/favicon.svg',
-  '/icon-192.png',
-  '/icon-512.png',
+  '/icone-agape.svg',
   '/manifest.json'
 ];
 
@@ -26,11 +24,17 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('Removendo cache PWA legado:', key);
             return caches.delete(key);
           }
         })
       );
-    }).then(() => self.clients.claim())
+    }).then(() => self.clients.claim()).then(async () => {
+      const clients = await self.clients.matchAll({ type: 'window' });
+      for (const client of clients) {
+        client.postMessage({ type: 'NOVA_VERSAO_DISPONIVEL' });
+      }
+    })
   );
 });
 
@@ -46,35 +50,36 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Stale-While-Revalidate para assets estáticos locais e fontes
-  if (
-    url.pathname.match(/\.(js|css|svg|png|jpg|jpeg|woff2?|ico)$/) ||
-    url.origin === 'https://fonts.googleapis.com' ||
-    url.origin === 'https://fonts.gstatic.com'
-  ) {
+  // index.html ou navegação SPA: SEMPRE Network First (garante pegar o código mais recente)
+  if (event.request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html')) {
     event.respondWith(
-      caches.open(CACHE_NAME).then(async (cache) => {
-        const cachedResponse = await cache.match(event.request);
-        const fetchPromise = fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            cache.put(event.request, networkResponse.clone());
-          }
-          return networkResponse;
-        }).catch(() => cachedResponse);
-
-        return cachedResponse || fetchPromise;
-      })
+      fetch(event.request, { cache: 'no-cache' })
+        .then((response) => {
+          return response;
+        })
+        .catch(async () => {
+          const cache = await caches.open(CACHE_NAME);
+          return (await cache.match('/index.html')) || (await cache.match('/'));
+        })
     );
     return;
   }
 
-  // Navegação SPA: Network First com fallback para index.html
-  if (event.request.mode === 'navigate') {
+  // Assets estáticos com hash (.js e .css do Vite): Cache First com revalidação
+  if (url.pathname.match(/\.(js|css|svg|png|jpg|jpeg|woff2?|ico)$/)) {
     event.respondWith(
-      fetch(event.request).catch(async () => {
-        const cache = await caches.open(CACHE_NAME);
-        return (await cache.match('/index.html')) || (await cache.match('/'));
+      caches.open(CACHE_NAME).then(async (cache) => {
+        const cachedResponse = await cache.match(event.request);
+        if (cachedResponse) return cachedResponse;
+
+        return fetch(event.request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        });
       })
     );
+    return;
   }
 });

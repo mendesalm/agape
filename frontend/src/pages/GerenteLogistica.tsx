@@ -126,7 +126,9 @@ export function GerenteLogistica() {
 
         setMensagemEan({
           tipo: 'sucesso',
-          texto: `Identificado: ${dados.nome}! Dados preenchidos automaticamente.`
+          texto: dados.origem === 'gs1_fabricante'
+            ? `Fabricante identificado: ${dados.marca}! Marca e categoria preenchidas. Complete o nome da versão.`
+            : `Identificado: ${dados.nome}! Dados preenchidos automaticamente.`
         });
       } else {
         setMensagemEan({

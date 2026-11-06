@@ -22,7 +22,15 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
+          navigator.serviceWorker.register('/sw.js').then((reg) => {
+            reg.update();
+          }).catch(() => {});
+        });
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data && event.data.type === 'NOVA_VERSAO_DISPONIVEL') {
+            console.log('Nova versão do Ágape detectada. Atualizando...');
+            window.location.reload();
+          }
         });
       }
     </script>
