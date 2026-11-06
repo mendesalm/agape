@@ -8,22 +8,22 @@
   --color-macaonico-dourado: #DDB96B;
   --color-macaonico-ouro: #FDE68A;
   --color-macaonico-inactive: #64748b;
-  --font-cinzel: 'Cinzel', serif;
-  --font-inter: 'Inter', sans-serif;
-  --font-montserrat: 'Montserrat', sans-serif;
+  --font-cinzel: 'Oswald', 'Nunito', sans-serif;
+  --font-inter: 'Nunito', sans-serif;
+  --font-montserrat: 'Nunito', sans-serif;
 }
 
 @layer base {
-  body {
+  body, button, input, select, textarea {
     background-color: #070F1E;
     color: #e2e8f0;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Nunito', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     overflow-x: hidden;
   }
 
-  h1, h2, h3, .font-cinzel {
-    font-family: 'Cinzel', serif;
-    letter-spacing: 0.05em;
+  h1, h2, h3, h4, .font-cinzel {
+    font-family: 'Oswald', 'Nunito', sans-serif;
+    letter-spacing: 0.03em;
   }
 
   /* Custom Scrollbars Escuros */
@@ -403,11 +403,9 @@
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: scale(0.97);
   }
   to {
     opacity: 1;
-    transform: scale(1);
   }
 }
 

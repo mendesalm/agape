@@ -238,7 +238,7 @@ export function GerenteLogistica() {
   });
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto text-slate-100 select-none animate-fadeIn">
+    <div className="space-y-6 max-w-7xl mx-auto text-slate-100 select-none">
       
       {/* ============================================================== */}
       {/* CABEÇALHO DO NÍVEL GERENTE (Tactile Velocity)                  */}
@@ -531,8 +531,8 @@ export function GerenteLogistica() {
       {/* MODAL: TRANSFERÊNCIA ARMAZÉM -> GÔNDOLA (Tactile Velocity)     */}
       {/* ============================================================== */}
       {isModalTransferirOpen && produtoSelecionado && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center z-[90] p-3 sm:p-4 pt-12 sm:pt-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 my-auto sm:my-0">
             <div className="flex justify-between items-start">
               <div>
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#4EDEA3] block font-mono">
@@ -596,8 +596,8 @@ export function GerenteLogistica() {
       {/* MODAL: REGISTRO DE PERDA / QUEBRA (Tactile Velocity)           */}
       {/* ============================================================== */}
       {isModalPerdaOpen && produtoSelecionado && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center z-[90] p-3 sm:p-4 pt-12 sm:pt-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 my-auto sm:my-0">
             <div className="flex justify-between items-start">
               <div>
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#F59E0B] block font-mono">
@@ -715,8 +715,8 @@ export function GerenteLogistica() {
       {/* MODAL: ETIQUETA QR CODE DO PRODUTO (Tactile Velocity)          */}
       {/* ============================================================== */}
       {isModalQrOpen && produtoSelecionado && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-4 text-center">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center z-[90] p-3 sm:p-4 pt-12 sm:pt-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-4 text-center my-auto sm:my-0">
             <div className="flex justify-between items-center">
               <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#4EDEA3] font-mono">
                 Etiqueta de Balcão
@@ -760,8 +760,8 @@ export function GerenteLogistica() {
       {/* MODAL: CADASTRO DE NOVO PRODUTO (Tactile Velocity)             */}
       {/* ============================================================== */}
       {isModalNovoOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center z-[90] p-3 sm:p-4 pt-10 sm:pt-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden my-auto sm:my-0">
             <div className="p-5 border-b border-[#334155] bg-[#131B2E] flex justify-between items-center shrink-0">
               <div>
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#4EDEA3] font-mono block">
@@ -776,7 +776,7 @@ export function GerenteLogistica() {
               </button>
             </div>
 
-            <form onSubmit={salvarNovoProduto} className="p-5 overflow-y-auto space-y-4">
+            <form onSubmit={salvarNovoProduto} className="p-5 overflow-y-auto space-y-4 pb-8">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Nome do Produto</label>
@@ -966,8 +966,8 @@ export function GerenteLogistica() {
       {/* MODAL: LOTES & CONTROLE FEFO (Tactile Velocity)               */}
       {/* ============================================================== */}
       {isModalLotesOpen && produtoSelecionado && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center z-[90] p-3 sm:p-4 pt-10 sm:pt-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-xl max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden my-auto sm:my-0">
             <div className="p-5 border-b border-[#334155] bg-[#131B2E] flex justify-between items-center shrink-0">
               <div>
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#38BDF8] font-mono block">
@@ -1027,8 +1027,8 @@ export function GerenteLogistica() {
 
       {/* MODAL: NOVO LOTE */}
       {isModalNovoLoteOpen && produtoSelecionado && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center z-[95] p-3 sm:p-4 pt-12 sm:pt-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 my-auto sm:my-0">
             <div className="flex justify-between items-center">
               <h3 className="text-base font-extrabold text-white">Cadastrar Entrada de Lote</h3>
               <button onClick={() => setIsModalNovoLoteOpen(false)} className="text-slate-400 hover:text-white">
