@@ -4,6 +4,8 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from datetime import datetime
+import time
+from sqlalchemy.orm.attributes import flag_modified
 from pydantic import BaseModel
 
 from app.core.database import obter_sessao
@@ -212,6 +214,10 @@ async def _montar_detalhes_cliente(db: AsyncSession, cliente: Cliente, tenant_id
             "email": cliente.email,
             "tipo_consumidor": cliente.tipo_consumidor,
             "nome_loja_origem": cliente.nome_loja_origem,
+            "grau_maconico": getattr(cliente, "grau_maconico", None),
+            "situacao_gob": getattr(cliente, "situacao_gob", None),
+            "validado_metagob": getattr(cliente, "validado_metagob", False),
+            "identificadores_qr": getattr(cliente, "identificadores_qr", []) or [],
             "observacao": cliente.observacao
         },
         "carteira": {
@@ -454,4 +460,109 @@ async def atualizar_perfil_cliente(
         "telefone": cliente.telefone,
         "email": cliente.email,
         "observacao": cliente.observacao
+    }
+
+class VincularDocumentoRequest(BaseModel):
+    tipo: str = "CNH" # CNH, CNI, E_GOB_CARD, MILITAR, ENTIDADE_CLASSE, OUTRO
+    rotulo: str
+    codigo: str
+
+@router.post("/cliente/{cliente_id}/vincular-documento")
+async def vincular_documento_cliente(
+    cliente_id: int,
+    dados: VincularDocumentoRequest,
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Atrela um documento com QR Code (CNH, CNI, e-GOB Card, Militar, OAB)
+    ao cadastro do cliente no Salão de Ágapes.
+    """
+    cod_limpo = dados.codigo.strip()
+    if not cod_limpo:
+        raise HTTPException(status_code=400, detail="Código do documento não pode ser vazio.")
+
+    # 1. Trava de unicidade: impede que o mesmo QR Code pertença a mais de um cliente
+    try:
+        res_unic = await db.execute(
+            select(Cliente).where(
+                Cliente.identificadores_qr.contains([{"codigo": cod_limpo}]),
+                Cliente.id != cliente_id
+            )
+        )
+        outro_cliente = res_unic.scalars().first()
+        if outro_cliente:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Este documento já está vinculado ao irmão {outro_cliente.nome}."
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
+    # 2. Busca o cliente
+    res = await db.execute(select(Cliente).where(Cliente.id == cliente_id))
+    cliente = res.scalars().first()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado.")
+
+    docs = list(cliente.identificadores_qr or [])
+    # Remove se já existia com o mesmo código para atualizar rótulo/tipo
+    docs = [d for d in docs if d.get("codigo") != cod_limpo]
+
+    doc_id = f"{dados.tipo.lower()}_{int(time.time())}"
+    novo_doc = {
+        "id": doc_id,
+        "tipo": dados.tipo.upper(),
+        "rotulo": dados.rotulo.strip() or dados.tipo.upper(),
+        "codigo": cod_limpo,
+        "cadastrado_em": datetime.utcnow().isoformat() + "Z",
+        "ativo": True
+    }
+    docs.append(novo_doc)
+    cliente.identificadores_qr = docs
+    flag_modified(cliente, "identificadores_qr")
+
+    await db.commit()
+    await db.refresh(cliente)
+
+    return {
+        "sucesso": True,
+        "mensagem": f"Documento '{novo_doc['rotulo']}' vinculado com sucesso!",
+        "documento": novo_doc,
+        "identificadores_qr": cliente.identificadores_qr
+    }
+
+@router.delete("/cliente/{cliente_id}/desvincular-documento/{doc_id}")
+async def desvincular_documento_cliente(
+    cliente_id: int,
+    doc_id: str,
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Remove uma credencial/documento vinculada do cliente.
+    """
+    res = await db.execute(select(Cliente).where(Cliente.id == cliente_id))
+    cliente = res.scalars().first()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado.")
+
+    docs = list(cliente.identificadores_qr or [])
+    docs_filtrados = [d for d in docs if d.get("id") != doc_id and d.get("codigo") != doc_id]
+
+    if len(docs) == len(docs_filtrados):
+        raise HTTPException(status_code=404, detail="Documento não encontrado para este cliente.")
+
+    cliente.identificadores_qr = docs_filtrados
+    flag_modified(cliente, "identificadores_qr")
+
+    await db.commit()
+    await db.refresh(cliente)
+
+    return {
+        "sucesso": True,
+        "mensagem": "Documento desvinculado com sucesso.",
+        "identificadores_qr": cliente.identificadores_qr
     }

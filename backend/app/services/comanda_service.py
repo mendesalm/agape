@@ -121,6 +121,21 @@ class ComandaService:
                 select(Cliente).where(or_(*condicoes_cliente))
             )
             cli = res_cli.scalars().first()
+
+            # 2.1 Busca por Documentos Atrelados no Array JSONB (CNH, CNI, e-GOB, Militares, OAB)
+            if not cli:
+                try:
+                    res_doc = await self.db.execute(
+                        select(Cliente).where(
+                            Cliente.identificadores_qr.contains([{"codigo": identificador_limpo}])
+                        )
+                    )
+                    cli_doc = res_doc.scalars().first()
+                    if cli_doc:
+                        cli = cli_doc
+                except Exception as ex:
+                    logger.debug(f"Busca por documento JSONB: {ex}")
+
             if cli:
                 cliente_id_vinculado = cli.id
                 nome_encontrado = cli.nome

@@ -20,10 +20,23 @@ import {
   ArrowRight,
   Clock,
   Maximize2,
-  X
+  X,
+  Camera,
+  Trash2,
+  Plus
 } from 'lucide-react';
 import { api } from '../services/api';
 import { ComprovanteTermicoModal, type DadosComprovante } from '../components/ComprovanteTermicoModal';
+import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
+
+export interface DocumentoIdentificador {
+  id: string;
+  tipo: 'CNH' | 'CNI' | 'E_GOB_CARD' | 'MILITAR' | 'ENTIDADE_CLASSE' | 'OUTRO';
+  rotulo: string;
+  codigo: string;
+  cadastrado_em: string;
+  ativo: boolean;
+}
 
 interface ClientePerfil {
   id: number;
@@ -37,6 +50,7 @@ interface ClientePerfil {
   grau_maconico?: string | null;
   situacao_gob?: string | null;
   validado_metagob?: boolean | null;
+  identificadores_qr?: DocumentoIdentificador[];
   observacao?: string | null;
 }
 
@@ -136,6 +150,55 @@ export const PortalCliente: React.FC = () => {
   const [buscaTermo, setBuscaTermo] = useState('');
   const [clientesEncontrados, setClientesEncontrados] = useState<ClientePerfil[]>([]);
   const [buscandoClientes, setBuscandoClientes] = useState(false);
+
+  // Vínculo de Múltiplos Documentos com QR Code (CNH, CNI, e-GOB, Militares, OAB)
+  const [modalVincularAberto, setModalVincularAberto] = useState(false);
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+  const [novoDocTipo, setNovoDocTipo] = useState<'CNH' | 'CNI' | 'E_GOB_CARD' | 'MILITAR' | 'ENTIDADE_CLASSE' | 'OUTRO'>('CNH');
+  const [novoDocRotulo, setNovoDocRotulo] = useState('CNH Digital');
+  const [novoDocCodigo, setNovoDocCodigo] = useState('');
+  const [vinculandoDoc, setVinculandoDoc] = useState(false);
+  const [erroVincular, setErroVincular] = useState<string | null>(null);
+
+  const handleVincularDocumento = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cliente?.id) return;
+    if (!novoDocCodigo.trim()) {
+      setErroVincular('O código ou leitura do QR Code é obrigatório.');
+      return;
+    }
+    try {
+      setVinculandoDoc(true);
+      setErroVincular(null);
+      const res = await api.post(`/comandas/cliente/${cliente.id}/vincular-documento`, {
+        tipo: novoDocTipo,
+        rotulo: novoDocRotulo.trim() || novoDocTipo,
+        codigo: novoDocCodigo.trim()
+      });
+      setCliente(prev => prev ? { ...prev, identificadores_qr: res.data.identificadores_qr } : prev);
+      setMensagemSucesso(`✓ Documento '${novoDocRotulo}' vinculado com sucesso!`);
+      setTimeout(() => setMensagemSucesso(null), 4000);
+      setModalVincularAberto(false);
+      setNovoDocCodigo('');
+    } catch (err: any) {
+      setErroVincular(err.response?.data?.detail || 'Erro ao vincular documento.');
+    } finally {
+      setVinculandoDoc(false);
+    }
+  };
+
+  const handleDesvincularDocumento = async (docId: string) => {
+    if (!cliente?.id) return;
+    if (!window.confirm('Deseja realmente desvincular este documento de sua conta?')) return;
+    try {
+      const res = await api.delete(`/comandas/cliente/${cliente.id}/desvincular-documento/${docId}`);
+      setCliente(prev => prev ? { ...prev, identificadores_qr: res.data.identificadores_qr } : prev);
+      setMensagemSucesso('✓ Documento desvinculado com sucesso.');
+      setTimeout(() => setMensagemSucesso(null), 3000);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao desvincular documento.');
+    }
+  };
 
   // Carrega Perfil do Cliente Inicial
   const carregarPerfil = async (clienteIdAlvo?: number) => {
@@ -604,6 +667,83 @@ export const PortalCliente: React.FC = () => {
             <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
               Apresente esta credencial ao garçom ou aponte para a câmera do terminal de autoatendimento para registrar consumos em sua comanda.
             </p>
+
+            {/* SEÇÃO SIMÉTRICA: DOCUMENTOS & CARTEIRAS VINCULADAS */}
+            <div className="w-full mt-6 pt-5 border-t border-[#334155] text-left space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-mono font-extrabold uppercase tracking-widest text-[#FDE68A] flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#DDB96B]" /> Documentos Atrelados
+                  </span>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    CNH, e-GOB, Militares e Entidades de Classe
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNovoDocTipo('CNH');
+                    setNovoDocRotulo('CNH Digital');
+                    setNovoDocCodigo('');
+                    setErroVincular(null);
+                    setModalVincularAberto(true);
+                  }}
+                  className="px-2.5 py-1.5 bg-[#1E293B] hover:bg-[#334155] border border-[#DDB96B]/40 hover:border-[#DDB96B] text-[#FDE68A] rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Vincular</span>
+                </button>
+              </div>
+
+              {/* Lista dos Documentos do Irmão */}
+              {cliente?.identificadores_qr && cliente.identificadores_qr.length > 0 ? (
+                <div className="space-y-2">
+                  {cliente.identificadores_qr.map((doc) => (
+                    <div
+                      key={doc.id || doc.codigo}
+                      className="p-3 rounded-2xl bg-[#070F1E]/80 border border-[#334155] flex items-center justify-between gap-3 group hover:border-[#DDB96B]/30 transition-all"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-[#DDB96B]/10 border border-[#DDB96B]/25 flex items-center justify-center text-[#FDE68A] shrink-0">
+                          <QrCode className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-white truncate block">
+                              {doc.rotulo}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#10B981]/15 text-[#4EDEA3] border border-[#10B981]/30">
+                              {doc.tipo}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-mono text-slate-400 truncate block mt-0.5">
+                            {doc.codigo.length > 30 ? `${doc.codigo.substring(0, 28)}...` : doc.codigo}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDesvincularDocumento(doc.id || doc.codigo)}
+                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all shrink-0 cursor-pointer"
+                        title="Desvincular Documento"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 rounded-2xl bg-[#070F1E]/50 border border-dashed border-[#334155] text-center">
+                  <p className="text-xs text-slate-400">
+                    Nenhum documento externo atrelado no momento.
+                  </p>
+                  <p className="text-[11px] text-[#DDB96B]/80 mt-1">
+                    Vincule sua CNH, e-GOB Card ou carteira funcional para poder pedir no bar apenas mostrando o QR Code do documento!
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -659,6 +799,168 @@ export const PortalCliente: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL: VINCULAR NOVO DOCUMENTO (CNH, CNI, E-GOB, MILITAR, OAB) */}
+      {modalVincularAberto && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-[#0B1326] border border-[#DDB96B]/50 rounded-3xl shadow-2xl p-6 sm:p-7 relative text-left">
+            <button
+              onClick={() => setModalVincularAberto(false)}
+              className="absolute top-4 right-4 p-2 rounded-xl bg-[#1E293B] text-slate-400 hover:text-white transition-all cursor-pointer"
+              title="Fechar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-1 mb-5">
+              <span className="text-[10px] uppercase font-mono font-extrabold tracking-widest text-[#DDB96B] block">
+                Nova Credencial
+              </span>
+              <h3 className="text-lg font-black text-white">
+                Vincular Documento com QR Code
+              </h3>
+              <p className="text-xs text-slate-400">
+                Atrele sua CNH, e-GOB Card ou carteira de classe ao seu cadastro.
+              </p>
+            </div>
+
+            {erroVincular && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                <X className="w-4 h-4 shrink-0" />
+                <span>{erroVincular}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleVincularDocumento} className="space-y-4">
+              {/* Seleção do Tipo de Documento em Pílulas Simétricas */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-2">
+                  Tipo de Documento
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { tipo: 'CNH', label: 'CNH' },
+                    { tipo: 'CNI', label: 'CNI' },
+                    { tipo: 'E_GOB_CARD', label: 'e-GOB' },
+                    { tipo: 'MILITAR', label: 'Militar' },
+                    { tipo: 'ENTIDADE_CLASSE', label: 'OAB/CRM' },
+                    { tipo: 'OUTRO', label: 'Outro' }
+                  ].map(item => (
+                    <button
+                      key={item.tipo}
+                      type="button"
+                      onClick={() => {
+                        setNovoDocTipo(item.tipo as any);
+                        if (item.tipo === 'CNH') setNovoDocRotulo('CNH Digital');
+                        else if (item.tipo === 'CNI') setNovoDocRotulo('Nova Carteira de Identidade (CNI)');
+                        else if (item.tipo === 'E_GOB_CARD') setNovoDocRotulo('e-GOB Card Oficial');
+                        else if (item.tipo === 'MILITAR') setNovoDocRotulo('Carteira Funcional Militar');
+                        else if (item.tipo === 'ENTIDADE_CLASSE') setNovoDocRotulo('Carteira de Classe (OAB/CRM)');
+                        else setNovoDocRotulo('Cartão de Acesso');
+                      }}
+                      className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all border text-center cursor-pointer ${
+                        novoDocTipo === item.tipo
+                          ? 'bg-[#DDB96B]/20 border-[#DDB96B] text-[#FDE68A] shadow-sm'
+                          : 'bg-[#131B2E] border-[#334155] text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Rótulo Descritivo */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
+                  Nome / Rótulo de Identificação
+                </label>
+                <input
+                  type="text"
+                  value={novoDocRotulo}
+                  onChange={e => setNovoDocRotulo(e.target.value)}
+                  placeholder="Ex: CNH Digital do Serpro"
+                  className="w-full min-h-[42px] px-3.5 rounded-xl bg-[#070F1E] border border-[#334155] text-white text-xs outline-none focus:border-[#DDB96B]"
+                  required
+                />
+              </div>
+
+              {/* Código ou Leitura por Câmera */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                    Conteúdo / Leitura do QR Code
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCameraModalOpen(true)}
+                    className="text-xs font-bold text-[#4EDEA3] hover:text-emerald-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Ler com Câmera</span>
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={novoDocCodigo}
+                    onChange={e => setNovoDocCodigo(e.target.value)}
+                    placeholder="Cole ou escaneie o QR Code do documento..."
+                    className="flex-1 min-h-[42px] px-3.5 rounded-xl bg-[#070F1E] border border-[#334155] text-white text-xs font-mono outline-none focus:border-[#DDB96B]"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsCameraModalOpen(true)}
+                    className="px-3 bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-slate-200 rounded-xl flex items-center justify-center cursor-pointer"
+                    title="Abrir scanner de câmera"
+                  >
+                    <Camera className="w-4 h-4 text-[#DDB96B]" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Botões Finais de Ação */}
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setModalVincularAberto(false)}
+                  className="flex-1 min-h-[44px] px-4 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-slate-300 font-bold text-xs uppercase cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={vinculandoDoc}
+                  className="flex-1 min-h-[44px] px-4 rounded-xl bg-gradient-to-r from-[#DDB96B] to-[#FDE68A] hover:brightness-110 text-[#070F1E] font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {vinculandoDoc ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Salvando...</span>
+                    </>
+                  ) : (
+                    <span>Confirmar Vínculo</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CÂMERA PARA LER O QR CODE DO DOCUMENTO */}
+      <LeitorQrCameraModal
+        isOpen={isCameraModalOpen}
+        onClose={() => setIsCameraModalOpen(false)}
+        onScanSuccess={(codigo) => {
+          setNovoDocCodigo(codigo.trim());
+          setIsCameraModalOpen(false);
+          setErroVincular(null);
+        }}
+        titulo="Escanear QR Code do Documento"
+        subtitulo="Aponte para o QR Code da CNH, CNI, e-GOB Card ou Carteira de Classe"
+      />
 
       {/* CONTEÚDO DA ABA 1: PAGAMENTOS (QUITAÇÃO DA COMANDA ABERTA / AUTO-CHECKOUT) */}
       {abaAtiva === 'pagamentos' && (

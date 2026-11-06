@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float, Enum
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float, Enum, JSON
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -41,6 +42,9 @@ class Cliente(Base):
     situacao_gob = Column(String(50), nullable=True)                    # Ex: REGULAR, ATIVO
     validado_metagob = Column(Boolean, default=False)                   # True se conferido via PIN oficial
     data_validacao_metagob = Column(DateTime, nullable=True)
+
+    # Carteiras e Documentos com QR Code Atrelados (CNH, CNI, e-GOB Card, Militares, OAB, etc.)
+    identificadores_qr = Column(JSON().with_variant(JSONB, "postgresql"), default=list, nullable=False)
 
     observacao = Column(String(255), nullable=True)
     data_cadastro = Column(DateTime, default=datetime.utcnow)
