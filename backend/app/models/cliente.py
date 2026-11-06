@@ -36,6 +36,12 @@ class Cliente(Base):
     obreiro_responsavel_id = Column(Integer, nullable=True, index=True) # Irmão anfitrião (para familiares/convidados)
     nome_loja_origem = Column(String(120), nullable=True)               # Ex: Loja de origem do visitante
 
+    # Validação e Dados Oficiais MetaGOB (e-GOB Card)
+    grau_maconico = Column(String(50), nullable=True)                   # Ex: Mestre Maçom
+    situacao_gob = Column(String(50), nullable=True)                    # Ex: REGULAR, ATIVO
+    validado_metagob = Column(Boolean, default=False)                   # True se conferido via PIN oficial
+    data_validacao_metagob = Column(DateTime, nullable=True)
+
     observacao = Column(String(255), nullable=True)
     data_cadastro = Column(DateTime, default=datetime.utcnow)
     ativo = Column(Boolean, default=True)

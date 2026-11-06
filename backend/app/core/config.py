@@ -22,6 +22,13 @@ class Configuracoes(BaseSettings):
     SMTP_FROM: str = "e-Sigma Ágape <noreply@e-sigma.app>"
     SMTP_TLS: bool = True
 
+    # Integração MetaGOB (Grande Oriente do Brasil - e-GOB Card)
+    METAGOB_API_URL: str = "https://api.metagob.gob.org.br"
+    METAGOB_TOKEN_URL: str = "https://api.metagob.gob.org.br/oauth/token"
+    METAGOB_CLIENT_ID: Optional[str] = None
+    METAGOB_CLIENT_SECRET: Optional[str] = None
+    METAGOB_SANDBOX_MODE: bool = True
+
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
 config = Configuracoes()
