@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import QRCode from 'react-qr-code';
 import {
   User,
   FileText,
-  CreditCard,
   QrCode,
   CheckCircle2,
   Copy,
@@ -18,7 +18,9 @@ import {
   Mail,
   ShieldCheck,
   ArrowRight,
-  Clock
+  Clock,
+  Maximize2,
+  X
 } from 'lucide-react';
 import { api } from '../services/api';
 import { ComprovanteTermicoModal, type DadosComprovante } from '../components/ComprovanteTermicoModal';
@@ -32,6 +34,9 @@ interface ClientePerfil {
   email?: string | null;
   tipo_consumidor: string;
   nome_loja_origem?: string | null;
+  grau_maconico?: string | null;
+  situacao_gob?: string | null;
+  validado_metagob?: boolean | null;
   observacao?: string | null;
 }
 
@@ -76,8 +81,9 @@ interface FaturaHistorico {
 }
 
 export const PortalCliente: React.FC = () => {
-  // Aba ativa: 'cadastro' | 'relatorio' | 'credito' | 'pagamentos'
-  const [abaAtiva, setAbaAtiva] = useState<'cadastro' | 'relatorio' | 'credito' | 'pagamentos'>('pagamentos');
+  // Aba ativa: 'comanda_qr' | 'pagamentos' | 'credito' | 'relatorio' | 'cadastro'
+  const [abaAtiva, setAbaAtiva] = useState<'comanda_qr' | 'pagamentos' | 'credito' | 'relatorio' | 'cadastro'>('comanda_qr');
+  const [modalQrExpandido, setModalQrExpandido] = useState(false);
 
   // Estado do Perfil e Carteira
   const [carregando, setCarregando] = useState(true);
@@ -85,6 +91,14 @@ export const PortalCliente: React.FC = () => {
   const [carteira, setCarteira] = useState<CarteiraInfo>({ saldo: 0, limite_fiado: 100 });
   const [cartaoAtivo, setCartaoAtivo] = useState<string | null>(null);
   const [comandaAberta, setComandaAberta] = useState<ComandaAbertaInfo | null>(null);
+
+  // Identificador do QR Code da Credencial Digital (aceito no balcão e no leitor 2D)
+  const getQrCodeValor = () => {
+    if (cartaoAtivo) return cartaoAtivo;
+    if (cliente?.cim) return `AGAPE:CLI:${cliente.id}:${cliente.cim}`;
+    if (cliente?.id) return `AGAPE:CLI:${cliente.id}`;
+    return 'AGAPE:CLIENTE:0';
+  };
 
   // Edição de Contato
   const [telefoneEdit, setTelefoneEdit] = useState('');
@@ -388,18 +402,31 @@ export const PortalCliente: React.FC = () => {
             </div>
           </div>
 
-          {/* Card Cartão Físico */}
-          <div className="bg-[#0B1326]/70 border border-[#334155] rounded-xl p-3.5 flex items-center justify-between">
+          {/* Card Cartão & Credencial Digital com QR Code */}
+          <div
+            onClick={() => {
+              setAbaAtiva('comanda_qr');
+              setModalQrExpandido(true);
+            }}
+            className="bg-[#0B1326]/70 border border-[#DDB96B]/30 hover:border-[#DDB96B]/80 rounded-xl p-3.5 flex items-center justify-between cursor-pointer transition-all hover:bg-[#131B2E]/90 group shadow-sm"
+            title="Clique para abrir seu QR Code de Balcão"
+          >
             <div>
-              <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block">
-                Cartão Físico Ativo
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-[#FDE68A] block">
+                  Credencial Digital
+                </span>
+                <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
+              </div>
+              <span className="text-xs font-bold font-mono text-white block truncate max-w-[140px] mt-0.5">
+                {cartaoAtivo ? cartaoAtivo : (cliente?.cim ? `CIM ${cliente.cim}` : `ID #${cliente?.id}`)}
               </span>
-              <span className="text-sm font-bold font-mono text-white">
-                {cartaoAtivo ? cartaoAtivo : 'Nenhum vinculado'}
+              <span className="text-[10px] text-slate-400 group-hover:text-[#FDE68A] transition-colors flex items-center gap-1 mt-0.5">
+                <QrCode className="w-3 h-3 text-[#DDB96B]" /> Toque para expandir
               </span>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#7BD0FF]">
-              <CreditCard className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-[#DDB96B]/10 border border-[#DDB96B]/30 flex items-center justify-center text-[#FDE68A] group-hover:scale-105 transition-all shadow-inner">
+              <QrCode className="w-5 h-5" />
             </div>
           </div>
 
@@ -432,8 +459,20 @@ export const PortalCliente: React.FC = () => {
         </div>
       </section>
 
-      {/* OS 4 SUB-MENUS DO NÍVEL CLIENTE: NAVEGAÇÃO SIMÉTRICA EM 4 TILES */}
-      <nav className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      {/* OS 5 SUB-MENUS DO NÍVEL CLIENTE: NAVEGAÇÃO SIMÉTRICA EM 5 TILES */}
+      <nav className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        <button
+          onClick={() => setAbaAtiva('comanda_qr')}
+          className={`col-span-2 sm:col-span-1 p-3 rounded-xl border font-bold text-xs uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer relative ${
+            abaAtiva === 'comanda_qr'
+              ? 'bg-[#171F33] border-[#DDB96B] text-[#FDE68A] shadow-lg shadow-[#DDB96B]/15'
+              : 'bg-[#131B2E] border-[#334155] text-slate-300 hover:text-white hover:border-[#DDB96B]/40'
+          }`}
+        >
+          <QrCode className="w-5 h-5 text-[#FDE68A]" />
+          <span>Meu QR Code</span>
+        </button>
+
         <button
           onClick={() => setAbaAtiva('pagamentos')}
           className={`p-3 rounded-xl border font-bold text-xs uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer relative ${
@@ -448,7 +487,7 @@ export const PortalCliente: React.FC = () => {
             </span>
           )}
           <CheckCircle2 className="w-5 h-5" />
-          <span>Pagamentos</span>
+          <span>Pagar Comanda</span>
         </button>
 
         <button
@@ -460,7 +499,7 @@ export const PortalCliente: React.FC = () => {
           }`}
         >
           <Wallet className="w-5 h-5" />
-          <span>Crédito</span>
+          <span>Recarregar Saldo</span>
         </button>
 
         <button
@@ -472,7 +511,7 @@ export const PortalCliente: React.FC = () => {
           }`}
         >
           <FileText className="w-5 h-5" />
-          <span>Relatório (Faturas)</span>
+          <span>Faturas & Extrato</span>
         </button>
 
         <button
@@ -484,9 +523,142 @@ export const PortalCliente: React.FC = () => {
           }`}
         >
           <User className="w-5 h-5" />
-          <span>Cadastro</span>
+          <span>Meu Perfil</span>
         </button>
       </nav>
+
+      {/* CONTEÚDO DA ABA 0: CREDENCIAL DIGITAL & QR CODE DE BALCÃO (PUREZA & SIMETRIA) */}
+      {abaAtiva === 'comanda_qr' && (
+        <div className="space-y-4 animate-fade-in flex flex-col items-center">
+          <div className="w-full max-w-md bg-gradient-to-b from-[#131B2E] via-[#0B1326] to-[#070F1E] border border-[#DDB96B]/40 rounded-3xl p-6 sm:p-8 shadow-2xl text-center relative overflow-hidden">
+            {/* Decorações Geométricas de Pureza e Simetria */}
+            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-[#DDB96B] to-transparent opacity-80" />
+            <div className="absolute -top-12 -right-12 w-32 h-32 bg-[#DDB96B]/5 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-[#10B981]/5 rounded-full blur-2xl pointer-events-none" />
+
+            {/* Cabeçalho da Credencial */}
+            <div className="space-y-1 mb-5">
+              <span className="text-[10px] uppercase tracking-[0.25em] font-extrabold text-[#DDB96B] block font-mono">
+                Salão de Ágapes • Credencial Soberana
+              </span>
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                {cliente?.nome || 'Obreiro'}
+              </h2>
+              <div className="flex items-center justify-center gap-2 text-xs text-slate-400 mt-1">
+                {cliente?.cim && (
+                  <span className="px-2 py-0.5 rounded-full bg-[#070F1E] border border-[#DDB96B]/30 font-mono text-[#FDE68A] text-[11px] font-bold">
+                    CIM {cliente.cim}
+                  </span>
+                )}
+                <span>•</span>
+                <span>{cliente?.grau_maconico || 'Mestre Maçom'}</span>
+              </div>
+            </div>
+
+            {/* Container Central do QR Code (Alto Contraste Óptico) */}
+            <div className="my-5 p-5 bg-white rounded-3xl shadow-[0_12px_40px_rgba(0,0,0,0.6)] border-4 border-[#FDE68A] inline-block mx-auto transition-transform hover:scale-[1.02]">
+              <QRCode
+                value={getQrCodeValor()}
+                size={200}
+                bgColor="#FFFFFF"
+                fgColor="#070F1E"
+                level="H"
+              />
+              <div className="mt-3 pt-2 border-t border-slate-200">
+                <span className="font-mono text-[11px] font-extrabold tracking-wider text-[#070F1E] block">
+                  {cartaoAtivo || (cliente?.cim ? `CIM ${cliente.cim}` : `ID ${cliente?.id}`)}
+                </span>
+              </div>
+            </div>
+
+            {/* Telemetria de Identificação e Saldo em 2 Caixas Simétricas */}
+            <div className="grid grid-cols-2 gap-3 my-5 text-left">
+              <div className="p-3 rounded-2xl bg-[#070F1E]/80 border border-[#334155]">
+                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block font-mono">
+                  Saldo em Carteira
+                </span>
+                <span className={`text-base font-extrabold font-mono ${carteira.saldo >= 0 ? 'text-[#4EDEA3]' : 'text-[#FFB95F]'}`}>
+                  R$ {carteira.saldo.toFixed(2)}
+                </span>
+              </div>
+              <div className="p-3 rounded-2xl bg-[#070F1E]/80 border border-[#334155]">
+                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block font-mono">
+                  Estado da Conta
+                </span>
+                <span className="text-xs font-bold text-[#4EDEA3] flex items-center gap-1.5 mt-0.5">
+                  <span className="w-2 h-2 rounded-full bg-[#10B981] inline-block animate-pulse" />
+                  Consumo Ativo
+                </span>
+              </div>
+            </div>
+
+            {/* Botão de Expansão em Tela Cheia */}
+            <button
+              onClick={() => setModalQrExpandido(true)}
+              className="w-full min-h-[46px] px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#DDB96B] to-[#FDE68A] hover:brightness-110 text-[#070F1E] font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#DDB96B]/20 transition-all cursor-pointer"
+            >
+              <Maximize2 className="w-4 h-4" />
+              <span>Expandir para Leitor de Balcão</span>
+            </button>
+
+            <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
+              Apresente esta credencial ao garçom ou aponte para a câmera do terminal de autoatendimento para registrar consumos em sua comanda.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL TELA CHEIA: APRESENTAÇÃO DO QR CODE PARA O LEITOR / BALCÃO */}
+      {modalQrExpandido && (
+        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-fade-in">
+          <div className="w-full max-w-sm bg-[#0B1326] border-2 border-[#DDB96B]/60 rounded-3xl p-6 sm:p-8 shadow-[0_0_60px_rgba(221,185,107,0.2)] text-center relative">
+            <button
+              onClick={() => setModalQrExpandido(false)}
+              className="absolute top-4 right-4 p-2 rounded-xl bg-[#1E293B] text-slate-400 hover:text-white transition-all cursor-pointer"
+              title="Fechar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-1 mb-4">
+              <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-[#DDB96B] block">
+                Leitura Óptica no Balcão
+              </span>
+              <h3 className="text-lg font-black text-white">
+                {cliente?.nome || 'Obreiro'}
+              </h3>
+              <p className="text-xs text-slate-400">
+                Aproxime o QR Code do scanner ou da câmera
+              </p>
+            </div>
+
+            {/* Bloco Branco de Alto Contraste para Bipagem Instantânea */}
+            <div className="my-4 p-6 bg-white rounded-3xl shadow-2xl inline-block border-4 border-[#FDE68A]">
+              <QRCode
+                value={getQrCodeValor()}
+                size={230}
+                bgColor="#FFFFFF"
+                fgColor="#070F1E"
+                level="H"
+              />
+              <div className="mt-3 pt-2 border-t border-slate-200">
+                <span className="font-mono text-xs font-black tracking-widest text-[#070F1E] block">
+                  {cartaoAtivo || (cliente?.cim ? `CIM ${cliente.cim}` : `ID ${cliente?.id}`)}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <button
+                onClick={() => setModalQrExpandido(false)}
+                className="w-full min-h-[44px] px-4 py-2 bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-slate-200 font-bold rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
+              >
+                Voltar ao Menu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CONTEÚDO DA ABA 1: PAGAMENTOS (QUITAÇÃO DA COMANDA ABERTA / AUTO-CHECKOUT) */}
       {abaAtiva === 'pagamentos' && (

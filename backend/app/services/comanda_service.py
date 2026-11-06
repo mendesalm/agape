@@ -2,6 +2,7 @@ from typing import Optional, List
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import or_
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 from loguru import logger
@@ -97,15 +98,27 @@ class ComandaService:
                     f"Aponte a câmera para o QR Code do CLIENTE (ou digite CPF/CIM)."
                 )
 
+            # Suporte a QR Code oficial da Credencial Digital Ágape (Ex: AGAPE:CLI:14 ou AGAPE:CLI:14:123456)
+            cli_id_extraido = None
+            if identificador_limpo.startswith("AGAPE:CLI:"):
+                partes = identificador_limpo.split(":")
+                if len(partes) >= 3 and partes[2].isdigit():
+                    cli_id_extraido = int(partes[2])
+
             cpf_digitos = identificador_limpo.replace('.', '').replace('-', '').replace('/', '').strip()
+            
+            condicoes_cliente = [
+                Cliente.cpf == identificador_limpo,
+                Cliente.cpf == cpf_digitos,
+                Cliente.cim == identificador_limpo,
+                Cliente.cpf == f"CIM:{identificador_limpo}",
+                Cliente.nome.ilike(f"%{identificador_limpo}%")
+            ]
+            if cli_id_extraido:
+                condicoes_cliente.append(Cliente.id == cli_id_extraido)
+
             res_cli = await self.db.execute(
-                select(Cliente).where(
-                    (Cliente.cpf == identificador_limpo) |
-                    (Cliente.cpf == cpf_digitos) |
-                    (Cliente.cim == identificador_limpo) |
-                    (Cliente.cpf == f"CIM:{identificador_limpo}") |
-                    (Cliente.nome.ilike(f"%{identificador_limpo}%"))
-                )
+                select(Cliente).where(or_(*condicoes_cliente))
             )
             cli = res_cli.scalars().first()
             if cli:
