@@ -274,7 +274,14 @@ export function ComprovanteTermicoModal({
                   </div>
                   <div className="flex justify-between text-[11px] text-slate-700">
                     <span>Forma de Pagamento:</span>
-                    <span className="font-bold uppercase">{comprovante.forma_pagamento}</span>
+                    <span className="font-bold uppercase">
+                      {comprovante.forma_pagamento?.toLowerCase() === 'pix' ? 'PIX DINÂMICO' :
+                       comprovante.forma_pagamento?.toLowerCase() === 'cartao_debito' ? 'CARTÃO DE DÉBITO' :
+                       comprovante.forma_pagamento?.toLowerCase() === 'cartao_credito' ? 'CARTÃO DE CRÉDITO' :
+                       comprovante.forma_pagamento?.toLowerCase() === 'dinheiro' ? 'DINHEIRO' :
+                       comprovante.forma_pagamento?.toLowerCase() === 'saldo_bar_fiado' ? 'CONTA DO BAR (PÓS-PAGO)' :
+                       comprovante.forma_pagamento?.toUpperCase() || 'NÃO INFORMADO'}
+                    </span>
                   </div>
                 </div>
 

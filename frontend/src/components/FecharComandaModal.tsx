@@ -44,6 +44,8 @@ export function FecharComandaModal({
   onAbrirRecarga
 }: FecharComandaModalProps) {
   const [formaPagamento, setFormaPagamento] = useState<string>('pix');
+  const [bandeiraCartao, setBandeiraCartao] = useState<string>('');
+  const [codigoAutorizacao, setCodigoAutorizacao] = useState<string>('');
   const [valorRecebido, setValorRecebido] = useState<string>('');
   const [observacao, setObservacao] = useState<string>('');
   const [devolverCartao, setDevolverCartao] = useState<boolean>(true);
@@ -161,11 +163,25 @@ export function FecharComandaModal({
 
     try {
       setProcessando(true);
+
+      // Metadados de conciliação para pagamentos em cartão físico POS
+      let obsFinal = observacao.trim();
+      if (formaPagamento === 'cartao_debito' || formaPagamento === 'cartao_credito') {
+        const detalhesCartao = [
+          bandeiraCartao ? `Bandeira: ${bandeiraCartao}` : '',
+          codigoAutorizacao.trim() ? `NSU/Aut: ${codigoAutorizacao.trim()}` : ''
+        ].filter(Boolean).join(' | ');
+
+        if (detalhesCartao) {
+          obsFinal = obsFinal ? `[${detalhesCartao}] ${obsFinal}` : `[${detalhesCartao}]`;
+        }
+      }
+
       await api.patch(`/comandas/${comandaId}/fechar`, {
         forma_pagamento: formaPagamento,
         valor_recebido: vRecebido > 0 ? vRecebido : totalComanda,
         troco: troco,
-        observacao: observacao || undefined,
+        observacao: obsFinal || undefined,
         cliente_id: clienteId || undefined
       });
 
@@ -282,7 +298,7 @@ export function FecharComandaModal({
               Forma de Pagamento:
             </label>
             
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               
               {/* PIX */}
               <button
@@ -294,22 +310,36 @@ export function FecharComandaModal({
                     : 'bg-[#131B2E] border-[#334155] text-slate-300 hover:bg-[#1E293B]'
                 }`}
               >
-                <QrCode className="w-5 h-5" />
-                <span className="text-xs">PIX Direto</span>
+                <QrCode className="w-5 h-5 text-[#4EDEA3]" />
+                <span className="text-[11px] font-mono">PIX Direto</span>
               </button>
 
-              {/* CARTÃO */}
+              {/* CARTÃO DÉBITO */}
               <button
                 type="button"
                 onClick={() => setFormaPagamento('cartao_debito')}
                 className={`min-h-[58px] p-2 rounded-2xl border font-bold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                  formaPagamento === 'cartao_debito' || formaPagamento === 'cartao_credito'
-                    ? 'bg-[#38BDF8]/20 border-[#38BDF8] text-[#7BD0FF] shadow-md ring-1 ring-[#38BDF8]'
+                  formaPagamento === 'cartao_debito'
+                    ? 'bg-[#0284C7]/20 border-[#38BDF8] text-[#7BD0FF] shadow-md ring-1 ring-[#38BDF8]'
                     : 'bg-[#131B2E] border-[#334155] text-slate-300 hover:bg-[#1E293B]'
                 }`}
               >
-                <CreditCard className="w-5 h-5" />
-                <span className="text-xs">Cartão / POS</span>
+                <CreditCard className="w-5 h-5 text-[#38BDF8]" />
+                <span className="text-[11px] font-mono">Débito POS</span>
+              </button>
+
+              {/* CARTÃO CRÉDITO */}
+              <button
+                type="button"
+                onClick={() => setFormaPagamento('cartao_credito')}
+                className={`min-h-[58px] p-2 rounded-2xl border font-bold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                  formaPagamento === 'cartao_credito'
+                    ? 'bg-[#6366F1]/20 border-[#818CF8] text-[#A5B4FC] shadow-md ring-1 ring-[#818CF8]'
+                    : 'bg-[#131B2E] border-[#334155] text-slate-300 hover:bg-[#1E293B]'
+                }`}
+              >
+                <CreditCard className="w-5 h-5 text-[#818CF8]" />
+                <span className="text-[11px] font-mono">Crédito POS</span>
               </button>
 
               {/* DINHEIRO */}
@@ -322,8 +352,8 @@ export function FecharComandaModal({
                     : 'bg-[#131B2E] border-[#334155] text-slate-300 hover:bg-[#1E293B]'
                 }`}
               >
-                <DollarSign className="w-5 h-5" />
-                <span className="text-xs">Dinheiro</span>
+                <DollarSign className="w-5 h-5 text-[#FFB95F]" />
+                <span className="text-[11px] font-mono">Dinheiro</span>
               </button>
 
             </div>
@@ -386,6 +416,64 @@ export function FecharComandaModal({
                 {pixCopiado ? <Check size={16} className="text-[#4EDEA3]" /> : <Copy size={16} />}
                 <span>{pixCopiado ? "Chave Pix Copiada!" : "Copiar Chave Copia e Cola"}</span>
               </button>
+            </div>
+          )}
+
+          {/* PAINEL DINÂMICO CARTÃO DÉBITO / CRÉDITO NA MAQUININHA POS */}
+          {(formaPagamento === 'cartao_debito' || formaPagamento === 'cartao_credito') && (
+            <div className={`p-4 bg-[#131B2E] border rounded-2xl space-y-3.5 animate-fadeIn ${
+              formaPagamento === 'cartao_debito' ? 'border-[#38BDF8]/40' : 'border-[#818CF8]/40'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className={`flex items-center gap-2 text-xs font-extrabold uppercase font-mono tracking-wide ${
+                  formaPagamento === 'cartao_debito' ? 'text-[#7BD0FF]' : 'text-[#A5B4FC]'
+                }`}>
+                  <CreditCard size={18} />
+                  {formaPagamento === 'cartao_debito' ? 'Cartão de Débito (POS)' : 'Cartão de Crédito (POS)'}
+                </span>
+                <span className="text-xs font-mono font-bold text-white bg-slate-900/90 px-3 py-1 rounded-xl border border-slate-700 shadow-sm">
+                  Cobrar: R$ {totalComanda.toFixed(2)}
+                </span>
+              </div>
+
+              {/* Seleção Rápida de Bandeira */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 font-mono">
+                  Bandeira do Cartão (Opcional):
+                </label>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {['Visa', 'Master', 'Elo', 'Amex', 'Outra'].map((band) => (
+                    <button
+                      key={band}
+                      type="button"
+                      onClick={() => setBandeiraCartao(bandeiraCartao === band ? '' : band)}
+                      className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer text-center ${
+                        bandeiraCartao === band
+                          ? formaPagamento === 'cartao_debito'
+                            ? 'bg-[#38BDF8]/20 border-[#38BDF8] text-[#7BD0FF] shadow-sm'
+                            : 'bg-[#818CF8]/20 border-[#818CF8] text-[#A5B4FC] shadow-sm'
+                          : 'bg-[#0B1326] border-[#334155] text-slate-400 hover:text-slate-200 hover:bg-[#1E293B]'
+                      }`}
+                    >
+                      {band}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Código de Autorização / NSU */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 font-mono">
+                  NSU / Código de Autorização da Maquininha (Opcional):
+                </label>
+                <input
+                  type="text"
+                  value={codigoAutorizacao}
+                  onChange={(e) => setCodigoAutorizacao(e.target.value)}
+                  placeholder="Ex: 084920 ou DOC 123"
+                  className="w-full bg-[#0B1326] border border-[#334155] rounded-xl px-3 py-2 text-xs font-mono text-white outline-none focus:border-[#38BDF8] min-h-[38px]"
+                />
+              </div>
             </div>
           )}
 

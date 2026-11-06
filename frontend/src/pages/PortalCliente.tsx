@@ -23,7 +23,9 @@ import {
   X,
   Camera,
   Trash2,
-  Plus
+  Plus,
+  CreditCard,
+  Lock
 } from 'lucide-react';
 import { api } from '../services/api';
 import { ComprovanteTermicoModal, type DadosComprovante } from '../components/ComprovanteTermicoModal';
@@ -131,19 +133,50 @@ export const PortalCliente: React.FC = () => {
   // Inserção de Créditos (Pix Recarga)
   const [valorRecarga, setValorRecarga] = useState<number>(50);
   const [valorCustomizado, setValorCustomizado] = useState<string>('');
+  const [metodoRecarga, setMetodoRecarga] = useState<'pix' | 'cartao'>('pix');
   const [mostrarPixRecarga, setMostrarPixRecarga] = useState(false);
   const [chavePixCopia, setChavePixCopia] = useState('');
   const [pixCopiado, setPixCopiado] = useState(false);
   const [processandoRecarga, setProcessandoRecarga] = useState(false);
 
   // Quitação de Comanda Aberta (Auto-checkout)
-  const [formaQuitacao, setFormaQuitacao] = useState<'pix' | 'carteira'>('pix');
+  const [formaQuitacao, setFormaQuitacao] = useState<'pix' | 'carteira' | 'cartao_credito'>('pix');
   const [devolverCartaoAuto, setDevolverCartaoAuto] = useState(true);
   const [mostrarPixQuitacao, setMostrarPixQuitacao] = useState(false);
   const [chavePixQuitacao, setChavePixQuitacao] = useState('');
   const [pixQuitacaoCopiado, setPixQuitacaoCopiado] = useState(false);
   const [processandoQuitacao, setProcessandoQuitacao] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null);
+
+  // Cartão de Crédito Online (Auto-checkout & Recarga)
+  const [cartaoNumero, setCartaoNumero] = useState('');
+  const [cartaoNome, setCartaoNome] = useState('');
+  const [cartaoValidade, setCartaoValidade] = useState('');
+  const [cartaoCvv, setCartaoCvv] = useState('');
+  const [salvarCartao, setSalvarCartao] = useState(true);
+
+  const formatarNumeroCartao = (val: string) => {
+    const limpo = val.replace(/\D/g, '').slice(0, 16);
+    return limpo.replace(/(\d{4})(?=\d)/g, '$1 ');
+  };
+
+  const formatarValidade = (val: string) => {
+    const limpo = val.replace(/\D/g, '').slice(0, 4);
+    if (limpo.length >= 3) {
+      return `${limpo.slice(0, 2)}/${limpo.slice(2)}`;
+    }
+    return limpo;
+  };
+
+  const detectarBandeira = (num: string) => {
+    const digits = num.replace(/\D/g, '');
+    if (digits.startsWith('4')) return 'VISA';
+    if (/^(5[1-5]|222[1-9]|22[3-9]|2[3-6]|27[01]|2720)/.test(digits)) return 'MASTERCARD';
+    if (/^(401178|401179|438935|457631|457632|504175|627780|636297|636368)/.test(digits)) return 'ELO';
+    if (/^(34|37)/.test(digits)) return 'AMEX';
+    if (/^(606282|3841)/.test(digits)) return 'HIPERCARD';
+    return 'CRÉDITO';
+  };
 
   // Seletor de Irmão (para testes e gerência)
   const [modalTrocarCliente, setModalTrocarCliente] = useState(false);
@@ -279,7 +312,7 @@ export const PortalCliente: React.FC = () => {
     setPixCopiado(false);
   };
 
-  // Confirmar Recarga Pix (simulado/imediato)
+  // Confirmar Recarga Pix ou Cartão
   const handleConfirmarRecarga = async () => {
     if (!cliente) return;
     const valorEfetivo = valorCustomizado ? parseFloat(valorCustomizado) : valorRecarga;
@@ -287,13 +320,43 @@ export const PortalCliente: React.FC = () => {
       alert('Informe um valor de recarga válido.');
       return;
     }
+
+    if (metodoRecarga === 'cartao') {
+      const numLimpo = cartaoNumero.replace(/\s+/g, '');
+      if (numLimpo.length < 13) {
+        alert('Por favor, informe um número de cartão de crédito válido.');
+        return;
+      }
+      if (!cartaoNome.trim()) {
+        alert('Por favor, informe o nome impresso no cartão.');
+        return;
+      }
+      if (cartaoValidade.length < 5) {
+        alert('Informe a validade no formato MM/AA.');
+        return;
+      }
+      if (cartaoCvv.length < 3) {
+        alert('Informe o código de segurança (CVV).');
+        return;
+      }
+    }
+
     try {
       setProcessandoRecarga(true);
       const res = await api.post('/comandas/carteira/recarga', {
         cliente_id: cliente.id,
         valor: valorEfetivo,
-        forma_pagamento: 'pix',
-        observacao: 'Recarga Instantânea via Portal do Irmão'
+        forma_pagamento: metodoRecarga === 'cartao' ? 'cartao_credito' : 'pix',
+        observacao: metodoRecarga === 'cartao'
+          ? 'Recarga Online via Cartão de Crédito'
+          : 'Recarga Instantânea via Portal do Irmão',
+        dados_cartao: metodoRecarga === 'cartao' ? {
+          numero: cartaoNumero.replace(/\s+/g, ''),
+          nome_titular: cartaoNome.trim().toUpperCase(),
+          validade: cartaoValidade,
+          cvv: cartaoCvv,
+          salvar_cartao: salvarCartao
+        } : undefined
       });
       setCarteira({
         saldo: res.data.saldo_atual,
@@ -323,15 +386,47 @@ export const PortalCliente: React.FC = () => {
   // Efetuar Quitação da Comanda Aberta
   const handleEfetivarQuitacao = async () => {
     if (!cliente || !comandaAberta) return;
+
+    if (formaQuitacao === 'cartao_credito') {
+      const numLimpo = cartaoNumero.replace(/\s+/g, '');
+      if (numLimpo.length < 13) {
+        alert('Por favor, informe um número de cartão de crédito válido (13 a 16 dígitos).');
+        return;
+      }
+      if (!cartaoNome.trim()) {
+        alert('Por favor, informe o nome impresso no cartão.');
+        return;
+      }
+      if (cartaoValidade.length < 5) {
+        alert('Informe a validade no formato MM/AA.');
+        return;
+      }
+      if (cartaoCvv.length < 3) {
+        alert('Informe o código de segurança (CVV).');
+        return;
+      }
+    }
+
     try {
       setProcessandoQuitacao(true);
       await api.post(`/comandas/cliente/${cliente.id}/quitar-comanda-aberta`, {
         forma_pagamento: formaQuitacao,
-        devolver_cartao: devolverCartaoAuto
+        devolver_cartao: devolverCartaoAuto,
+        dados_cartao: formaQuitacao === 'cartao_credito' ? {
+          numero: cartaoNumero.replace(/\s+/g, ''),
+          nome_titular: cartaoNome.trim().toUpperCase(),
+          validade: cartaoValidade,
+          cvv: cartaoCvv,
+          salvar_cartao: salvarCartao
+        } : undefined
       });
       setMostrarPixQuitacao(false);
       setMensagemSucesso('✓ Comanda da noite quitada com sucesso! Seu cartão foi liberado.');
       setTimeout(() => setMensagemSucesso(null), 5000);
+      setCartaoNumero('');
+      setCartaoNome('');
+      setCartaoValidade('');
+      setCartaoCvv('');
       // Recarrega perfil completo
       await carregarPerfil(cliente.id);
     } catch (err: any) {
@@ -1014,7 +1109,8 @@ export const PortalCliente: React.FC = () => {
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
                   Escolha como deseja quitar agora:
                 </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* PIX */}
                   <button
                     onClick={() => {
                       setFormaQuitacao('pix');
@@ -1022,26 +1118,54 @@ export const PortalCliente: React.FC = () => {
                     }}
                     className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
                       formaQuitacao === 'pix'
-                        ? 'bg-[#171F33] border-[#10B981] text-white shadow-md'
+                        ? 'bg-[#171F33] border-[#10B981] text-white shadow-md ring-1 ring-[#10B981]'
                         : 'bg-[#0B1326] border-[#334155] text-slate-400 hover:text-white'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-[#10B981]/20 border border-[#10B981]/40 flex items-center justify-center text-[#4EDEA3]">
+                      <div className="w-9 h-9 rounded-lg bg-[#10B981]/20 border border-[#10B981]/40 flex items-center justify-center text-[#4EDEA3] shrink-0">
                         <QrCode className="w-5 h-5" />
                       </div>
                       <div>
                         <span className="font-bold text-sm block">Pagar via Pix</span>
-                        <span className="text-[11px] text-slate-400">QR Code dinâmico no celular</span>
+                        <span className="text-[11px] text-slate-400">QR Code dinâmico</span>
                       </div>
                     </div>
-                    <ArrowRight className="w-4 h-4 text-[#4EDEA3]" />
+                    <ArrowRight className="w-4 h-4 text-[#4EDEA3] shrink-0" />
                   </button>
 
+                  {/* CARTÃO DE CRÉDITO */}
+                  <button
+                    onClick={() => {
+                      setFormaQuitacao('cartao_credito');
+                      setMostrarPixQuitacao(false);
+                      if (!cartaoNome && cliente?.nome) {
+                        setCartaoNome(cliente.nome);
+                      }
+                    }}
+                    className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                      formaQuitacao === 'cartao_credito'
+                        ? 'bg-[#171F33] border-[#818CF8] text-white shadow-md ring-1 ring-[#818CF8]'
+                        : 'bg-[#0B1326] border-[#334155] text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-[#6366F1]/20 border border-[#818CF8]/40 flex items-center justify-center text-[#A5B4FC] shrink-0">
+                        <CreditCard className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="font-bold text-sm block">Cartão Crédito</span>
+                        <span className="text-[11px] text-slate-400">Checkout Online</span>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-[#A5B4FC] shrink-0" />
+                  </button>
+
+                  {/* SALDO BAR */}
                   <button
                     onClick={() => {
                       if (carteira.saldo < comandaAberta.total) {
-                        alert(`Saldo insuficiente na conta bar (R$ ${carteira.saldo.toFixed(2)}). Faça uma recarga ou quite via Pix.`);
+                        alert(`Saldo insuficiente na conta bar (R$ ${carteira.saldo.toFixed(2)}). Faça uma recarga ou quite via Pix/Cartão.`);
                         return;
                       }
                       setFormaQuitacao('carteira');
@@ -1049,22 +1173,22 @@ export const PortalCliente: React.FC = () => {
                     }}
                     className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
                       formaQuitacao === 'carteira'
-                        ? 'bg-[#171F33] border-[#38BDF8] text-white shadow-md'
+                        ? 'bg-[#171F33] border-[#38BDF8] text-white shadow-md ring-1 ring-[#38BDF8]'
                         : 'bg-[#0B1326] border-[#334155] text-slate-400 hover:text-white'
                     } ${carteira.saldo < comandaAberta.total ? 'opacity-50' : ''}`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-[#38BDF8]/20 border border-[#38BDF8]/40 flex items-center justify-center text-[#7BD0FF]">
+                      <div className="w-9 h-9 rounded-lg bg-[#38BDF8]/20 border border-[#38BDF8]/40 flex items-center justify-center text-[#7BD0FF] shrink-0">
                         <Wallet className="w-5 h-5" />
                       </div>
                       <div>
-                        <span className="font-bold text-sm block">Debitar do Saldo Bar</span>
+                        <span className="font-bold text-sm block">Saldo Bar</span>
                         <span className="text-[11px] text-slate-400 font-mono">
-                          Disponível: R$ {carteira.saldo.toFixed(2)}
+                          R$ {carteira.saldo.toFixed(2)}
                         </span>
                       </div>
                     </div>
-                    <ArrowRight className="w-4 h-4 text-[#7BD0FF]" />
+                    <ArrowRight className="w-4 h-4 text-[#7BD0FF] shrink-0" />
                   </button>
                 </div>
               </div>
@@ -1130,6 +1254,133 @@ export const PortalCliente: React.FC = () => {
                       <>
                         <CheckCircle2 className="w-5 h-5" />
                         <span>Confirmar Pagamento & Quitar Comanda</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Exibição do Formulário de Cartão de Crédito Online */}
+              {formaQuitacao === 'cartao_credito' && (
+                <div className="bg-[#0B1326] border border-[#818CF8]/40 rounded-2xl p-5 space-y-4 animate-fadeIn">
+                  <div className="flex items-center justify-between border-b border-[#334155] pb-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#A5B4FC] flex items-center gap-2 font-mono">
+                      <CreditCard className="w-4 h-4" /> Pagamento com Cartão de Crédito
+                    </span>
+                    <span className="text-[11px] font-mono text-[#4EDEA3] flex items-center gap-1 font-bold">
+                      <ShieldCheck className="w-3.5 h-3.5" /> PCI-DSS Seguro
+                    </span>
+                  </div>
+
+                  {/* Simulação Visual do Cartão */}
+                  <div className="relative overflow-hidden w-full max-w-sm mx-auto h-44 rounded-2xl p-4 bg-gradient-to-tr from-slate-900 via-indigo-950 to-slate-900 border border-[#818CF8]/30 shadow-2xl flex flex-col justify-between text-white font-mono">
+                    <div className="flex justify-between items-center">
+                      <div className="w-10 h-7 rounded-md bg-amber-400/90 border border-amber-300 shadow-inner flex items-center justify-center">
+                        <div className="w-6 h-3 border-t border-b border-amber-700/60" />
+                      </div>
+                      <span className="text-xs font-black tracking-widest text-[#A5B4FC]">
+                        {detectarBandeira(cartaoNumero)}
+                      </span>
+                    </div>
+
+                    <div className="text-base tracking-[0.2em] font-bold text-slate-200">
+                      {cartaoNumero || '•••• •••• •••• ••••'}
+                    </div>
+
+                    <div className="flex justify-between items-end text-[10px]">
+                      <div>
+                        <span className="block text-[8px] text-slate-400 uppercase">Titular</span>
+                        <span className="font-bold tracking-wider uppercase truncate max-w-[180px] block text-slate-200">
+                          {cartaoNome || 'NOME DO TITULAR'}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="block text-[8px] text-slate-400 uppercase">Validade</span>
+                        <span className="font-bold text-slate-200">{cartaoValidade || 'MM/AA'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Inputs Simétricos do Cartão */}
+                  <div className="space-y-3 pt-2">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1 font-mono">
+                        Número do Cartão:
+                      </label>
+                      <input
+                        type="text"
+                        value={cartaoNumero}
+                        onChange={(e) => setCartaoNumero(formatarNumeroCartao(e.target.value))}
+                        placeholder="0000 0000 0000 0000"
+                        maxLength={19}
+                        className="w-full bg-[#171F33] border border-[#334155] rounded-xl px-3.5 py-2.5 text-sm font-mono text-white outline-none focus:border-[#818CF8]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1 font-mono">
+                        Nome Impresso no Cartão:
+                      </label>
+                      <input
+                        type="text"
+                        value={cartaoNome}
+                        onChange={(e) => setCartaoNome(e.target.value.toUpperCase())}
+                        placeholder="EX: JOAO S SILVA"
+                        className="w-full bg-[#171F33] border border-[#334155] rounded-xl px-3.5 py-2.5 text-sm font-mono text-white uppercase outline-none focus:border-[#818CF8]"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1 font-mono">
+                          Validade (MM/AA):
+                        </label>
+                        <input
+                          type="text"
+                          value={cartaoValidade}
+                          onChange={(e) => setCartaoValidade(formatarValidade(e.target.value))}
+                          placeholder="MM/AA"
+                          maxLength={5}
+                          className="w-full bg-[#171F33] border border-[#334155] rounded-xl px-3.5 py-2.5 text-sm font-mono text-white outline-none focus:border-[#818CF8]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1 font-mono">
+                          CVV:
+                        </label>
+                        <input
+                          type="password"
+                          value={cartaoCvv}
+                          onChange={(e) => setCartaoCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          placeholder="123"
+                          maxLength={4}
+                          className="w-full bg-[#171F33] border border-[#334155] rounded-xl px-3.5 py-2.5 text-sm font-mono text-white outline-none focus:border-[#818CF8]"
+                        />
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-2.5 pt-1 text-xs text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={salvarCartao}
+                        onChange={(e) => setSalvarCartao(e.target.checked)}
+                        className="w-4 h-4 accent-[#818CF8] rounded"
+                      />
+                      <span>Salvar este cartão com segurança para futuras compras (Token Asaas)</span>
+                    </label>
+                  </div>
+
+                  <button
+                    onClick={handleEfetivarQuitacao}
+                    disabled={processandoQuitacao}
+                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#4F46E5] hover:brightness-110 text-white font-black text-sm uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg"
+                  >
+                    {processandoQuitacao ? (
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <Lock className="w-4 h-4" />
+                        <span>Pagar R$ {comandaAberta.total.toFixed(2)} no Cartão de Crédito</span>
                       </>
                     )}
                   </button>
@@ -1270,8 +1521,47 @@ export const PortalCliente: React.FC = () => {
             </div>
           </div>
 
+          {/* Escolha do Método de Recarga: Pix ou Cartão */}
+          <div className="space-y-2 pt-2 border-t border-[#334155]">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block font-mono">
+              Forma de Pagamento da Recarga:
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setMetodoRecarga('pix')}
+                className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  metodoRecarga === 'pix'
+                    ? 'bg-[#171F33] border-[#10B981] text-[#4EDEA3] shadow-md ring-1 ring-[#10B981]'
+                    : 'bg-[#0B1326] border-[#334155] text-slate-400 hover:text-white'
+                }`}
+              >
+                <QrCode className="w-4 h-4 text-[#4EDEA3]" />
+                <span>Pix Instantâneo</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMetodoRecarga('cartao');
+                  if (!cartaoNome && cliente?.nome) {
+                    setCartaoNome(cliente.nome);
+                  }
+                }}
+                className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  metodoRecarga === 'cartao'
+                    ? 'bg-[#171F33] border-[#818CF8] text-[#A5B4FC] shadow-md ring-1 ring-[#818CF8]'
+                    : 'bg-[#0B1326] border-[#334155] text-slate-400 hover:text-white'
+                }`}
+              >
+                <CreditCard className="w-4 h-4 text-[#818CF8]" />
+                <span>Cartão de Crédito</span>
+              </button>
+            </div>
+          </div>
+
           {/* QR Code Pix para Recarga */}
-          {mostrarPixRecarga && (
+          {metodoRecarga === 'pix' && mostrarPixRecarga && (
             <div className="bg-[#0B1326] border border-[#38BDF8]/40 rounded-xl p-5 text-center space-y-4 animate-fade-in">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#7BD0FF]">
@@ -1321,6 +1611,133 @@ export const PortalCliente: React.FC = () => {
                   <>
                     <CheckCircle2 className="w-5 h-5" />
                     <span>Confirmar Pagamento & Inserir Crédito</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Formulário Cartão de Crédito para Recarga */}
+          {metodoRecarga === 'cartao' && (
+            <div className="bg-[#0B1326] border border-[#818CF8]/40 rounded-2xl p-5 space-y-4 animate-fadeIn">
+              <div className="flex items-center justify-between border-b border-[#334155] pb-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#A5B4FC] flex items-center gap-2 font-mono">
+                  <CreditCard className="w-4 h-4" /> Recarga com Cartão de Crédito
+                </span>
+                <span className="text-[11px] font-mono text-[#4EDEA3] flex items-center gap-1 font-bold">
+                  <ShieldCheck className="w-3.5 h-3.5" /> PCI-DSS Seguro
+                </span>
+              </div>
+
+              {/* Simulação Visual do Cartão */}
+              <div className="relative overflow-hidden w-full max-w-sm mx-auto h-44 rounded-2xl p-4 bg-gradient-to-tr from-slate-900 via-indigo-950 to-slate-900 border border-[#818CF8]/30 shadow-2xl flex flex-col justify-between text-white font-mono">
+                <div className="flex justify-between items-center">
+                  <div className="w-10 h-7 rounded-md bg-amber-400/90 border border-amber-300 shadow-inner flex items-center justify-center">
+                    <div className="w-6 h-3 border-t border-b border-amber-700/60" />
+                  </div>
+                  <span className="text-xs font-black tracking-widest text-[#A5B4FC]">
+                    {detectarBandeira(cartaoNumero)}
+                  </span>
+                </div>
+
+                <div className="text-base tracking-[0.2em] font-bold text-slate-200">
+                  {cartaoNumero || '•••• •••• •••• ••••'}
+                </div>
+
+                <div className="flex justify-between items-end text-[10px]">
+                  <div>
+                    <span className="block text-[8px] text-slate-400 uppercase">Titular</span>
+                    <span className="font-bold tracking-wider uppercase truncate max-w-[180px] block text-slate-200">
+                      {cartaoNome || 'NOME DO TITULAR'}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="block text-[8px] text-slate-400 uppercase">Validade</span>
+                    <span className="font-bold text-slate-200">{cartaoValidade || 'MM/AA'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Inputs Simétricos do Cartão */}
+              <div className="space-y-3 pt-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1 font-mono">
+                    Número do Cartão:
+                  </label>
+                  <input
+                    type="text"
+                    value={cartaoNumero}
+                    onChange={(e) => setCartaoNumero(formatarNumeroCartao(e.target.value))}
+                    placeholder="0000 0000 0000 0000"
+                    maxLength={19}
+                    className="w-full bg-[#171F33] border border-[#334155] rounded-xl px-3.5 py-2.5 text-sm font-mono text-white outline-none focus:border-[#818CF8]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1 font-mono">
+                    Nome Impresso no Cartão:
+                  </label>
+                  <input
+                    type="text"
+                    value={cartaoNome}
+                    onChange={(e) => setCartaoNome(e.target.value.toUpperCase())}
+                    placeholder="EX: JOAO S SILVA"
+                    className="w-full bg-[#171F33] border border-[#334155] rounded-xl px-3.5 py-2.5 text-sm font-mono text-white uppercase outline-none focus:border-[#818CF8]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1 font-mono">
+                      Validade (MM/AA):
+                    </label>
+                    <input
+                      type="text"
+                      value={cartaoValidade}
+                      onChange={(e) => setCartaoValidade(formatarValidade(e.target.value))}
+                      placeholder="MM/AA"
+                      maxLength={5}
+                      className="w-full bg-[#171F33] border border-[#334155] rounded-xl px-3.5 py-2.5 text-sm font-mono text-white outline-none focus:border-[#818CF8]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1 font-mono">
+                      CVV:
+                    </label>
+                    <input
+                      type="password"
+                      value={cartaoCvv}
+                      onChange={(e) => setCartaoCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      placeholder="123"
+                      maxLength={4}
+                      className="w-full bg-[#171F33] border border-[#334155] rounded-xl px-3.5 py-2.5 text-sm font-mono text-white outline-none focus:border-[#818CF8]"
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2.5 pt-1 text-xs text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={salvarCartao}
+                    onChange={(e) => setSalvarCartao(e.target.checked)}
+                    className="w-4 h-4 accent-[#818CF8] rounded"
+                  />
+                  <span>Salvar este cartão com segurança para futuras recargas (Token Asaas)</span>
+                </label>
+              </div>
+
+              <button
+                onClick={handleConfirmarRecarga}
+                disabled={processandoRecarga}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#4F46E5] hover:brightness-110 text-white font-black text-sm uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg"
+              >
+                {processandoRecarga ? (
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    <span>Recarregar R$ {(valorCustomizado ? parseFloat(valorCustomizado) : valorRecarga).toFixed(2)} no Cartão</span>
                   </>
                 )}
               </button>

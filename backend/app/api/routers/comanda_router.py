@@ -16,7 +16,8 @@ from app.schemas.comanda_schema import (
     StatusComanda, 
     FecharComandaRequest,
     RecargaSaldoBarRequest,
-    ComprovanteTermicoResponse
+    ComprovanteTermicoResponse,
+    DadosCartaoCredito
 )
 from app.services.comanda_service import ComandaService
 from app.services.carteira_service import CarteiraService
@@ -229,8 +230,9 @@ async def _montar_detalhes_cliente(db: AsyncSession, cliente: Cliente, tenant_id
     }
 
 class QuitarComandaClienteRequest(BaseModel):
-    forma_pagamento: str = "pix" # "pix" ou "carteira"
+    forma_pagamento: str = "pix" # "pix", "carteira", "cartao_credito"
     devolver_cartao: bool = True
+    dados_cartao: Optional[DadosCartaoCredito] = None
 
 @router.post("/cliente/{cliente_id}/quitar-comanda-aberta")
 async def quitar_comanda_cliente(
@@ -242,6 +244,7 @@ async def quitar_comanda_cliente(
     """
     Permite ao cliente quitar sua comanda em aberto diretamente pelo celular:
     - via Pix (imediatamente liquidado)
+    - via Cartão de Crédito Online (com tokenização Asaas / antifraude)
     - via Carteira de Saldo (se tiver saldo suficiente)
     E opcionalmente desvincula e libera o cartão físico de volta ao estoque.
     """
@@ -263,9 +266,21 @@ async def quitar_comanda_cliente(
 
     servico = ComandaService(db, usuario.tenant_id)
     forma = "saldo_bar_fiado" if dados.forma_pagamento == "carteira" else dados.forma_pagamento
+
+    obs = "Quitação de Comanda via Portal do Cliente (Auto-checkout Celular)"
+    if dados.forma_pagamento == "cartao_credito":
+        if dados.dados_cartao and dados.dados_cartao.numero:
+            num_limpo = dados.dados_cartao.numero.replace(" ", "").replace("-", "")
+            final_4 = num_limpo[-4:] if len(num_limpo) >= 4 else "XXXX"
+            titular = f" - {dados.dados_cartao.nome_titular.upper()}" if dados.dados_cartao.nome_titular else ""
+            obs = f"Quitação Cartão Crédito Online (Final •••• {final_4}{titular}) via Portal do Irmão"
+        else:
+            obs = "Quitação Cartão Crédito Online via Portal do Irmão"
+
     req_fechamento = FecharComandaRequest(
         forma_pagamento=forma,
-        observacao="Quitação de Comanda via Portal do Cliente (Auto-checkout Celular)"
+        observacao=obs,
+        dados_cartao=dados.dados_cartao
     )
     comanda_fechada = await servico.fechar_comanda(comanda.id, req_fechamento, usuario=usuario)
 
@@ -380,6 +395,12 @@ async def recarregar_conta_bar(
     via Pix, Dinheiro, Cartão ou Boleto.
     A receita é destinada exclusivamente ao caixa do Bar.
     """
+    obs = dados.observacao or "Recarga no Bar"
+    if dados.forma_pagamento == "cartao_credito" and dados.dados_cartao and dados.dados_cartao.numero:
+        num_limpo = dados.dados_cartao.numero.replace(" ", "").replace("-", "")
+        final_4 = num_limpo[-4:] if len(num_limpo) >= 4 else "XXXX"
+        obs = f"[Cartão •••• {final_4}] {obs}"
+
     carteira = await CarteiraService.adicionar_creditos_bar(
         db=db,
         cliente_id=dados.cliente_id,
@@ -387,7 +408,7 @@ async def recarregar_conta_bar(
         valor=dados.valor,
         forma_pagamento=dados.forma_pagamento,
         operador_nome=usuario.nome,
-        observacao=dados.observacao
+        observacao=obs
     )
     return {
         "mensagem": f"Crédito de R$ {dados.valor:.2f} lançado com sucesso na conta do bar.",

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Wallet, QrCode, DollarSign, CreditCard, FileText, X, Check } from 'lucide-react';
+import { Wallet, QrCode, DollarSign, CreditCard, X, Check } from 'lucide-react';
 import { api } from '../services/api';
 
 interface RecargaBarModalProps {
@@ -20,7 +20,7 @@ export function RecargaBarModal({
   onSuccess
 }: RecargaBarModalProps) {
   const [valor, setValor] = useState('');
-  const [formaPagamento, setFormaPagamento] = useState<'pix' | 'dinheiro' | 'cartao' | 'boleto'>('pix');
+  const [formaPagamento, setFormaPagamento] = useState<'pix' | 'dinheiro' | 'cartao_debito' | 'cartao_credito' | 'cartao' | 'boleto'>('pix');
   const [observacao, setObservacao] = useState('');
   const [salvando, setSalvando] = useState(false);
 
@@ -104,7 +104,7 @@ export function RecargaBarModal({
               <button
                 type="button"
                 onClick={() => setFormaPagamento('pix')}
-                className={`min-h-[46px] p-2.5 rounded-xl border font-bold flex items-center gap-2 transition-all ${
+                className={`min-h-[46px] p-2.5 rounded-xl border font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   formaPagamento === 'pix'
                     ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm'
                     : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
@@ -116,7 +116,7 @@ export function RecargaBarModal({
               <button
                 type="button"
                 onClick={() => setFormaPagamento('dinheiro')}
-                className={`min-h-[46px] p-2.5 rounded-xl border font-bold flex items-center gap-2 transition-all ${
+                className={`min-h-[46px] p-2.5 rounded-xl border font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   formaPagamento === 'dinheiro'
                     ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-sm'
                     : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
@@ -127,26 +127,26 @@ export function RecargaBarModal({
 
               <button
                 type="button"
-                onClick={() => setFormaPagamento('cartao')}
-                className={`min-h-[46px] p-2.5 rounded-xl border font-bold flex items-center gap-2 transition-all ${
-                  formaPagamento === 'cartao'
-                    ? 'bg-blue-500/20 border-blue-500 text-blue-300 shadow-sm'
+                onClick={() => setFormaPagamento('cartao_debito')}
+                className={`min-h-[46px] p-2.5 rounded-xl border font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                  formaPagamento === 'cartao_debito'
+                    ? 'bg-[#0284C7]/20 border-[#38BDF8] text-[#7BD0FF] shadow-sm'
                     : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
                 }`}
               >
-                <CreditCard className="w-4 h-4 text-blue-400" /> Cartão Déb./Créd.
+                <CreditCard className="w-4 h-4 text-[#38BDF8]" /> Cartão Débito
               </button>
 
               <button
                 type="button"
-                onClick={() => setFormaPagamento('boleto')}
-                className={`min-h-[46px] p-2.5 rounded-xl border font-bold flex items-center gap-2 transition-all ${
-                  formaPagamento === 'boleto'
-                    ? 'bg-indigo-500/20 border-indigo-500 text-indigo-300 shadow-sm'
+                onClick={() => setFormaPagamento('cartao_credito')}
+                className={`min-h-[46px] p-2.5 rounded-xl border font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                  formaPagamento === 'cartao_credito'
+                    ? 'bg-[#6366F1]/20 border-[#818CF8] text-[#A5B4FC] shadow-sm'
                     : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
                 }`}
               >
-                <FileText className="w-4 h-4 text-indigo-400" /> Boleto do Bar
+                <CreditCard className="w-4 h-4 text-[#818CF8]" /> Cartão Crédito
               </button>
             </div>
           </div>

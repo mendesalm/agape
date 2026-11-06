@@ -33,18 +33,27 @@ class ComandaCreate(ComandaBase):
 class ComandaUpdateStatus(BaseModel):
     status: StatusComanda
 
+class DadosCartaoCredito(BaseModel):
+    numero: Optional[str] = None
+    nome_titular: Optional[str] = None
+    validade: Optional[str] = None
+    cvv: Optional[str] = None
+    salvar_cartao: Optional[bool] = False
+
 class FecharComandaRequest(BaseModel):
     forma_pagamento: str = Field(default="pix", description="pix, dinheiro, cartao_debito, cartao_credito, saldo_bar_fiado")
     valor_recebido: Optional[float] = Field(None, ge=0)
     troco: Optional[float] = Field(0.0, ge=0)
     observacao: Optional[str] = Field(None, max_length=255)
     cliente_id: Optional[int] = None
+    dados_cartao: Optional[DadosCartaoCredito] = None
 
 class RecargaSaldoBarRequest(BaseModel):
     cliente_id: int
     valor: float = Field(..., gt=0, description="Valor da recarga de saldo no bar")
-    forma_pagamento: str = Field(default="pix", description="pix, dinheiro, cartao, boleto")
+    forma_pagamento: str = Field(default="pix", description="pix, dinheiro, cartao_debito, cartao_credito, cartao, boleto")
     observacao: Optional[str] = Field(None, max_length=255)
+    dados_cartao: Optional[DadosCartaoCredito] = None
 
 class ComandaResponse(ComandaBase):
     id: int
