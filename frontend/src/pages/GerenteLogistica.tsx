@@ -1,23 +1,28 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import React, { useEffect, useState, useRef, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { 
+  ArrowLeft,
   Plus, 
   Package, 
   AlertTriangle, 
   X, 
   ArrowRightLeft, 
   Layers, 
-  ShieldAlert, 
-  Clock,
-  QrCode,
-  Printer,
-  Barcode,
-  Camera,
-  Building2,
-  Search,
-  Sparkles,
-  Loader2,
-  CheckCircle
+  QrCode, 
+  Printer, 
+  Barcode, 
+  Camera, 
+  Search, 
+  Loader2, 
+  CheckCircle, 
+  LayoutGrid, 
+  List as ListIcon, 
+  Upload, 
+  Boxes, 
+  Trash2, 
+  DollarSign, 
+  ArrowRight 
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
@@ -57,110 +62,117 @@ interface Produto {
   ativo: boolean;
 }
 
-export function GerenteLogistica() {
+// ====================================================================
+// FUNÇÃO UTILITÁRIA: COMPRESSÃO DE IMAGEM NO CLIENTE (Canvas WebP 800px)
+// ====================================================================
+async function comprimirImagemCliente(file: File, maxDim = 800, quality = 0.8): Promise<File> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                const nomeBase = file.name.replace(/\.[^/.]+$/, '');
+                const compressedFile = new File([blob], `${nomeBase}.webp`, {
+                  type: 'image/webp',
+                  lastModified: Date.now()
+                });
+                resolve(compressedFile);
+                return;
+              }
+              resolve(file);
+            },
+            'image/webp',
+            quality
+          );
+        } else {
+          resolve(file);
+        }
+      };
+      img.onerror = () => resolve(file);
+    };
+    reader.onerror = () => resolve(file);
+  });
+}
+
+export const GerenteLogistica: React.FC = () => {
+  const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
   const [termoBusca, setTermoBusca] = useState('');
+  
+  // Preferência de visualização (Grid com Fotos vs Lista Compacta)
+  const [modoVisualizacao, setModoVisualizacao] = useState<'grid' | 'lista'>(() => {
+    return (localStorage.getItem('@Agape:logistica_modo') as 'grid' | 'lista') || 'grid';
+  });
 
-  // Modais
-  const [isModalNovoOpen, setIsModalNovoOpen] = useState(false);
-  const [isModalPerdaOpen, setIsModalPerdaOpen] = useState(false);
-  const [isModalTransferirOpen, setIsModalTransferirOpen] = useState(false);
-  const [isModalLotesOpen, setIsModalLotesOpen] = useState(false);
-  const [isModalNovoLoteOpen, setIsModalNovoLoteOpen] = useState(false);
-  const [isModalQrOpen, setIsModalQrOpen] = useState(false);
-  const [produtoSelecionado, setProdutoSelecionado] = useState<Produto | null>(null);
+  // Filtros em Pills
+  const [filtroPill, setFiltroPill] = useState<'todos' | 'repor_bar' | 'baixo_estoque'>('todos');
 
-  // Scanner Câmera
+  // Item em Gestão (Cascata Drill-down)
+  const [produtoEmGestao, setProdutoEmGestao] = useState<Produto | null>(null);
+
+  // Estados de Edição Rápida no Item em Gestão
+  const [editandoPreco, setEditandoPreco] = useState(false);
+  const [novoPrecoVenda, setNovoPrecoVenda] = useState('');
+  const [novoPrecoCusto, setNovoPrecoCusto] = useState('');
+  const [enviandoFoto, setEnviandoFoto] = useState(false);
+
+  // Ações de Transferência & Perda
+  const [qtdTransferir, setQtdTransferir] = useState<string>('6');
+  const [isModalTransferir, setIsModalTransferir] = useState(false);
+  const [direcaoTransferencia, setDirecaoTransferencia] = useState<'para_gondola' | 'para_armazem'>('para_gondola');
+  const [isModalPerda, setIsModalPerda] = useState(false);
+  const [qtdPerda, setQtdPerda] = useState('1');
+  const [motivoPerda, setMotivoPerda] = useState('Quebra / Avaria');
+  const [ambientePerda, setAmbientePerda] = useState<'gondola' | 'armazem'>('gondola');
+  const [isModalNovoLote, setIsModalNovoLote] = useState(false);
+  const [novoLoteNumero, setNovoLoteNumero] = useState('LOTE-NOVO');
+  const [novoLoteValidade, setNovoLoteValidade] = useState('');
+  const [novoLoteQtd, setNovoLoteQtd] = useState('12');
+  const [novoLoteCusto, setNovoLoteCusto] = useState('');
+  const [isModalQr, setIsModalQr] = useState(false);
+
+  // Cascata de Novo Produto (Passo 1: Escolha / Passo 2: Formulário)
+  const [isModalNovoAberto, setIsModalNovoAberto] = useState(false);
+  const [passoNovoProduto, setPassoNovoProduto] = useState<'escolha' | 'formulario'>('escolha');
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
-  const [cameraTarget, setCameraTarget] = useState<'busca' | 'qr_fabrica' | 'ean' | 'cadastro_auto'>('busca');
+  const [cameraTarget, setCameraTarget] = useState<'busca' | 'cadastro_auto'>('busca');
 
   // Form Novo Produto
-  const [nome, setNome] = useState('');
-  const [descricao, setDescricao] = useState('');
-  const [fotoUrl, setFotoUrl] = useState('');
-  const [codigoBarras, setCodigoBarras] = useState('');
-  const [qrCodeTag, setQrCodeTag] = useState('');
-  const [categoria, setCategoria] = useState<'bebidas' | 'alimentos' | 'tabacos_conveniencia' | 'outros'>('bebidas');
-  const [subcategoria, setSubcategoria] = useState<string>('alcoolicas');
-  const [tipo, setTipo] = useState('cervejas');
-  const [marca, setMarca] = useState('');
-  const [precoCusto, setPrecoCusto] = useState('');
-  const [precoVenda, setPrecoVenda] = useState('');
-  const [estoqueInicialArmazem, setEstoqueInicialArmazem] = useState('0');
-  const [estoqueInicialGondola, setEstoqueInicialGondola] = useState('0');
-  const [minGondola, setMinGondola] = useState('5');
-  const [minArmazem, setMinArmazem] = useState('15');
-  const [numeroLoteInicial, setNumeroLoteInicial] = useState('LOTE-001');
-  const [validadeInicial, setValidadeInicial] = useState('');
-
-  // Auto-Preenchimento por Código EAN / GS1
+  const [novoNome, setNovoNome] = useState('');
+  const [novoCodigoBarras, setNovoCodigoBarras] = useState('');
+  const [novaFotoUrl, setNovaFotoUrl] = useState('');
+  const [novoPrecoVendaForm, setNovoPrecoVendaForm] = useState('');
+  const [novoPrecoCustoForm, setNovoPrecoCustoForm] = useState('');
+  const [novoEstoqueGondola, setNovoEstoqueGondola] = useState('0');
+  const [novoEstoqueArmazem, setNovoEstoqueArmazem] = useState('12');
+  const [novaCategoria, setNovaCategoria] = useState('bebidas');
+  const [salvandoNovo, setSalvandoNovo] = useState(false);
   const [buscandoEan, setBuscandoEan] = useState(false);
-  const [mensagemEan, setMensagemEan] = useState<{ tipo: 'sucesso' | 'info' | 'erro'; texto: string } | null>(null);
-
-  const consultarDadosEan = async (codigoParaConsultar?: string) => {
-    const cod = (codigoParaConsultar || codigoBarras || qrCodeTag).trim();
-    if (!cod) {
-      setMensagemEan({ tipo: 'info', texto: 'Informe ou bipe um Código de Barras ou QR Code primeiro.' });
-      return;
-    }
-
-    setBuscandoEan(true);
-    setMensagemEan(null);
-    try {
-      const response = await api.get(`/produtos/consultar-ean/${encodeURIComponent(cod)}`);
-      const dados = response.data;
-      if (dados.encontrado) {
-        if (dados.nome) setNome(dados.nome);
-        if (dados.marca) setMarca(dados.marca);
-        if (dados.categoria) setCategoria(dados.categoria);
-        if (dados.subcategoria) setSubcategoria(dados.subcategoria);
-        if (dados.tipo) setTipo(dados.tipo);
-        if (dados.foto_url) setFotoUrl(dados.foto_url);
-        if (dados.codigo_barras && !codigoBarras) setCodigoBarras(dados.codigo_barras);
-        if (dados.lote_sugerido) setNumeroLoteInicial(dados.lote_sugerido);
-        if (dados.data_validade_sugerida) setValidadeInicial(dados.data_validade_sugerida);
-        if (dados.preco_venda_sugerido && Number(dados.preco_venda_sugerido) > 0 && !precoVenda) {
-          setPrecoVenda(String(dados.preco_venda_sugerido));
-        }
-
-        setMensagemEan({
-          tipo: 'sucesso',
-          texto: dados.origem === 'gs1_fabricante'
-            ? `Fabricante identificado: ${dados.marca}! Marca e categoria preenchidas. Complete o nome da versão.`
-            : `Identificado: ${dados.nome}! Dados preenchidos automaticamente.`
-        });
-      } else {
-        setMensagemEan({
-          tipo: 'info',
-          texto: 'Código não localizado nas bases públicas. Você pode preencher os dados manualmente.'
-        });
-      }
-    } catch (err) {
-      console.error("Erro na consulta EAN:", err);
-      setMensagemEan({
-        tipo: 'erro',
-        texto: 'Não foi possível consultar a base no momento.'
-      });
-    } finally {
-      setBuscandoEan(false);
-    }
-  };
-
-  // Form Transferência
-  const [quantidadeTransferir, setQuantidadeTransferir] = useState('');
-
-  // Form Novo Lote
-  const [novoNumeroLote, setNovoNumeroLote] = useState('');
-  const [novaValidade, setNovaValidade] = useState('');
-  const [novaQtdLote, setNovaQtdLote] = useState('');
-  const [novoDestinoLote, setNovoDestinoLote] = useState<'armazem' | 'gondola'>('armazem');
-
-  // Form Perda
-  const [quantidadePerda, setQuantidadePerda] = useState('');
-  const [tipoPerda, setTipoPerda] = useState<'quebra' | 'vencimento' | 'avaria_transporte' | 'descarte_operacional' | 'outro'>('quebra');
-  const [justificativaPerda, setJustificativaPerda] = useState('');
-  const [localPerda, setLocalPerda] = useState<'gondola' | 'armazem'>('gondola');
 
   useEffect(() => {
     carregarProdutos();
@@ -170,678 +182,1113 @@ export function GerenteLogistica() {
     try {
       setLoading(true);
       const res = await api.get('/produtos/');
-      setProdutos(res.data);
+      setProdutos(res.data || []);
+      // Atualiza o produto em gestão se estiver aberto
+      if (produtoEmGestao) {
+        const atualizado = (res.data || []).find((p: Produto) => p.id === produtoEmGestao.id);
+        if (atualizado) setProdutoEmGestao(atualizado);
+      }
     } catch (err) {
-      console.error("Erro ao carregar estoque", err);
+      console.error('Erro ao buscar produtos:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLeituraCamera = (codigo: string) => {
-    setIsCameraScannerOpen(false);
-    const cod = (codigo || '').trim();
-    if (!cod) return;
+  const handleTrocarModoVisualizacao = (modo: 'grid' | 'lista') => {
+    setModoVisualizacao(modo);
+    localStorage.setItem('@Agape:logistica_modo', modo);
+  };
 
-    if (cameraTarget === 'busca') {
-      setTermoBusca(cod);
-    } else if (cameraTarget === 'qr_fabrica') {
-      setQrCodeTag(cod);
-      const match = cod.match(/\/01\/(\d{13,14})/);
-      if (match) {
-        let gtin = match[1];
-        if (gtin.length === 14 && gtin.startsWith('0')) gtin = gtin.substring(1);
-        if (!codigoBarras) setCodigoBarras(gtin);
+  // Upload e Auto-compressão de Foto
+  const handleUploadFoto = async (e: React.ChangeEvent<HTMLInputElement>, produtoId: number) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setEnviandoFoto(true);
+      const arquivoComprimido = await comprimirImagemCliente(file, 800, 0.8);
+      
+      const formData = new FormData();
+      formData.append('file', arquivoComprimido);
+
+      const resUpload = await api.post('/uploads/produtos', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      const novaUrl = resUpload.data.url;
+      if (novaUrl) {
+        await api.put(`/produtos/${produtoId}`, { foto_url: novaUrl });
+        await carregarProdutos();
       }
-      consultarDadosEan(cod);
-    } else if (cameraTarget === 'ean') {
-      setCodigoBarras(cod);
-      consultarDadosEan(cod);
-    } else if (cameraTarget === 'cadastro_auto') {
-      setIsModalNovoOpen(true);
-      if (cod.includes('/01/') || cod.startsWith('http')) {
-        setQrCodeTag(cod);
-        const match = cod.match(/\/01\/(\d{13,14})/);
-        if (match) {
-          let gtin = match[1];
-          if (gtin.length === 14 && gtin.startsWith('0')) gtin = gtin.substring(1);
-          setCodigoBarras(gtin);
-        }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao fazer upload da imagem.');
+    } finally {
+      setEnviandoFoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Salvar Edição de Preços
+  const handleSalvarPrecos = async () => {
+    if (!produtoEmGestao) return;
+    const pVenda = parseFloat(novoPrecoVenda);
+    const pCusto = parseFloat(novoPrecoCusto);
+    if (isNaN(pVenda) || pVenda <= 0) {
+      alert('Informe um preço de venda válido.');
+      return;
+    }
+
+    try {
+      await api.put(`/produtos/${produtoEmGestao.id}`, {
+        preco_venda: pVenda,
+        preco_custo: isNaN(pCusto) ? produtoEmGestao.preco_custo : pCusto
+      });
+      setEditandoPreco(false);
+      await carregarProdutos();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao atualizar preços.');
+    }
+  };
+
+  // Transferência entre Gôndola e Armazém
+  const handleTransferirEstoque = async () => {
+    if (!produtoEmGestao) return;
+    const qtd = parseInt(qtdTransferir);
+    if (isNaN(qtd) || qtd <= 0) {
+      alert('Informe uma quantidade válida.');
+      return;
+    }
+
+    try {
+      if (direcaoTransferencia === 'para_gondola') {
+        await api.post(`/produtos/${produtoEmGestao.id}/transferir-gondola`, {
+          quantidade: qtd,
+          motivo: 'Reposição no Bar'
+        });
       } else {
-        setCodigoBarras(cod);
+        await api.post(`/produtos/${produtoEmGestao.id}/transferir-armazem`, {
+          quantidade: qtd,
+          motivo: 'Retorno ao Almoxarifado'
+        });
       }
-      consultarDadosEan(cod);
+      setIsModalTransferir(false);
+      await carregarProdutos();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Falha ao transferir estoque.');
     }
   };
 
-  const salvarNovoProduto = async (e: FormEvent) => {
-    e.preventDefault();
+  // Registro de Perda
+  const handleRegistrarPerda = async () => {
+    if (!produtoEmGestao) return;
+    const qtd = parseInt(qtdPerda);
+    if (isNaN(qtd) || qtd <= 0) {
+      alert('Informe uma quantidade válida.');
+      return;
+    }
+
     try {
+      await api.post(`/produtos/${produtoEmGestao.id}/perdas`, {
+        quantidade: qtd,
+        ambiente: ambientePerda,
+        motivo: motivoPerda
+      });
+      setIsModalPerda(false);
+      await carregarProdutos();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao registrar perda.');
+    }
+  };
+
+  // Criação de Novo Lote
+  const handleCriarNovoLote = async () => {
+    if (!produtoEmGestao) return;
+    const qtd = parseInt(novoLoteQtd);
+    const custo = parseFloat(novoLoteCusto || String(produtoEmGestao.preco_custo));
+    if (isNaN(qtd) || qtd <= 0) {
+      alert('Informe a quantidade de entrada do lote.');
+      return;
+    }
+    if (!novoLoteValidade) {
+      alert('Informe a data de validade do lote.');
+      return;
+    }
+
+    try {
+      await api.post(`/produtos/${produtoEmGestao.id}/lotes`, {
+        numero_lote: novoLoteNumero || `LOTE-${Date.now().toString().slice(-4)}`,
+        data_validade: novoLoteValidade,
+        quantidade_armazem: qtd,
+        quantidade_gondola: 0,
+        preco_custo_unitario: custo
+      });
+      setIsModalNovoLote(false);
+      setNovoLoteQtd('12');
+      setNovoLoteValidade('');
+      await carregarProdutos();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao registrar novo lote.');
+    }
+  };
+
+  // Cadastro de Novo Produto
+  const handleSalvarNovoProduto = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!novoNome.trim()) {
+      alert('Informe o nome do produto.');
+      return;
+    }
+    const pVenda = parseFloat(novoPrecoVendaForm);
+    const pCusto = parseFloat(novoPrecoCustoForm) || 0;
+    if (isNaN(pVenda) || pVenda <= 0) {
+      alert('Informe um preço de venda válido.');
+      return;
+    }
+
+    try {
+      setSalvandoNovo(true);
       await api.post('/produtos/', {
-        nome,
-        categoria,
-        subcategoria,
-        tipo,
-        marca,
-        descricao,
-        foto_url: fotoUrl || undefined,
-        preco_custo: parseFloat(precoCusto),
-        preco_venda: parseFloat(precoVenda),
-        estoque_inicial_armazem: parseInt(estoqueInicialArmazem) || 0,
-        estoque_inicial_gondola: parseInt(estoqueInicialGondola) || 0,
-        estoque_minimo_gondola: parseInt(minGondola) || 5,
-        estoque_minimo_armazem: parseInt(minArmazem) || 15,
-        codigo_barras: codigoBarras || undefined,
-        qr_code_tag: qrCodeTag || undefined,
-        numero_lote_inicial: numeroLoteInicial || 'LOTE-001',
-        data_validade_inicial: validadeInicial ? new Date(validadeInicial).toISOString() : undefined
+        nome: novoNome.trim(),
+        codigo_barras: novoCodigoBarras.trim() || undefined,
+        foto_url: novaFotoUrl.trim() || undefined,
+        categoria: novaCategoria,
+        preco_venda: pVenda,
+        preco_custo: pCusto,
+        quantidade_gondola: parseInt(novoEstoqueGondola) || 0,
+        quantidade_armazem: parseInt(novoEstoqueArmazem) || 0
       });
-      setIsModalNovoOpen(false);
-      resetarFormNovo();
-      carregarProdutos();
+      setIsModalNovoAberto(false);
+      setPassoNovoProduto('escolha');
+      setNovoNome('');
+      setNovoCodigoBarras('');
+      setNovaFotoUrl('');
+      setNovoPrecoVendaForm('');
+      setNovoPrecoCustoForm('');
+      await carregarProdutos();
     } catch (err: any) {
-      alert(err.response?.data?.detail || "Erro ao cadastrar produto.");
+      alert(err.response?.data?.detail || 'Erro ao cadastrar produto.');
+    } finally {
+      setSalvandoNovo(false);
     }
   };
 
-  const resetarFormNovo = () => {
-    setNome(''); setDescricao(''); setMarca(''); setPrecoCusto(''); setPrecoVenda('');
-    setCodigoBarras(''); setQrCodeTag(''); setValidadeInicial(''); setFotoUrl(''); setMensagemEan(null);
-  };
-
-  const transferirEstoque = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!produtoSelecionado) return;
+  // Auto-busca GS1 / Open Food Facts por código de barras
+  const handleConsultarEan = async (codigo: string) => {
+    if (!codigo || codigo.length < 7) return;
     try {
-      await api.post(`/produtos/${produtoSelecionado.id}/transferir-gondola`, {
-        quantidade: parseInt(quantidadeTransferir)
-      });
-      setIsModalTransferirOpen(false);
-      setQuantidadeTransferir('');
-      carregarProdutos();
-    } catch (err: any) {
-      alert(err.response?.data?.detail || "Erro na transferência.");
+      setBuscandoEan(true);
+      const res = await api.get(`/produtos/consulta-ean/${codigo.trim()}`);
+      if (res.data?.encontrado && res.data.dados) {
+        const d = res.data.dados;
+        if (d.nome && !novoNome) setNovoNome(d.nome);
+        if (d.foto_url && !novaFotoUrl) setNovaFotoUrl(d.foto_url);
+        if (d.categoria && !novaCategoria) setNovaCategoria(d.categoria);
+      }
+    } catch (err) {
+      console.warn('EAN não encontrado na base GS1:', err);
+    } finally {
+      setBuscandoEan(false);
     }
   };
 
-  const registrarPerda = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!produtoSelecionado) return;
-    try {
-      await api.post(`/produtos/${produtoSelecionado.id}/perda`, {
-        quantidade: parseInt(quantidadePerda),
-        tipo_perda: tipoPerda,
-        justificativa: justificativaPerda,
-        local: localPerda
-      });
-      setIsModalPerdaOpen(false);
-      setQuantidadePerda('');
-      setJustificativaPerda('');
-      carregarProdutos();
-    } catch (err: any) {
-      alert(err.response?.data?.detail || "Erro ao registrar perda.");
+  // Filtragem dos Produtos
+  const produtosFiltrados = produtos.filter((p) => {
+    const buscaMatch =
+      p.nome.toLowerCase().includes(termoBusca.toLowerCase()) ||
+      (p.codigo_barras && p.codigo_barras.includes(termoBusca)) ||
+      (p.marca && p.marca.toLowerCase().includes(termoBusca.toLowerCase()));
+    
+    if (!buscaMatch) return false;
+
+    if (filtroPill === 'repor_bar') {
+      return p.quantidade_gondola <= (p.estoque_minimo_gondola || 5);
     }
-  };
-
-  const adicionarNovoLote = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!produtoSelecionado) return;
-    try {
-      await api.post(`/produtos/${produtoSelecionado.id}/lotes`, {
-        numero_lote: novoNumeroLote,
-        data_validade: new Date(novaValidade).toISOString(),
-        quantidade: parseInt(novaQtdLote),
-        destino: novoDestinoLote
-      });
-      setIsModalNovoLoteOpen(false);
-      setNovoNumeroLote(''); setNovaValidade(''); setNovaQtdLote('');
-      carregarProdutos();
-    } catch (err: any) {
-      alert(err.response?.data?.detail || "Erro ao adicionar lote.");
+    if (filtroPill === 'baixo_estoque') {
+      return p.quantidade_estoque <= (p.estoque_minimo_gondola || 5);
     }
-  };
-
-  // Métricas de Alertas
-  const totalRepor = produtos.filter(p => p.alerta_reposicao_gondola).length;
-  const totalComprar = produtos.filter(p => p.alerta_compra_armazem).length;
-  const totalVencendo = produtos.reduce((acc, p) => 
-    acc + p.lotes.filter(l => l.status_validade === 'vencendo' || l.status_validade === 'vencido').length, 0
-  );
-
-  const produtosFiltrados = produtos.filter(p => {
-    if (!termoBusca.trim()) return true;
-    const t = termoBusca.toLowerCase().trim();
-    return (
-      p.nome.toLowerCase().includes(t) ||
-      (p.codigo_barras && p.codigo_barras.toLowerCase().includes(t)) ||
-      (p.qr_code_tag && p.qr_code_tag.toLowerCase().includes(t)) ||
-      (p.marca && p.marca.toLowerCase().includes(t))
-    );
+    return true;
   });
 
+  // Métricas do Dashboard Logístico
+  const totalItens = produtos.length;
+  const reposicoesPendentes = produtos.filter((p) => p.quantidade_gondola <= (p.estoque_minimo_gondola || 5)).length;
+  const valorEstoqueCusto = produtos.reduce((acc, p) => acc + p.quantidade_estoque * p.preco_custo, 0);
+  const valorEstoqueVenda = produtos.reduce((acc, p) => acc + p.quantidade_estoque * p.preco_venda, 0);
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto text-slate-100 select-none">
-      
+    <div className="space-y-6 max-w-7xl mx-auto text-slate-100 select-none animate-fadeIn p-2 sm:p-4">
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          if (produtoEmGestao) handleUploadFoto(e, produtoEmGestao.id);
+        }}
+      />
+
       {/* ============================================================== */}
-      {/* CABEÇALHO DO NÍVEL GERENTE (Tactile Velocity)                  */}
+      {/* SE UM PRODUTO ESTIVER EM GESTÃO: MOSTRA A VIEW EM CASCATA      */}
       {/* ============================================================== */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#334155] pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#4EDEA3] px-2.5 py-0.5 rounded-md bg-[#10B981]/15 border border-[#10B981]/30 font-mono">
-              Nível Gerente
-            </span>
-            <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
-              <Building2 size={13} className="text-[#38BDF8]" />
-              Logística & Controle de Estoques
-            </span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-black text-white mt-1 tracking-tight">
-            Armazém Central vs. Display do Balcão
-          </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Gestão de suprimentos em 2 níveis com rastreabilidade de validade FEFO.
-          </p>
+      {loading ? (
+        <div className="p-12 text-center text-[#38BDF8] font-mono animate-pulse space-y-3">
+          <div className="w-10 h-10 border-2 border-[#38BDF8] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm">Carregando catálogo logístico do Bar...</p>
         </div>
+      ) : produtoEmGestao ? (
+        <div className="space-y-6 animate-fadeIn">
+          {/* TOPO DA CASCATA: VOLTAR */}
+          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <button
+              onClick={() => setProdutoEmGestao(null)}
+              className="p-2.5 rounded-xl bg-[#131B2E] hover:bg-[#1E293B] border border-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-2 text-xs font-bold font-mono"
+            >
+              <ArrowLeft size={16} />
+              <span>← Voltar ao Estoque Geral</span>
+            </button>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => { setCameraTarget('cadastro_auto'); setIsCameraScannerOpen(true); }}
-            className="min-h-[44px] px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all cursor-pointer active:scale-95"
-            title="Abre a câmera para ler o QR Code da embalagem ou código de barras e cadastrar na hora"
-          >
-            <Camera size={16} />
-            <span>Escanear QR/Barra para Cadastrar</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { setCameraTarget('busca'); setIsCameraScannerOpen(true); }}
-            className="min-h-[44px] px-3.5 py-2 bg-[#131B2E] hover:bg-[#1E293B] border border-[#334155] text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <Search size={15} className="text-[#38BDF8]" />
-            <span>Buscar</span>
-          </button>
-
-          <button
-            onClick={() => setIsModalNovoOpen(true)}
-            className="min-h-[44px] px-4 py-2 bg-[#10B981] hover:bg-[#059669] text-[#0B1326] font-extrabold rounded-xl text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-          >
-            <Plus size={18} />
-            <span>Cadastrar Manual</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ============================================================== */}
-      {/* 3 CARDS DE ALERTAS LOGÍSTICOS (Tactile Velocity)               */}
-      {/* ============================================================== */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-        
-        {/* Alerta 1: Reposição Gôndola */}
-        <div className="p-4 rounded-2xl bg-[#131B2E] border border-[#F59E0B]/40 flex items-center gap-3.5 shadow-lg">
-          <div className="w-11 h-11 rounded-xl bg-[#F59E0B]/15 text-[#FFB95F] border border-[#F59E0B]/30 flex items-center justify-center shrink-0">
-            <ArrowRightLeft size={20} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-2xl font-black text-[#FFB95F] font-mono leading-none">
-              {totalRepor}
+            <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
+              <span>Logística</span>
+              <span>/</span>
+              <span className="text-[#38BDF8] font-bold truncate max-w-[200px]">
+                {produtoEmGestao.nome}
+              </span>
             </div>
-            <div className="text-xs text-slate-300 font-bold mt-1">
-              Reposição Urgente no Balcão
-            </div>
-            <span className="text-[10px] text-slate-400 font-mono">
-              Gôndola abaixo do estoque mínimo
-            </span>
           </div>
-        </div>
 
-        {/* Alerta 2: Compra Armazém */}
-        <div className="p-4 rounded-2xl bg-[#131B2E] border border-rose-500/40 flex items-center gap-3.5 shadow-lg">
-          <div className="w-11 h-11 rounded-xl bg-rose-500/15 text-rose-300 border border-rose-500/30 flex items-center justify-center shrink-0">
-            <ShieldAlert size={20} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-2xl font-black text-rose-300 font-mono leading-none">
-              {totalComprar}
-            </div>
-            <div className="text-xs text-slate-300 font-bold mt-1">
-              Necessidade de Compra
-            </div>
-            <span className="text-[10px] text-slate-400 font-mono">
-              Depósito central em nível crítico
-            </span>
-          </div>
-        </div>
-
-        {/* Alerta 3: Validades FEFO */}
-        <div className="p-4 rounded-2xl bg-[#131B2E] border border-[#38BDF8]/40 flex items-center gap-3.5 shadow-lg">
-          <div className="w-11 h-11 rounded-xl bg-[#38BDF8]/15 text-[#7BD0FF] border border-[#38BDF8]/30 flex items-center justify-center shrink-0">
-            <Clock size={20} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-2xl font-black text-[#7BD0FF] font-mono leading-none">
-              {totalVencendo}
-            </div>
-            <div className="text-xs text-slate-300 font-bold mt-1">
-              Lotes Próximos do Vencimento
-            </div>
-            <span className="text-[10px] text-slate-400 font-mono">
-              Regra FEFO (Prioridade de saída)
-            </span>
-          </div>
-        </div>
-
-      </div>
-
-      {/* ============================================================== */}
-      {/* BARRA DE BUSCA RÁPIDA (Tactile Velocity)                       */}
-      {/* ============================================================== */}
-      <div className="flex items-center gap-2 p-2 rounded-2xl bg-[#0B1326] border border-[#334155] shadow-lg">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-          <input
-            type="text"
-            value={termoBusca}
-            onChange={e => setTermoBusca(e.target.value)}
-            placeholder="Filtrar por nome do produto, código EAN-13 ou QR tag..."
-            className="w-full min-h-[46px] pl-10 pr-4 py-2 rounded-xl bg-[#131B2E] border border-[#334155] focus:border-[#10B981] text-white text-sm outline-none font-mono"
-          />
-        </div>
-        {termoBusca && (
-          <button 
-            onClick={() => setTermoBusca('')}
-            className="text-xs text-slate-400 hover:text-white font-bold px-3 py-2 cursor-pointer"
-          >
-            Limpar
-          </button>
-        )}
-      </div>
-
-      {/* ============================================================== */}
-      {/* TABELA DE INVENTÁRIO EM 2 NÍVEIS (Tactile Velocity)           */}
-      {/* ============================================================== */}
-      <div className="bg-[#0B1326] rounded-3xl border border-[#334155] shadow-xl overflow-hidden">
-        {loading ? (
-          <div className="p-12 text-center text-[#4EDEA3] font-mono animate-pulse">
-            Carregando inventário de suprimentos...
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[850px]">
-              <thead>
-                <tr className="bg-[#131B2E] border-b border-[#334155] text-slate-400 text-[10px] uppercase font-mono tracking-wider">
-                  <th className="px-5 py-3.5 font-bold">Produto / Rótulo</th>
-                  <th className="px-4 py-3.5 font-bold">Categoria</th>
-                  <th className="px-4 py-3.5 font-bold">Preços (Custo / Venda)</th>
-                  <th className="px-4 py-3.5 font-bold text-center">Display (Gôndola)</th>
-                  <th className="px-4 py-3.5 font-bold text-center">Armazém (Depósito)</th>
-                  <th className="px-4 py-3.5 font-bold text-center">Lotes FEFO</th>
-                  <th className="px-5 py-3.5 font-bold text-right">Ações Logísticas</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#334155]/60 text-sm">
-                {!produtosFiltrados.length ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
-                      <Package size={40} className="mx-auto text-slate-600 mb-2" />
-                      <p className="text-sm font-bold text-slate-300">Nenhum produto localizado no estoque.</p>
-                    </td>
-                  </tr>
+          {/* CARD DE GESTÃO DO ITEM */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* COLUNA 1: FOTO & IDENTIFICAÇÃO */}
+            <div className="p-6 rounded-3xl bg-[#0B1326] border border-[#38BDF8]/40 space-y-4 shadow-xl flex flex-col items-center text-center">
+              <div className="relative w-48 h-48 rounded-2xl bg-[#131B2E] border border-slate-700 overflow-hidden flex items-center justify-center shadow-lg group">
+                {produtoEmGestao.foto_url ? (
+                  <img
+                    src={produtoEmGestao.foto_url}
+                    alt={produtoEmGestao.nome}
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
-                  produtosFiltrados.map((p) => (
-                    <tr key={p.id} className="hover:bg-[#131B2E]/60 transition-colors">
-                      
-                      {/* PRODUTO */}
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-[#1E293B] border border-[#334155] flex items-center justify-center font-bold text-xs text-[#38BDF8] shrink-0 font-mono">
-                            {p.nome.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <span className="font-extrabold text-white block truncate text-sm">
-                              {p.nome}
-                            </span>
-                            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400 font-mono">
-                              {p.codigo_barras && (
-                                <span className="flex items-center gap-0.5 text-slate-300">
-                                  <Barcode size={10} /> {p.codigo_barras}
-                                </span>
-                              )}
-                              {p.marca && <span>• {p.marca}</span>}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* CATEGORIA */}
-                      <td className="px-4 py-3.5">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-[#38BDF8]/15 text-[#7BD0FF] border border-[#38BDF8]/30 font-mono">
-                          {p.categoria}
-                        </span>
-                        <span className="text-[11px] text-slate-400 block mt-0.5 capitalize">
-                          {p.tipo || p.subcategoria}
-                        </span>
-                      </td>
-
-                      {/* PREÇOS */}
-                      <td className="px-4 py-3.5 font-mono">
-                        <div className="text-[11px] text-slate-400">
-                          Custo: R$ {p.preco_custo.toFixed(2)}
-                        </div>
-                        <div className="text-sm font-extrabold text-[#4EDEA3]">
-                          Venda: R$ {p.preco_venda.toFixed(2)}
-                        </div>
-                      </td>
-
-                      {/* GÔNDOLA (DISPLAY) */}
-                      <td className="px-4 py-3.5 text-center font-mono">
-                        <div className={`text-base font-black ${
-                          p.quantidade_gondola <= p.estoque_minimo_gondola ? 'text-[#F59E0B]' : 'text-[#4EDEA3]'
-                        }`}>
-                          {p.quantidade_gondola} un
-                        </div>
-                        <span className="text-[10px] text-slate-400">
-                          Mín: {p.estoque_minimo_gondola}
-                        </span>
-                        {p.alerta_reposicao_gondola && (
-                          <span className="block text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-[#F59E0B]/20 text-[#FFB95F] mt-0.5 border border-[#F59E0B]/30">
-                            Repor
-                          </span>
-                        )}
-                      </td>
-
-                      {/* ARMAZÉM (DEPÓSITO) */}
-                      <td className="px-4 py-3.5 text-center font-mono">
-                        <div className={`text-base font-black ${
-                          p.quantidade_armazem <= p.estoque_minimo_armazem ? 'text-rose-400' : 'text-slate-200'
-                        }`}>
-                          {p.quantidade_armazem} un
-                        </div>
-                        <span className="text-[10px] text-slate-400">
-                          Mín: {p.estoque_minimo_armazem}
-                        </span>
-                      </td>
-
-                      {/* LOTES FEFO */}
-                      <td className="px-4 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => { setProdutoSelecionado(p); setIsModalLotesOpen(true); }}
-                          className="px-2.5 py-1 rounded-xl bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-xs font-bold font-mono text-[#38BDF8] flex items-center justify-center gap-1 mx-auto cursor-pointer"
-                        >
-                          <Layers size={13} />
-                          <span>{p.lotes.length} {p.lotes.length === 1 ? 'Lote' : 'Lotes'}</span>
-                        </button>
-                      </td>
-
-                      {/* AÇÕES LOGÍSTICAS */}
-                      <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {p.quantidade_armazem > 0 && (
-                            <button
-                              type="button"
-                              title="Transferir para Gôndola"
-                              onClick={() => { setProdutoSelecionado(p); setIsModalTransferirOpen(true); }}
-                              className="p-2 rounded-xl bg-[#10B981]/15 hover:bg-[#10B981]/25 text-[#4EDEA3] border border-[#10B981]/30 transition-colors cursor-pointer"
-                            >
-                              <ArrowRightLeft size={16} />
-                            </button>
-                          )}
-
-                          <button
-                            type="button"
-                            title="Ver Etiqueta QR Code"
-                            onClick={() => { setProdutoSelecionado(p); setIsModalQrOpen(true); }}
-                            className="p-2 rounded-xl bg-[#38BDF8]/15 hover:bg-[#38BDF8]/25 text-[#7BD0FF] border border-[#38BDF8]/30 transition-colors cursor-pointer"
-                          >
-                            <QrCode size={16} />
-                          </button>
-
-                          <button
-                            type="button"
-                            title="Registrar Perda / Quebra"
-                            onClick={() => { setProdutoSelecionado(p); setIsModalPerdaOpen(true); }}
-                            className="p-2 rounded-xl bg-[#F59E0B]/15 hover:bg-[#F59E0B]/25 text-[#FFB95F] border border-[#F59E0B]/30 transition-colors cursor-pointer"
-                          >
-                            <AlertTriangle size={16} />
-                          </button>
-                        </div>
-                      </td>
-
-                    </tr>
-                  ))
+                  <Package className="w-16 h-16 text-slate-600" />
                 )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
 
-      {/* ============================================================== */}
-      {/* MODAL: TRANSFERÊNCIA ARMAZÉM -> GÔNDOLA (Tactile Velocity)     */}
-      {/* ============================================================== */}
-      {isModalTransferirOpen && produtoSelecionado && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center z-[90] p-3 sm:p-4 pt-12 sm:pt-4 overflow-y-auto animate-fadeIn">
-          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 my-auto sm:my-0">
-            <div className="flex justify-between items-start">
-              <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#4EDEA3] block font-mono">
-                  Transferência Interna
-                </span>
-                <h3 className="text-lg font-extrabold text-white mt-0.5">
-                  Repor Gôndola / Balcão
-                </h3>
-                <p className="text-xs text-slate-400 font-mono mt-0.5">
-                  Item: {produtoSelecionado.nome}
-                </p>
-              </div>
-              <button onClick={() => setIsModalTransferirOpen(false)} className="text-slate-400 hover:text-white">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="p-3 bg-[#131B2E] rounded-2xl border border-[#334155] text-xs font-mono flex justify-between">
-              <span>Disponível no Depósito:</span>
-              <span className="font-extrabold text-[#4EDEA3]">{produtoSelecionado.quantidade_armazem} un</span>
-            </div>
-
-            <form onSubmit={transferirEstoque} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase mb-1 font-mono">
-                  Quantidade a Transferir:
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max={produtoSelecionado.quantidade_armazem}
-                  required
-                  value={quantidadeTransferir}
-                  onChange={e => setQuantidadeTransferir(e.target.value)}
-                  placeholder="Ex: 12"
-                  className="w-full min-h-[48px] px-4 rounded-xl bg-[#131B2E] border border-[#334155] focus:border-[#10B981] text-white font-mono font-bold text-lg outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalTransferirOpen(false)}
-                  className="min-h-[46px] rounded-xl bg-[#131B2E] hover:bg-[#1E293B] text-slate-300 font-bold text-xs cursor-pointer"
+                {/* Overlay de Upload Rápido com Auto-compressão */}
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute inset-0 bg-black/70 backdrop-blur-xs flex flex-col items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white font-mono text-xs font-bold"
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="min-h-[46px] rounded-xl bg-[#10B981] hover:bg-[#059669] text-[#0B1326] font-extrabold text-xs shadow-md cursor-pointer active:scale-95"
-                >
-                  Confirmar Reposição
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================== */}
-      {/* MODAL: REGISTRO DE PERDA / QUEBRA (Tactile Velocity)           */}
-      {/* ============================================================== */}
-      {isModalPerdaOpen && produtoSelecionado && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center z-[90] p-3 sm:p-4 pt-12 sm:pt-4 overflow-y-auto animate-fadeIn">
-          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 my-auto sm:my-0">
-            <div className="flex justify-between items-start">
-              <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#F59E0B] block font-mono">
-                  Registro de Avaria
-                </span>
-                <h3 className="text-lg font-extrabold text-white mt-0.5">
-                  Registrar Quebra ou Vencimento
-                </h3>
-                <p className="text-xs text-slate-400 font-mono mt-0.5">
-                  Item: {produtoSelecionado.nome}
-                </p>
-              </div>
-              <button onClick={() => setIsModalPerdaOpen(false)} className="text-slate-400 hover:text-white">
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={registrarPerda} className="space-y-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1 font-mono">
-                  Motivo da Perda:
-                </label>
-                <select
-                  value={tipoPerda}
-                  onChange={e => setTipoPerda(e.target.value as any)}
-                  className="w-full min-h-[44px] px-3 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-xs outline-none"
-                >
-                  <option value="quebra">Quebra de Garrafa / Queda</option>
-                  <option value="vencimento">Prazo de Validade Vencido</option>
-                  <option value="avaria_transporte">Avaria de Transporte / Lacre Rompido</option>
-                  <option value="descarte_operacional">Descarte Autorizado pela Diretoria</option>
-                  <option value="outro">Outro Motivo</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1 font-mono">
-                  Local da Ocorrência:
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setLocalPerda('gondola')}
-                    className={`min-h-[40px] rounded-xl text-xs font-bold border transition-all ${
-                      localPerda === 'gondola'
-                        ? 'bg-[#10B981]/20 border-[#10B981] text-[#4EDEA3]'
-                        : 'bg-[#131B2E] border-[#334155] text-slate-400'
-                    }`}
-                  >
-                    Gôndola / Balcão
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLocalPerda('armazem')}
-                    className={`min-h-[40px] rounded-xl text-xs font-bold border transition-all ${
-                      localPerda === 'armazem'
-                        ? 'bg-[#10B981]/20 border-[#10B981] text-[#4EDEA3]'
-                        : 'bg-[#131B2E] border-[#334155] text-slate-400'
-                    }`}
-                  >
-                    Armazém / Depósito
-                  </button>
+                  {enviandoFoto ? (
+                    <Loader2 className="w-6 h-6 animate-spin text-[#38BDF8]" />
+                  ) : (
+                    <>
+                      <Camera className="w-6 h-6 text-[#38BDF8]" />
+                      <span>{produtoEmGestao.foto_url ? 'Alterar Foto' : 'Enviar Foto'}</span>
+                      <span className="text-[10px] text-slate-400">(Auto-comprimida WebP)</span>
+                    </>
+                  )}
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1 font-mono">
-                  Quantidade Perdida:
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={quantidadePerda}
-                  onChange={e => setQuantidadePerda(e.target.value)}
-                  placeholder="Ex: 1"
-                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] text-white font-mono font-bold text-sm outline-none"
-                />
+                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#7BD0FF] px-2.5 py-0.5 rounded-full bg-[#38BDF8]/15 border border-[#38BDF8]/30">
+                  {produtoEmGestao.categoria.toUpperCase()}
+                </span>
+                <h2 className="text-xl font-bold text-white mt-2">
+                  {produtoEmGestao.nome}
+                </h2>
+                {produtoEmGestao.codigo_barras && (
+                  <span className="text-xs text-slate-400 font-mono flex items-center justify-center gap-1 mt-1">
+                    <Barcode size={14} /> {produtoEmGestao.codigo_barras}
+                  </span>
+                )}
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1 font-mono">
-                  Justificativa Operacional:
-                </label>
-                <textarea
-                  rows={2}
-                  value={justificativaPerda}
-                  onChange={e => setJustificativaPerda(e.target.value)}
-                  placeholder="Descreva o que ocorreu..."
-                  className="w-full p-2.5 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-xs outline-none"
-                />
+              <div className="w-full pt-3 border-t border-slate-800 flex gap-2">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex-1 py-2.5 rounded-xl bg-[#131B2E] hover:bg-[#1E293B] border border-slate-700 text-xs font-mono font-bold text-[#7BD0FF] flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Upload size={14} />
+                  <span>Subir Foto</span>
+                </button>
+                <button
+                  onClick={() => setIsModalQr(true)}
+                  className="p-2.5 rounded-xl bg-[#131B2E] hover:bg-[#1E293B] border border-slate-700 text-slate-300 hover:text-white cursor-pointer"
+                  title="Etiqueta QR Code"
+                >
+                  <QrCode size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* COLUNA 2: PREÇOS & DISTRIBUIÇÃO */}
+            <div className="lg:col-span-2 space-y-6">
+              
+              {/* BLOCO DE PREÇOS E MARGEM */}
+              <div className="p-6 rounded-3xl bg-[#0B1326] border border-slate-800 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                    <DollarSign size={16} className="text-[#10B981]" />
+                    Precificação & Rentabilidade
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setEditandoPreco(!editandoPreco);
+                      setNovoPrecoVenda(String(produtoEmGestao.preco_venda));
+                      setNovoPrecoCusto(String(produtoEmGestao.preco_custo));
+                    }}
+                    className="text-xs font-mono font-bold text-[#38BDF8] hover:underline cursor-pointer"
+                  >
+                    {editandoPreco ? 'Cancelar' : 'Editar Preços'}
+                  </button>
+                </div>
+
+                {editandoPreco ? (
+                  <div className="p-4 rounded-2xl bg-[#131B2E] border border-[#38BDF8]/40 space-y-3 animate-fadeIn">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-mono font-bold text-slate-400 uppercase mb-1">
+                          Preço de Venda (R$):
+                        </label>
+                        <input
+                          type="number"
+                          step="0.50"
+                          value={novoPrecoVenda}
+                          onChange={(e) => setNovoPrecoVenda(e.target.value)}
+                          className="w-full bg-[#070F1E] border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono text-white outline-none focus:border-[#10B981]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-mono font-bold text-slate-400 uppercase mb-1">
+                          Preço de Custo (R$):
+                        </label>
+                        <input
+                          type="number"
+                          step="0.50"
+                          value={novoPrecoCusto}
+                          onChange={(e) => setNovoPrecoCusto(e.target.value)}
+                          className="w-full bg-[#070F1E] border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono text-white outline-none focus:border-[#10B981]"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleSalvarPrecos}
+                      className="w-full py-2.5 rounded-xl bg-[#10B981] hover:bg-[#059669] text-[#0B1326] font-bold text-xs font-mono uppercase tracking-wider cursor-pointer"
+                    >
+                      Salvar Alteração de Preços
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="p-3.5 rounded-2xl bg-[#131B2E] border border-slate-800 space-y-1">
+                      <span className="text-[10px] font-mono text-slate-400 block">Preço de Venda</span>
+                      <p className="text-xl font-mono font-black text-[#4EDEA3]">
+                        R$ {produtoEmGestao.preco_venda.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="p-3.5 rounded-2xl bg-[#131B2E] border border-slate-800 space-y-1">
+                      <span className="text-[10px] font-mono text-slate-400 block">Custo Último Lote</span>
+                      <p className="text-xl font-mono font-black text-slate-200">
+                        R$ {produtoEmGestao.preco_custo.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="p-3.5 rounded-2xl bg-[#131B2E] border border-slate-800 space-y-1">
+                      <span className="text-[10px] font-mono text-slate-400 block">Margem Bruta</span>
+                      <p className="text-xl font-mono font-black text-[#7BD0FF]">
+                        {produtoEmGestao.preco_custo > 0 
+                          ? `${(((produtoEmGestao.preco_venda - produtoEmGestao.preco_custo) / produtoEmGestao.preco_custo) * 100).toFixed(0)}%` 
+                          : '100%'}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-2">
+              {/* BLOCO DE DISTRIBUIÇÃO E TRANSFERÊNCIA */}
+              <div className="p-6 rounded-3xl bg-[#0B1326] border border-slate-800 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                    <Boxes size={16} className="text-[#38BDF8]" />
+                    Distribuição dos Estoques Físicos
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setDirecaoTransferencia('para_gondola');
+                      setIsModalTransferir(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-[#38BDF8]/20 border border-[#38BDF8] text-[#7BD0FF] text-xs font-mono font-bold hover:bg-[#38BDF8] hover:text-[#0B1326] transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <ArrowRightLeft size={13} />
+                    <span>Transferir</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* GÔNDOLA / BAR */}
+                  <div className={`p-4 rounded-2xl border ${
+                    produtoEmGestao.quantidade_gondola <= 3 
+                      ? 'bg-rose-950/20 border-rose-500/50' 
+                      : 'bg-[#131B2E] border-slate-800'
+                  } space-y-2`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono font-bold text-slate-300">
+                        Gôndola (Bar)
+                      </span>
+                      {produtoEmGestao.quantidade_gondola <= 3 && (
+                        <span className="text-[10px] font-mono text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded-full">
+                          Repor Urgente!
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-3xl font-mono font-black text-white">
+                      {produtoEmGestao.quantidade_gondola} <span className="text-sm font-normal text-slate-400">un.</span>
+                    </p>
+                    <span className="text-[10px] text-slate-400 font-mono block">
+                      Disponível para venda direta aos irmãos
+                    </span>
+                  </div>
+
+                  {/* ALMOXARIFADO / DEPÓSITO */}
+                  <div className="p-4 rounded-2xl bg-[#131B2E] border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono font-bold text-slate-300">
+                        Almoxarifado (Depósito)
+                      </span>
+                    </div>
+                    <p className="text-3xl font-mono font-black text-slate-200">
+                      {produtoEmGestao.quantidade_armazem} <span className="text-sm font-normal text-slate-400">un.</span>
+                    </p>
+                    <span className="text-[10px] text-slate-400 font-mono block">
+                      Reserva de segurança para reposição
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-between items-center text-xs text-slate-400 font-mono">
+                  <span>Estoque Total Geral: <strong className="text-white">{produtoEmGestao.quantidade_estoque} un.</strong></span>
+                  <button
+                    onClick={() => setIsModalPerda(true)}
+                    className="text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 size={13} />
+                    <span>Registrar Quebra / Perda</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* BLOCO DE LOTES E FEFO */}
+              <div className="p-6 rounded-3xl bg-[#0B1326] border border-slate-800 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                      <Layers size={16} className="text-[#DDB96B]" />
+                      Lotes Adquiridos & FEFO (Primeiro a Vencer)
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Controle de custos diferentes por lote de compra.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setNovoLoteCusto(String(produtoEmGestao.preco_custo));
+                      setIsModalNovoLote(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-[#DDB96B]/20 border border-[#DDB96B] text-[#FDE68A] text-xs font-mono font-bold hover:bg-[#DDB96B] hover:text-[#0B1326] transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Plus size={14} />
+                    <span>Entrada de Lote</span>
+                  </button>
+                </div>
+
+                {/* Lista de Lotes */}
+                <div className="space-y-2">
+                  {(produtoEmGestao.lotes || []).length === 0 ? (
+                    <div className="p-4 rounded-xl bg-[#131B2E] text-slate-400 text-xs font-mono text-center">
+                      Nenhum lote específico registrado. O produto está operando no estoque base.
+                    </div>
+                  ) : (
+                    (produtoEmGestao.lotes || []).map((lote) => (
+                      <div
+                        key={lote.id}
+                        className="p-3 rounded-xl bg-[#131B2E] border border-slate-800 flex items-center justify-between text-xs font-mono"
+                      >
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-white block">
+                            {lote.numero_lote}
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            Validade: <strong className={lote.status_validade === 'vencendo' ? 'text-amber-400' : 'text-slate-300'}>{lote.data_validade}</strong> ({lote.dias_para_vencer} dias)
+                          </span>
+                        </div>
+
+                        <div className="text-right space-y-0.5">
+                          <span className="font-bold text-[#4EDEA3] block">
+                            Custo: R$ {lote.preco_custo_unitario.toFixed(2)}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            Gôndola: {lote.quantidade_gondola} | Depósito: {lote.quantidade_armazem}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      ) : (
+        /* ============================================================== */
+        /* LISTAGEM PRINCIPAL: DASHBOARD LOGÍSTICO + GRID / LISTA         */
+        /* ============================================================== */
+        <div className="space-y-6">
+
+          {/* BARRA SUPERIOR BIDIRECIONAL & BREADCRUMBS */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate('/app/gerencia')}
+                className="p-2.5 rounded-xl bg-[#131B2E] hover:bg-[#1E293B] border border-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-2 text-xs font-bold font-mono"
+              >
+                <ArrowLeft size={16} />
+                <span>Voltar para Gerência</span>
+              </button>
+              
+              <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
+                <span>Hub</span>
+                <span>/</span>
+                <span>Gerência</span>
+                <span>/</span>
+                <span className="text-[#38BDF8] font-bold">Logística & Estoque</span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setPassoNovoProduto('escolha');
+                setIsModalNovoAberto(true);
+              }}
+              className="px-4 py-2.5 rounded-xl bg-[#10B981] hover:bg-[#059669] text-[#0B1326] font-extrabold text-xs font-mono uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all cursor-pointer self-start sm:self-auto"
+            >
+              <Plus size={16} />
+              <span>Novo Produto</span>
+            </button>
+          </div>
+
+          {/* DASHBOARD LOGÍSTICO: KPIS ENXUTOS */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-2xl bg-[#0B1326] border border-slate-800 space-y-1">
+              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <Package size={14} className="text-[#38BDF8]" /> Itens Cadastrados
+              </span>
+              <p className="text-xl sm:text-2xl font-black text-white font-mono">
+                {totalItens}
+              </p>
+              <span className="text-[10px] text-slate-400 font-mono block">Produtos ativos</span>
+            </div>
+
+            <div className={`p-4 rounded-2xl border space-y-1 ${
+              reposicoesPendentes > 0 ? 'bg-rose-950/20 border-rose-500/40' : 'bg-[#0B1326] border-slate-800'
+            }`}>
+              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                <AlertTriangle size={14} /> Reposições no Bar
+              </span>
+              <p className="text-xl sm:text-2xl font-black text-rose-300 font-mono">
+                {reposicoesPendentes}
+              </p>
+              <span className="text-[10px] text-slate-400 font-mono block">Gôndola crítica ou zerada</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-[#0B1326] border border-slate-800 space-y-1">
+              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#4EDEA3] flex items-center gap-1.5">
+                <DollarSign size={14} /> Estoque a Preço de Venda
+              </span>
+              <p className="text-xl sm:text-2xl font-black text-white font-mono">
+                R$ {valorEstoqueVenda.toFixed(2)}
+              </p>
+              <span className="text-[10px] text-slate-400 font-mono block">Custo: R$ {valorEstoqueCusto.toFixed(2)}</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-[#0B1326] border border-slate-800 space-y-1">
+              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#FDE68A] flex items-center gap-1.5">
+                <Boxes size={14} /> Modo de Exibição
+              </span>
+              <div className="flex gap-1 pt-1">
+                <button
+                  onClick={() => handleTrocarModoVisualizacao('grid')}
+                  className={`flex-1 py-1 rounded-lg text-xs font-mono font-bold border transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                    modoVisualizacao === 'grid' 
+                      ? 'bg-[#38BDF8]/20 border-[#38BDF8] text-[#7BD0FF]' 
+                      : 'bg-[#131B2E] border-slate-700 text-slate-400'
+                  }`}
+                >
+                  <LayoutGrid size={13} />
+                  <span>Grid</span>
+                </button>
+                <button
+                  onClick={() => handleTrocarModoVisualizacao('lista')}
+                  className={`flex-1 py-1 rounded-lg text-xs font-mono font-bold border transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                    modoVisualizacao === 'lista' 
+                      ? 'bg-[#38BDF8]/20 border-[#38BDF8] text-[#7BD0FF]' 
+                      : 'bg-[#131B2E] border-slate-700 text-slate-400'
+                  }`}
+                >
+                  <ListIcon size={13} />
+                  <span>Lista</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* BARRA DE FILTROS & BUSCA */}
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+            {/* Campo de Busca */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <input
+                type="text"
+                value={termoBusca}
+                onChange={(e) => setTermoBusca(e.target.value)}
+                placeholder="Buscar produto por nome, marca ou código de barras..."
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#0B1326] border border-slate-800 text-white font-mono text-xs outline-none focus:border-[#38BDF8]"
+              />
+              {termoBusca && (
+                <button
+                  onClick={() => setTermoBusca('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Pills de Filtragem Rápida */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+              <button
+                onClick={() => setFiltroPill('todos')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold border transition-all cursor-pointer shrink-0 ${
+                  filtroPill === 'todos'
+                    ? 'bg-[#131B2E] border-slate-500 text-white shadow-sm'
+                    : 'bg-[#0B1326] border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Todos ({produtos.length})
+              </button>
+
+              <button
+                onClick={() => setFiltroPill('repor_bar')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold border transition-all cursor-pointer shrink-0 ${
+                  filtroPill === 'repor_bar'
+                    ? 'bg-rose-950/40 border-rose-500 text-rose-300 shadow-sm'
+                    : 'bg-[#0B1326] border-slate-800 text-slate-400 hover:text-rose-300'
+                }`}
+              >
+                🔴 Repor no Bar ({reposicoesPendentes})
+              </button>
+
+              <button
+                onClick={() => setFiltroPill('baixo_estoque')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold border transition-all cursor-pointer shrink-0 ${
+                  filtroPill === 'baixo_estoque'
+                    ? 'bg-amber-950/40 border-amber-500 text-amber-300 shadow-sm'
+                    : 'bg-[#0B1326] border-slate-800 text-slate-400 hover:text-amber-300'
+                }`}
+              >
+                🟡 Baixo Estoque
+              </button>
+            </div>
+          </div>
+
+          {/* ============================================================== */}
+          {/* APRESENTAÇÃO: GRID COM FOTOS (2 COLUNAS MOBILE)                */}
+          {/* ============================================================== */}
+          {modoVisualizacao === 'grid' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+              {produtosFiltrados.map((prod) => {
+                const isCritico = prod.quantidade_gondola <= 2;
+                const isBaixo = prod.quantidade_gondola <= (prod.estoque_minimo_gondola || 5);
+
+                return (
+                  <div
+                    key={prod.id}
+                    onClick={() => setProdutoEmGestao(prod)}
+                    className="group relative p-3 rounded-2xl bg-[#0B1326] hover:bg-[#131B2E] border border-slate-800 hover:border-[#38BDF8]/60 transition-all cursor-pointer flex flex-col justify-between shadow-lg overflow-hidden"
+                  >
+                    {/* Badge Superior de Estoque */}
+                    <div className="absolute top-2 right-2 z-10">
+                      <span className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold border ${
+                        isCritico
+                          ? 'bg-rose-950/90 border-rose-500 text-rose-300'
+                          : isBaixo
+                            ? 'bg-amber-950/90 border-amber-500 text-amber-300'
+                            : 'bg-emerald-950/90 border-emerald-500 text-emerald-300'
+                      }`}>
+                        {prod.quantidade_gondola} no Bar
+                      </span>
+                    </div>
+
+                    {/* Foto com proporção 1:1 */}
+                    <div className="w-full aspect-square rounded-xl bg-[#131B2E] border border-slate-800 overflow-hidden flex items-center justify-center relative mb-2.5">
+                      {prod.foto_url ? (
+                        <img
+                          src={prod.foto_url}
+                          alt={prod.nome}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-600 gap-1">
+                          <Package size={28} />
+                          <span className="text-[9px] font-mono text-slate-500">Sem Foto</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dados Básicos */}
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-slate-400 block truncate">
+                        {prod.categoria}
+                      </span>
+                      <h4 className="text-xs sm:text-sm font-bold text-white line-clamp-2 leading-tight">
+                        {prod.nome}
+                      </h4>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-sm font-black font-mono text-[#4EDEA3]">
+                          R$ {prod.preco_venda.toFixed(2)}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-400">
+                          Tot: {prod.quantidade_estoque}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* ============================================================== */
+            /* APRESENTAÇÃO: LISTA COMPACTA TÁTIL                            */
+            /* ============================================================== */
+            <div className="space-y-2">
+              {produtosFiltrados.map((prod) => (
+                <div
+                  key={prod.id}
+                  onClick={() => setProdutoEmGestao(prod)}
+                  className="p-3 rounded-2xl bg-[#0B1326] hover:bg-[#131B2E] border border-slate-800 hover:border-[#38BDF8]/60 transition-all cursor-pointer flex items-center justify-between text-xs font-mono shadow-md"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#131B2E] border border-slate-700 overflow-hidden flex items-center justify-center shrink-0">
+                      {prod.foto_url ? (
+                        <img src={prod.foto_url} alt={prod.nome} className="w-full h-full object-cover" />
+                      ) : (
+                        <Package size={18} className="text-slate-600" />
+                      )}
+                    </div>
+                    <div>
+                      <span className="font-bold text-white text-sm block">{prod.nome}</span>
+                      <span className="text-slate-400 text-[11px]">
+                        R$ {prod.preco_venda.toFixed(2)} un. | Categoria: {prod.categoria}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <span className={`font-bold block ${prod.quantidade_gondola <= 2 ? 'text-rose-400' : 'text-[#4EDEA3]'}`}>
+                        {prod.quantidade_gondola} no Bar
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {prod.quantidade_armazem} no Almox.
+                      </span>
+                    </div>
+                    <ArrowRight size={16} className="text-slate-500" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL 1: TRANSFERÊNCIA DE ESTOQUE                              */}
+      {/* ============================================================== */}
+      {isModalTransferir && produtoEmGestao && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-[#0B1326] border border-[#38BDF8] rounded-3xl p-6 w-full max-w-sm space-y-4 text-white shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#7BD0FF] flex items-center gap-1.5">
+                <ArrowRightLeft size={16} /> Movimentação de Estoque
+              </span>
+              <button onClick={() => setIsModalTransferir(false)} className="text-slate-400 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Produto: <strong className="text-white">{produtoEmGestao.nome}</strong>
+            </p>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono uppercase text-slate-400 block font-bold">
+                Direção do Movimento:
+              </label>
+              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
                 <button
                   type="button"
-                  onClick={() => setIsModalPerdaOpen(false)}
-                  className="min-h-[44px] rounded-xl bg-[#131B2E] text-slate-300 font-bold text-xs"
+                  onClick={() => setDirecaoTransferencia('para_gondola')}
+                  className={`p-2.5 rounded-xl border text-center transition-all ${
+                    direcaoTransferencia === 'para_gondola'
+                      ? 'bg-[#38BDF8]/20 border-[#38BDF8] text-[#7BD0FF] font-bold'
+                      : 'bg-[#131B2E] border-slate-700 text-slate-400'
+                  }`}
                 >
-                  Voltar
+                  Depósito ➔ Bar
                 </button>
                 <button
-                  type="submit"
-                  className="min-h-[44px] rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md"
+                  type="button"
+                  onClick={() => setDirecaoTransferencia('para_armazem')}
+                  className={`p-2.5 rounded-xl border text-center transition-all ${
+                    direcaoTransferencia === 'para_armazem'
+                      ? 'bg-[#38BDF8]/20 border-[#38BDF8] text-[#7BD0FF] font-bold'
+                      : 'bg-[#131B2E] border-slate-700 text-slate-400'
+                  }`}
                 >
-                  Registrar Baixa
+                  Bar ➔ Depósito
                 </button>
               </div>
-            </form>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-mono uppercase text-slate-400 block font-bold mb-1">
+                Quantidade a Transferir:
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={qtdTransferir}
+                onChange={(e) => setQtdTransferir(e.target.value)}
+                className="w-full bg-[#131B2E] border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono text-white outline-none focus:border-[#38BDF8]"
+              />
+            </div>
+
+            <button
+              onClick={handleTransferirEstoque}
+              className="w-full py-3 rounded-xl bg-[#38BDF8] hover:bg-[#0284C7] text-[#0B1326] font-bold text-xs font-mono uppercase tracking-wider cursor-pointer shadow-lg"
+            >
+              Confirmar Transferência
+            </button>
           </div>
         </div>
       )}
 
       {/* ============================================================== */}
-      {/* MODAL: ETIQUETA QR CODE DO PRODUTO (Tactile Velocity)          */}
+      {/* MODAL 2: REGISTRO DE PERDA / AVARIA                            */}
       {/* ============================================================== */}
-      {isModalQrOpen && produtoSelecionado && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center z-[90] p-3 sm:p-4 pt-12 sm:pt-4 overflow-y-auto animate-fadeIn">
-          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-4 text-center my-auto sm:my-0">
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#4EDEA3] font-mono">
-                Etiqueta de Balcão
+      {isModalPerda && produtoEmGestao && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-[#0B1326] border border-rose-500 rounded-3xl p-6 w-full max-w-sm space-y-4 text-white shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                <Trash2 size={16} /> Registrar Perda / Avaria
               </span>
-              <button onClick={() => setIsModalQrOpen(false)} className="text-slate-400 hover:text-white">
-                <X size={20} />
+              <button onClick={() => setIsModalPerda(false)} className="text-slate-400 hover:text-white">
+                <X size={18} />
               </button>
             </div>
 
-            <div className="p-4 bg-white rounded-2xl w-48 h-48 mx-auto flex items-center justify-center shadow-lg">
-              <QRCode
-                value={produtoSelecionado.qr_code_tag || produtoSelecionado.codigo_barras || `PROD-${produtoSelecionado.id}`}
-                size={160}
+            <p className="text-xs text-slate-300">
+              Produto: <strong className="text-white">{produtoEmGestao.nome}</strong>
+            </p>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono uppercase text-slate-400 block font-bold">
+                Local da Perda:
+              </label>
+              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                <button
+                  type="button"
+                  onClick={() => setAmbientePerda('gondola')}
+                  className={`p-2 rounded-xl border text-center ${
+                    ambientePerda === 'gondola' ? 'bg-rose-950/40 border-rose-500 text-rose-300 font-bold' : 'bg-[#131B2E] border-slate-700 text-slate-400'
+                  }`}
+                >
+                  Na Gôndola (Bar)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAmbientePerda('armazem')}
+                  className={`p-2 rounded-xl border text-center ${
+                    ambientePerda === 'armazem' ? 'bg-rose-950/40 border-rose-500 text-rose-300 font-bold' : 'bg-[#131B2E] border-slate-700 text-slate-400'
+                  }`}
+                >
+                  No Almoxarifado
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-mono uppercase text-slate-400 block font-bold mb-1">
+                Quantidade Perdida:
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={qtdPerda}
+                onChange={(e) => setQtdPerda(e.target.value)}
+                className="w-full bg-[#131B2E] border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono text-white outline-none focus:border-rose-500"
               />
             </div>
 
             <div>
-              <h4 className="text-base font-extrabold text-white truncate">
-                {produtoSelecionado.nome}
-              </h4>
-              <p className="text-xs text-[#4EDEA3] font-mono font-bold mt-0.5">
-                R$ {produtoSelecionado.preco_venda.toFixed(2)}
-              </p>
-              <p className="text-[10px] text-slate-400 font-mono mt-1">
-                {produtoSelecionado.codigo_barras || `ID: #${produtoSelecionado.id}`}
-              </p>
+              <label className="text-[10px] font-mono uppercase text-slate-400 block font-bold mb-1">
+                Motivo:
+              </label>
+              <select
+                value={motivoPerda}
+                onChange={(e) => setMotivoPerda(e.target.value)}
+                className="w-full bg-[#131B2E] border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none focus:border-rose-500"
+              >
+                <option value="Quebra / Avaria Física">Quebra / Avaria Física</option>
+                <option value="Vencimento de Validade">Vencimento de Validade</option>
+                <option value="Consumo Interno Não Lançado">Consumo Interno</option>
+                <option value="Diferença de Contagem">Diferença de Contagem</option>
+              </select>
             </div>
 
             <button
-              onClick={() => window.print()}
-              className="w-full min-h-[44px] px-4 py-2 bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-slate-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
+              onClick={handleRegistrarPerda}
+              className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs font-mono uppercase tracking-wider cursor-pointer shadow-lg"
             >
-              <Printer size={16} />
+              Baixar do Estoque por Perda
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL 3: ENTRADA DE NOVO LOTE                                  */}
+      {/* ============================================================== */}
+      {isModalNovoLote && produtoEmGestao && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-[#0B1326] border border-[#DDB96B] rounded-3xl p-6 w-full max-w-sm space-y-4 text-white shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#FDE68A] flex items-center gap-1.5">
+                <Layers size={16} /> Entrada de Novo Lote
+              </span>
+              <button onClick={() => setIsModalNovoLote(false)} className="text-slate-400 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs font-mono">
+              <div>
+                <label className="text-[10px] uppercase text-slate-400 block font-bold mb-1">
+                  Identificador / Número do Lote:
+                </label>
+                <input
+                  type="text"
+                  value={novoLoteNumero}
+                  onChange={(e) => setNovoLoteNumero(e.target.value)}
+                  className="w-full bg-[#131B2E] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-[#DDB96B]"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase text-slate-400 block font-bold mb-1">
+                  Data de Validade:
+                </label>
+                <input
+                  type="date"
+                  value={novoLoteValidade}
+                  onChange={(e) => setNovoLoteValidade(e.target.value)}
+                  className="w-full bg-[#131B2E] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-[#DDB96B]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] uppercase text-slate-400 block font-bold mb-1">
+                    Quantidade Adquirida:
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={novoLoteQtd}
+                    onChange={(e) => setNovoLoteQtd(e.target.value)}
+                    className="w-full bg-[#131B2E] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-[#DDB96B]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase text-slate-400 block font-bold mb-1">
+                    Custo Unitário (R$):
+                  </label>
+                  <input
+                    type="number"
+                    step="0.50"
+                    value={novoLoteCusto}
+                    onChange={(e) => setNovoLoteCusto(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full bg-[#131B2E] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-[#DDB96B]"
+                  />
+                </div>
+              </div>
+
+              {/* Indicador de Tendência do Custo */}
+              {parseFloat(novoLoteCusto) > produtoEmGestao.preco_custo && (
+                <div className="p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/50 text-[11px] text-amber-300">
+                  ⚠️ <strong>Atenção:</strong> O custo deste lote (R$ {parseFloat(novoLoteCusto).toFixed(2)}) é maior que o custo anterior (R$ {produtoEmGestao.preco_custo.toFixed(2)}). Avalie reajustar o preço de venda.
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={handleCriarNovoLote}
+              className="w-full py-3 rounded-xl bg-[#DDB96B] hover:bg-[#C5A059] text-[#0B1326] font-bold text-xs font-mono uppercase tracking-wider cursor-pointer shadow-lg"
+            >
+              Registrar Entrada de Lote
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL 4: IMPRESSÃO DE QR CODE DO PRODUTO                       */}
+      {/* ============================================================== */}
+      {isModalQr && produtoEmGestao && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-[#0B1326] border border-[#38BDF8] rounded-3xl p-6 w-full max-w-sm space-y-4 text-white text-center shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#7BD0FF] flex items-center gap-1.5">
+                <QrCode size={16} /> Etiqueta do Produto
+              </span>
+              <button onClick={() => setIsModalQr(false)} className="text-slate-400 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-4 bg-white rounded-2xl w-48 h-48 mx-auto flex items-center justify-center shadow-inner">
+              <QRCode
+                value={produtoEmGestao.qr_code_tag || produtoEmGestao.codigo_barras || `AGAPE:PROD:${produtoEmGestao.id}`}
+                size={160}
+              />
+            </div>
+
+            <p className="text-xs font-bold text-white font-mono">
+              {produtoEmGestao.nome}
+            </p>
+            <span className="text-[11px] text-slate-400 font-mono block">
+              Preço: R$ {produtoEmGestao.preco_venda.toFixed(2)}
+            </span>
+
+            <button
+              onClick={() => window.print()}
+              className="w-full py-2.5 rounded-xl bg-[#131B2E] hover:bg-[#1E293B] border border-slate-700 text-xs font-mono font-bold text-slate-200 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Printer size={15} />
               <span>Imprimir Etiqueta</span>
             </button>
           </div>
@@ -849,496 +1296,206 @@ export function GerenteLogistica() {
       )}
 
       {/* ============================================================== */}
-      {/* MODAL: CADASTRO DE NOVO PRODUTO (Tactile Velocity)             */}
+      {/* MODAL 5: CASCATA DE NOVO PRODUTO (Passo 1 ou Passo 2)          */}
       {/* ============================================================== */}
-      {isModalNovoOpen && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center z-[90] p-3 sm:p-4 pt-10 sm:pt-4 overflow-y-auto animate-fadeIn">
-          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden my-auto sm:my-0">
-            <div className="p-5 border-b border-[#334155] bg-[#131B2E] flex justify-between items-center shrink-0">
-              <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#4EDEA3] font-mono block">
-                  Catálogo do Bar
+      {isModalNovoAberto && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-[#0B1326] border border-[#10B981]/50 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl">
+            
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                {passoNovoProduto === 'formulario' && (
+                  <button
+                    onClick={() => setPassoNovoProduto('escolha')}
+                    className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
+                  >
+                    <ArrowLeft size={16} />
+                  </button>
+                )}
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#4EDEA3] flex items-center gap-1.5">
+                  <Plus size={16} /> Cadastro de Produto
                 </span>
-                <h3 className="text-lg font-black text-white mt-0.5">
-                  Cadastrar Novo Suprimento
-                </h3>
               </div>
-              <button onClick={() => setIsModalNovoOpen(false)} className="text-slate-400 hover:text-white">
-                <X size={20} />
+              <button onClick={() => setIsModalNovoAberto(false)} className="text-slate-400 hover:text-white">
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={salvarNovoProduto} className="p-4 sm:p-5 overflow-y-auto space-y-4 pb-8">
-              {/* Seção de Identificação e Auto-Cadastro por Código */}
-              <div className="p-3.5 bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-500/40 rounded-2xl space-y-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#FDE68A] flex items-center gap-1.5 font-mono">
-                    <Sparkles size={14} className="text-purple-400" /> Identificação e Auto-Cadastro por Código
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCameraTarget('qr_fabrica');
-                        setIsCameraScannerOpen(true);
-                      }}
-                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm transition-all"
-                    >
-                      <Camera size={13} />
-                      <span>Escanear QR / Barra</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={buscandoEan}
-                      onClick={() => consultarDadosEan()}
-                      className="px-3 py-1.5 bg-[#10B981] hover:bg-[#059669] text-[#0B1326] rounded-xl text-xs font-extrabold flex items-center gap-1 shadow-sm transition-all disabled:opacity-50"
-                    >
-                      {buscandoEan ? (
-                        <>
-                          <Loader2 size={13} className="animate-spin" /> Buscando...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles size={13} /> Auto-Preencher
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
+            {/* PASSO 1: ESCOLHA DO MÉTODO */}
+            {passoNovoProduto === 'escolha' ? (
+              <div className="space-y-4">
+                <p className="text-xs text-slate-300">
+                  Como você deseja incluir este produto no cardápio do bar?
+                </p>
 
-                {mensagemEan && (
-                  <div className={`p-2 rounded-xl text-xs flex items-center gap-2 ${
-                    mensagemEan.tipo === 'sucesso' 
-                      ? 'bg-emerald-500/20 text-[#4EDEA3] border border-emerald-500/40' 
-                      : mensagemEan.tipo === 'erro'
-                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                      : 'bg-amber-500/20 text-[#FFB95F] border border-amber-500/40'
-                  }`}>
-                    {mensagemEan.tipo === 'sucesso' && <CheckCircle size={14} className="text-emerald-400 shrink-0" />}
-                    <span>{mensagemEan.texto}</span>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-300 uppercase mb-1 font-mono flex items-center gap-1">
-                      <QrCode size={12} className="text-purple-400" /> QR Code da Embalagem (GS1 Digital Link)
-                    </label>
-                    <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={qrCodeTag}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setQrCodeTag(val);
-                          const match = val.match(/\/01\/(\d{13,14})/);
-                          if (match) {
-                            let gtin = match[1];
-                            if (gtin.length === 14 && gtin.startsWith('0')) gtin = gtin.substring(1);
-                            if (!codigoBarras) setCodigoBarras(gtin);
-                            consultarDadosEan(val);
-                          }
-                        }}
-                        placeholder="Cole ou bipe o QR Code..."
-                        className="flex-1 min-h-[40px] px-3 rounded-xl bg-[#0B1326] border border-[#334155] text-white text-xs font-mono outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCameraTarget('qr_fabrica');
-                          setIsCameraScannerOpen(true);
-                        }}
-                        className="px-2.5 bg-[#1E293B] hover:bg-[#334155] text-purple-400 border border-purple-500/30 rounded-xl text-xs flex items-center justify-center cursor-pointer"
-                        title="Ler com a câmera"
-                      >
-                        <Camera size={14} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-300 uppercase mb-1 font-mono flex items-center gap-1">
-                      <Barcode size={12} className="text-blue-400" /> Código de Barras (EAN-13)
-                    </label>
-                    <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={codigoBarras}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setCodigoBarras(val);
-                          if (/^\d{13,14}$/.test(val.trim())) {
-                            consultarDadosEan(val.trim());
-                          }
-                        }}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            consultarDadosEan(codigoBarras);
-                          }
-                        }}
-                        placeholder="Ex: 7894900011517"
-                        className="flex-1 min-h-[40px] px-3 rounded-xl bg-[#0B1326] border border-[#334155] text-white text-xs font-mono outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCameraTarget('ean');
-                          setIsCameraScannerOpen(true);
-                        }}
-                        className="px-2.5 bg-[#1E293B] hover:bg-[#334155] text-blue-400 border border-blue-500/30 rounded-xl text-xs flex items-center justify-center cursor-pointer"
-                        title="Ler com a câmera"
-                      >
-                        <Camera size={14} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {fotoUrl && (
-                  <div className="flex items-center gap-3 p-2 bg-[#0B1326] rounded-xl border border-purple-500/30">
-                    <img src={fotoUrl} alt="Foto Produto" className="w-12 h-12 object-contain rounded-lg bg-white p-0.5" />
-                    <div className="text-xs overflow-hidden">
-                      <p className="font-bold text-white">Foto Oficial Identificada</p>
-                      <p className="text-slate-400 text-[11px] truncate max-w-xs">{fotoUrl}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Nome do Produto</label>
-                  <input
-                    type="text"
-                    required
-                    value={nome}
-                    onChange={e => setNome(e.target.value)}
-                    placeholder="Ex: Chopp Artesanal IPA 500ml"
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] focus:border-[#10B981] text-white text-sm outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Marca / Fabricante</label>
-                  <input
-                    type="text"
-                    value={marca}
-                    onChange={e => setMarca(e.target.value)}
-                    placeholder="Ex: Cervejaria Fraterna"
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] focus:border-[#10B981] text-white text-sm outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Categoria</label>
-                  <select
-                    value={categoria}
-                    onChange={e => setCategoria(e.target.value as any)}
-                    className="w-full min-h-[44px] px-3 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-xs outline-none"
+                <div className="grid grid-cols-1 gap-3">
+                  <button
+                    onClick={() => {
+                      setCameraTarget('cadastro_auto');
+                      setIsCameraScannerOpen(true);
+                    }}
+                    className="p-4 rounded-2xl bg-[#131B2E] hover:bg-[#1A2642] border border-[#38BDF8]/40 hover:border-[#38BDF8] text-left transition-all cursor-pointer flex items-center gap-3.5 group shadow-md"
                   >
-                    <option value="bebidas">Bebidas</option>
-                    <option value="alimentos">Alimentos / Cozinha</option>
-                    <option value="tabacos_conveniencia">Tabacaria</option>
-                    <option value="outros">Outros</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Subcategoria</label>
-                  <select
-                    value={subcategoria}
-                    onChange={e => setSubcategoria(e.target.value)}
-                    className="w-full min-h-[44px] px-3 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-xs outline-none"
-                  >
-                    <option value="alcoolicas">Alcoólicas</option>
-                    <option value="nao_alcoolicas">Não Alcoólicas</option>
-                    <option value="snacks_petiscos">Snacks & Petiscos</option>
-                    <option value="refeicoes">Pratos</option>
-                    <option value="sobremesas">Sobremesas</option>
-                    <option value="outros">Outros</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Tipo</label>
-                  <input
-                    type="text"
-                    value={tipo}
-                    onChange={e => setTipo(e.target.value)}
-                    placeholder="Ex: cervejas"
-                    className="w-full min-h-[44px] px-3 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-xs outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Preço de Custo (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={precoCusto}
-                    onChange={e => setPrecoCusto(e.target.value)}
-                    placeholder="Ex: 8.50"
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] focus:border-[#10B981] text-white text-sm outline-none font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Preço de Venda (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={precoVenda}
-                    onChange={e => setPrecoVenda(e.target.value)}
-                    placeholder="Ex: 16.00"
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] focus:border-[#10B981] text-white text-sm outline-none font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Estoque Inicial Gôndola</label>
-                  <input
-                    type="number"
-                    value={estoqueInicialGondola}
-                    onChange={e => setEstoqueInicialGondola(e.target.value)}
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-sm font-mono outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Estoque Inicial Armazém</label>
-                  <input
-                    type="number"
-                    value={estoqueInicialArmazem}
-                    onChange={e => setEstoqueInicialArmazem(e.target.value)}
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-sm font-mono outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Mínimo Gôndola</label>
-                  <input
-                    type="number"
-                    value={minGondola}
-                    onChange={e => setMinGondola(e.target.value)}
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-sm font-mono outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Mínimo Armazém</label>
-                  <input
-                    type="number"
-                    value={minArmazem}
-                    onChange={e => setMinArmazem(e.target.value)}
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-sm font-mono outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Nº Lote Inicial</label>
-                  <input
-                    type="text"
-                    value={numeroLoteInicial}
-                    onChange={e => setNumeroLoteInicial(e.target.value)}
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-sm font-mono outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Código de Barras (EAN-13)</label>
-                  <input
-                    type="text"
-                    value={codigoBarras}
-                    onChange={e => setCodigoBarras(e.target.value)}
-                    placeholder="789..."
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-sm font-mono outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Data de Validade Inicial</label>
-                  <input
-                    type="date"
-                    value={validadeInicial}
-                    onChange={e => setValidadeInicial(e.target.value)}
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-sm outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-[#334155] flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalNovoOpen(false)}
-                  className="min-h-[46px] px-5 rounded-xl bg-[#131B2E] text-slate-300 font-bold text-xs"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="min-h-[46px] px-6 rounded-xl bg-[#10B981] hover:bg-[#059669] text-[#0B1326] font-extrabold text-xs shadow-md active:scale-95"
-                >
-                  Salvar Produto & Iniciar Estoque
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================== */}
-      {/* MODAL: LOTES & CONTROLE FEFO (Tactile Velocity)               */}
-      {/* ============================================================== */}
-      {isModalLotesOpen && produtoSelecionado && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center z-[90] p-3 sm:p-4 pt-10 sm:pt-4 overflow-y-auto animate-fadeIn">
-          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-xl max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden my-auto sm:my-0">
-            <div className="p-5 border-b border-[#334155] bg-[#131B2E] flex justify-between items-center shrink-0">
-              <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#38BDF8] font-mono block">
-                  Rastreabilidade FEFO
-                </span>
-                <h3 className="text-lg font-black text-white mt-0.5">
-                  Lotes do Produto: {produtoSelecionado.nome}
-                </h3>
-              </div>
-              <button onClick={() => setIsModalLotesOpen(false)} className="text-slate-400 hover:text-white">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="p-5 overflow-y-auto space-y-3">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-xs font-bold text-slate-300 font-mono">Lotes Ativos:</span>
-                <button
-                  type="button"
-                  onClick={() => setIsModalNovoLoteOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-[#10B981] text-[#0B1326] text-xs font-extrabold flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus size={14} /> Novo Lote
-                </button>
-              </div>
-
-              {!produtoSelecionado.lotes?.length ? (
-                <p className="text-xs text-slate-500 py-4 text-center">Nenhum lote registrado.</p>
-              ) : (
-                produtoSelecionado.lotes.map(l => (
-                  <div key={l.id} className="p-3.5 rounded-2xl bg-[#131B2E] border border-[#334155] flex justify-between items-center">
+                    <div className="w-12 h-12 rounded-xl bg-[#38BDF8]/20 border border-[#38BDF8]/40 flex items-center justify-center text-[#7BD0FF] group-hover:scale-105 transition-transform shrink-0">
+                      <Camera size={22} />
+                    </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-extrabold text-white">{l.numero_lote}</span>
-                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
-                          l.status_validade === 'vencido' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' :
-                          l.status_validade === 'vencendo' ? 'bg-amber-500/20 text-[#FFB95F] border border-amber-500/40' :
-                          'bg-[#10B981]/20 text-[#4EDEA3] border border-[#10B981]/40'
-                        }`}>
-                          Val: {new Date(l.data_validade).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-400 font-mono mt-1">
-                        Gôndola: <strong className="text-white">{l.quantidade_gondola}</strong> • Armazém: <strong className="text-white">{l.quantidade_armazem}</strong>
-                      </div>
+                      <span className="text-sm font-bold text-white block">Escanear Código / QR com a Câmera</span>
+                      <span className="text-[11px] text-slate-400">Preenchimento automático via base nacional GS1</span>
                     </div>
-                    <span className="text-xs font-mono text-slate-300">
-                      {l.dias_para_vencer < 0 ? `${Math.abs(l.dias_para_vencer)}d vencido` : `${l.dias_para_vencer}d restantes`}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+                  </button>
 
-      {/* MODAL: NOVO LOTE */}
-      {isModalNovoLoteOpen && produtoSelecionado && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center z-[95] p-3 sm:p-4 pt-12 sm:pt-4 overflow-y-auto animate-fadeIn">
-          <div className="bg-[#0B1326] border border-[#334155] rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 my-auto sm:my-0">
-            <div className="flex justify-between items-center">
-              <h3 className="text-base font-extrabold text-white">Cadastrar Entrada de Lote</h3>
-              <button onClick={() => setIsModalNovoLoteOpen(false)} className="text-slate-400 hover:text-white">
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={adicionarNovoLote} className="space-y-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase font-mono mb-1">Nº do Lote</label>
-                <input
-                  type="text"
-                  required
-                  value={novoNumeroLote}
-                  onChange={e => setNovoNumeroLote(e.target.value)}
-                  placeholder="Ex: LOTE-2026-05"
-                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] text-white font-mono text-xs outline-none"
-                />
+                  <button
+                    onClick={() => setPassoNovoProduto('formulario')}
+                    className="p-4 rounded-2xl bg-[#131B2E] hover:bg-[#1A2642] border border-slate-700 hover:border-slate-500 text-left transition-all cursor-pointer flex items-center gap-3.5 group shadow-md"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 group-hover:scale-105 transition-transform shrink-0">
+                      <Barcode size={22} />
+                    </div>
+                    <div>
+                      <span className="text-sm font-bold text-white block">Digitação Manual Enxuta</span>
+                      <span className="text-[11px] text-slate-400">Para bebidas artesanais, pratos ou itens próprios</span>
+                    </div>
+                  </button>
+                </div>
               </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase font-mono mb-1">Data de Validade</label>
-                <input
-                  type="date"
-                  required
-                  value={novaValidade}
-                  onChange={e => setNovaValidade(e.target.value)}
-                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-xs outline-none"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
+            ) : (
+              /* PASSO 2: FORMULÁRIO ENXUTO */
+              <form onSubmit={handleSalvarNovoProduto} className="space-y-3 text-xs font-mono">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase font-mono mb-1">Quantidade</label>
+                  <label className="text-[10px] uppercase text-slate-400 block font-bold mb-1">
+                    Nome do Produto:
+                  </label>
                   <input
-                    type="number"
-                    min="1"
+                    type="text"
                     required
-                    value={novaQtdLote}
-                    onChange={e => setNovaQtdLote(e.target.value)}
-                    placeholder="Ex: 24"
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#131B2E] border border-[#334155] text-white font-mono text-xs outline-none"
+                    value={novoNome}
+                    onChange={(e) => setNovoNome(e.target.value)}
+                    placeholder="Ex: Coca-Cola Zero 350ml"
+                    className="w-full bg-[#131B2E] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-[#10B981]"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase font-mono mb-1">Destino</label>
-                  <select
-                    value={novoDestinoLote}
-                    onChange={e => setNovoDestinoLote(e.target.value as any)}
-                    className="w-full min-h-[44px] px-3 rounded-xl bg-[#131B2E] border border-[#334155] text-white text-xs outline-none"
-                  >
-                    <option value="armazem">Armazém</option>
-                    <option value="gondola">Gôndola</option>
-                  </select>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] uppercase text-slate-400 block font-bold mb-1 flex items-center justify-between">
+                      <span>Código de Barras / EAN:</span>
+                      {buscandoEan && <span className="text-[#38BDF8] text-[9px] animate-pulse">Buscando GS1...</span>}
+                    </label>
+                    <input
+                      type="text"
+                      value={novoCodigoBarras}
+                      onChange={(e) => {
+                        setNovoCodigoBarras(e.target.value);
+                        if (e.target.value.length >= 8) handleConsultarEan(e.target.value);
+                      }}
+                      placeholder="789..."
+                      className="w-full bg-[#131B2E] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-[#10B981]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase text-slate-400 block font-bold mb-1">
+                      Categoria:
+                    </label>
+                    <select
+                      value={novaCategoria}
+                      onChange={(e) => setNovaCategoria(e.target.value)}
+                      className="w-full bg-[#131B2E] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-[#10B981]"
+                    >
+                      <option value="bebidas">Bebidas</option>
+                      <option value="alimentos">Alimentos</option>
+                      <option value="tabacos_conveniencia">Conveniência</option>
+                      <option value="outros">Outros</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalNovoLoteOpen(false)}
-                  className="min-h-[44px] rounded-xl bg-[#131B2E] text-slate-300 font-bold text-xs"
-                >
-                  Voltar
-                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] uppercase text-slate-400 block font-bold mb-1">
+                      Preço de Venda (R$):
+                    </label>
+                    <input
+                      type="number"
+                      step="0.50"
+                      required
+                      value={novoPrecoVendaForm}
+                      onChange={(e) => setNovoPrecoVendaForm(e.target.value)}
+                      placeholder="Ex: 7.00"
+                      className="w-full bg-[#131B2E] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-[#10B981]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase text-slate-400 block font-bold mb-1">
+                      Preço de Custo (R$):
+                    </label>
+                    <input
+                      type="number"
+                      step="0.50"
+                      value={novoPrecoCustoForm}
+                      onChange={(e) => setNovoPrecoCustoForm(e.target.value)}
+                      placeholder="Ex: 4.50"
+                      className="w-full bg-[#131B2E] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-[#10B981]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] uppercase text-slate-400 block font-bold mb-1">
+                      Estoque Inicial Bar:
+                    </label>
+                    <input
+                      type="number"
+                      value={novoEstoqueGondola}
+                      onChange={(e) => setNovoEstoqueGondola(e.target.value)}
+                      className="w-full bg-[#131B2E] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-[#10B981]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase text-slate-400 block font-bold mb-1">
+                      Estoque Inicial Depósito:
+                    </label>
+                    <input
+                      type="number"
+                      value={novoEstoqueArmazem}
+                      onChange={(e) => setNovoEstoqueArmazem(e.target.value)}
+                      className="w-full bg-[#131B2E] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-[#10B981]"
+                    />
+                  </div>
+                </div>
+
                 <button
                   type="submit"
-                  className="min-h-[44px] rounded-xl bg-[#10B981] hover:bg-[#059669] text-[#0B1326] font-extrabold text-xs shadow-md"
+                  disabled={salvandoNovo}
+                  className="w-full py-3 rounded-xl bg-[#10B981] hover:bg-[#059669] text-[#0B1326] font-bold text-xs uppercase tracking-wider cursor-pointer shadow-lg mt-2 flex items-center justify-center gap-1.5"
                 >
-                  Confirmar Entrada
+                  {salvandoNovo ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                  <span>Concluir Cadastro</span>
                 </button>
-              </div>
-            </form>
+              </form>
+            )}
+
           </div>
         </div>
       )}
 
-      {/* Leitor Câmera Simples */}
-      <LeitorQrCameraModal
-        isOpen={isCameraScannerOpen}
-        onClose={() => setIsCameraScannerOpen(false)}
-        onScanSuccess={handleLeituraCamera}
-        titulo="Escanear Código de Barras / QR Code de Fábrica"
-      />
+      {/* MODAL SCANNER CÂMERA */}
+      {isCameraScannerOpen && (
+        <LeitorQrCameraModal
+          isOpen={isCameraScannerOpen}
+          onClose={() => setIsCameraScannerOpen(false)}
+          onScanSuccess={(codigo: string) => {
+            setIsCameraScannerOpen(false);
+            if (cameraTarget === 'cadastro_auto') {
+              setNovoCodigoBarras(codigo);
+              setPassoNovoProduto('formulario');
+              handleConsultarEan(codigo);
+            }
+          }}
+        />
+      )}
 
     </div>
   );
-}
+};

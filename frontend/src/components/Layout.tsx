@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   UtensilsCrossed,
-  Package,
   ShieldAlert,
   LogOut,
   Building2,
@@ -12,8 +11,9 @@ import {
   Users,
   ExternalLink,
   Shield,
-  DollarSign,
-  User
+  User,
+  Home,
+  ShieldCheck
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -137,20 +137,27 @@ export const Layout: React.FC = () => {
       user?.cargo === 'GARCOM') &&
     !isSuperAdmin;
 
-  const navItems = isOperadorPuro
+  const cargoRaw = (user?.cargo || user?.role || '').toUpperCase();
+  const isClientePuro = cargoRaw === 'CLIENTE' || cargoRaw === 'OBREIRO' || cargoRaw === 'VISITANTE';
+
+  const navItems = isClientePuro && !isSuperAdmin
     ? [
-        { path: '/app/comandas', label: 'Salão (Vendedor)', icon: UtensilsCrossed },
-        { path: '/app/logistica', label: 'Estoque (Balcão)', icon: Package },
-        { path: '/app/cliente', label: 'Cliente: Meu Ágape', icon: User }
+        { path: '/app/cliente', label: 'Meu Ágape (Cliente)', icon: User }
       ]
-    : [
-        { path: '/app/financeiro', label: 'Gerente: Financeiro', icon: DollarSign },
-        { path: '/app/logistica', label: 'Gerente: Logística', icon: Package },
-        { path: '/app/comandas', label: 'Vendedor: Salão & PDV', icon: UtensilsCrossed },
-        { path: '/app/cliente', label: 'Cliente: Meu Ágape', icon: User },
-        { path: '/app/equipe', label: 'Equipe do Bar', icon: Users },
-        { path: '/app/auditoria', label: 'Auditoria & Logs', icon: ShieldAlert }
-      ];
+    : isOperadorPuro
+      ? [
+          { path: '/app', label: 'Hub Inicial da Loja', icon: Home },
+          { path: '/app/comandas', label: 'Operador: Salão & PDV', icon: UtensilsCrossed },
+          { path: '/app/cliente', label: 'Cliente: Meu Ágape', icon: User }
+        ]
+      : [
+          { path: '/app', label: 'Hub Inicial da Loja', icon: Home },
+          { path: '/app/gerencia', label: 'Gerente: Painel', icon: ShieldCheck },
+          { path: '/app/comandas', label: 'Operador: Salão & PDV', icon: UtensilsCrossed },
+          { path: '/app/cliente', label: 'Cliente: Meu Ágape', icon: User },
+          { path: '/app/equipe', label: 'Equipe do Bar', icon: Users },
+          { path: '/app/auditoria', label: 'Auditoria & Logs', icon: ShieldAlert }
+        ];
 
   if (isSuperAdmin) {
     navItems.push({ path: '/app/instancias', label: 'Lojas Maçônicas (SaaS)', icon: Building2 });

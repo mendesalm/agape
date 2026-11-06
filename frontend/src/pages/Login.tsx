@@ -58,8 +58,15 @@ export const Login: React.FC = () => {
       localStorage.setItem('@Barix:user', userJson);
     }
 
+    const cargoRaw = (userObj?.cargo || userObj?.role || '').toUpperCase();
+    const isClientePuro = cargoRaw === 'CLIENTE' || cargoRaw === 'OBREIRO' || cargoRaw === 'VISITANTE';
+    const isSuper = Boolean(userObj?.is_superadmin || cargoRaw === 'SUPERADMIN');
+    const isGerente = isSuper || cargoRaw.includes('GERENTE') || cargoRaw.includes('ADMIN') || cargoRaw.includes('WEBMASTER');
+
     if (ambito.tipo === 'SISTEMA') {
       navigate('/app/instancias', { replace: true });
+    } else if (isClientePuro && !isGerente && !cargoRaw.includes('OPERADOR')) {
+      navigate('/app/cliente', { replace: true });
     } else {
       navigate('/app', { replace: true });
     }
@@ -68,6 +75,11 @@ export const Login: React.FC = () => {
   const processarRespostaLogin = (accessToken: string, usuario: any) => {
     salvarSessaoBase(accessToken, usuario);
     setUsuarioAutenticado(usuario);
+
+    const cargoRaw = (usuario?.cargo || usuario?.role || '').toUpperCase();
+    const isClientePuro = cargoRaw === 'CLIENTE' || cargoRaw === 'OBREIRO' || cargoRaw === 'VISITANTE';
+    const isSuper = Boolean(usuario?.is_superadmin || cargoRaw === 'SUPERADMIN');
+    const isGerente = isSuper || cargoRaw.includes('GERENTE') || cargoRaw.includes('ADMIN') || cargoRaw.includes('WEBMASTER');
 
     const ambitos: AmbitoAcesso[] = usuario?.ambitos_disponiveis || [];
     if (ambitos.length > 1) {
@@ -84,7 +96,12 @@ export const Login: React.FC = () => {
       localStorage.setItem('@Barix:tenant_id', String(usuario.tenant_id));
       localStorage.setItem('bipfy_tenant_id', String(usuario.tenant_id));
     }
-    navigate('/app', { replace: true });
+
+    if (isClientePuro && !isGerente && !cargoRaw.includes('OPERADOR')) {
+      navigate('/app/cliente', { replace: true });
+    } else {
+      navigate('/app', { replace: true });
+    }
   };
 
   // Recebe token SSO vindo do Portal das Lojas ou do Portal e-Sigma (?token=... ou ?sso_token=...)

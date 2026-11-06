@@ -2,11 +2,11 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import { Layout } from './components/Layout';
-import { Produtos } from './pages/Produtos';
+import { HubInicialLoja } from './pages/HubInicialLoja';
+import { PainelGerencia } from './pages/PainelGerencia';
+import { GerenteAdministrativo } from './pages/GerenteAdministrativo';
 import { GerenteLogistica } from './pages/GerenteLogistica';
 import { Comandas } from './pages/Comandas';
-import { Dashboard } from './pages/Dashboard';
-import { GerenteFinanceiro } from './pages/GerenteFinanceiro';
 import { PortalCliente } from './pages/PortalCliente';
 import { Landing } from './pages/Landing';
 import { Auditoria } from './pages/Auditoria';
@@ -82,19 +82,32 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<GerenteFinanceiro />} />
-          <Route path="financeiro" element={<GerenteFinanceiro />} />
+          {/* Hub Inicial da Loja (Landing Base após Login / Escolha de Âmbito) */}
+          <Route index element={<HubInicialLoja />} />
+          <Route path="hub" element={<HubInicialLoja />} />
+
+          {/* Painel Secundário da Gerência & Dimensões */}
+          <Route path="gerencia" element={<PainelGerencia />} />
+          <Route path="gerencia/administrativo" element={<GerenteAdministrativo />} />
+          <Route path="gerencia/logistica" element={<GerenteLogistica />} />
+
+          {/* Atalhos Diretos com Retrocompatibilidade */}
+          <Route path="financeiro" element={<GerenteAdministrativo />} />
           <Route path="logistica" element={<GerenteLogistica />} />
           <Route path="produtos" element={<GerenteLogistica />} />
-          <Route path="produtos-legado" element={<Produtos />} />
+
+          {/* Operador (Salão & Balcão) */}
           <Route path="comandas" element={<Comandas />} />
+
+          {/* Cliente (Portal do Irmão) */}
           <Route path="cliente" element={<PortalCliente />} />
           <Route path="portal-cliente" element={<PortalCliente />} />
-          <Route path="dashboard-legado" element={<Dashboard />} />
-          <Route path="equipe" element={<EquipeAgape />} />
-          <Route path="equipe-agape" element={<EquipeAgape />} />
+
+          {/* Submódulos Administrativos & Sistema */}
           <Route path="auditoria" element={<Auditoria />} />
           <Route path="instancias" element={<Instancias />} />
+          <Route path="equipe" element={<EquipeAgape />} />
+          <Route path="equipe-agape" element={<EquipeAgape />} />
         </Route>
       </Routes>
     </BrowserRouter>
