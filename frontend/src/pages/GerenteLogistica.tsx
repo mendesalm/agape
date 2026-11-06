@@ -14,7 +14,10 @@ import {
   Barcode,
   Camera,
   Building2,
-  Search
+  Search,
+  Sparkles,
+  Loader2,
+  CheckCircle
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
@@ -70,11 +73,12 @@ export function GerenteLogistica() {
 
   // Scanner Câmera
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
-  const [cameraTarget, setCameraTarget] = useState<'busca' | 'qr_fabrica' | 'ean'>('busca');
+  const [cameraTarget, setCameraTarget] = useState<'busca' | 'qr_fabrica' | 'ean' | 'cadastro_auto'>('busca');
 
   // Form Novo Produto
   const [nome, setNome] = useState('');
   const [descricao, setDescricao] = useState('');
+  const [fotoUrl, setFotoUrl] = useState('');
   const [codigoBarras, setCodigoBarras] = useState('');
   const [qrCodeTag, setQrCodeTag] = useState('');
   const [categoria, setCategoria] = useState<'bebidas' | 'alimentos' | 'tabacos_conveniencia' | 'outros'>('bebidas');
@@ -89,6 +93,57 @@ export function GerenteLogistica() {
   const [minArmazem, setMinArmazem] = useState('15');
   const [numeroLoteInicial, setNumeroLoteInicial] = useState('LOTE-001');
   const [validadeInicial, setValidadeInicial] = useState('');
+
+  // Auto-Preenchimento por Código EAN / GS1
+  const [buscandoEan, setBuscandoEan] = useState(false);
+  const [mensagemEan, setMensagemEan] = useState<{ tipo: 'sucesso' | 'info' | 'erro'; texto: string } | null>(null);
+
+  const consultarDadosEan = async (codigoParaConsultar?: string) => {
+    const cod = (codigoParaConsultar || codigoBarras || qrCodeTag).trim();
+    if (!cod) {
+      setMensagemEan({ tipo: 'info', texto: 'Informe ou bipe um Código de Barras ou QR Code primeiro.' });
+      return;
+    }
+
+    setBuscandoEan(true);
+    setMensagemEan(null);
+    try {
+      const response = await api.get(`/produtos/consultar-ean/${encodeURIComponent(cod)}`);
+      const dados = response.data;
+      if (dados.encontrado) {
+        if (dados.nome) setNome(dados.nome);
+        if (dados.marca) setMarca(dados.marca);
+        if (dados.categoria) setCategoria(dados.categoria);
+        if (dados.subcategoria) setSubcategoria(dados.subcategoria);
+        if (dados.tipo) setTipo(dados.tipo);
+        if (dados.foto_url) setFotoUrl(dados.foto_url);
+        if (dados.codigo_barras && !codigoBarras) setCodigoBarras(dados.codigo_barras);
+        if (dados.lote_sugerido) setNumeroLoteInicial(dados.lote_sugerido);
+        if (dados.data_validade_sugerida) setValidadeInicial(dados.data_validade_sugerida);
+        if (dados.preco_venda_sugerido && Number(dados.preco_venda_sugerido) > 0 && !precoVenda) {
+          setPrecoVenda(String(dados.preco_venda_sugerido));
+        }
+
+        setMensagemEan({
+          tipo: 'sucesso',
+          texto: `Identificado: ${dados.nome}! Dados preenchidos automaticamente.`
+        });
+      } else {
+        setMensagemEan({
+          tipo: 'info',
+          texto: 'Código não localizado nas bases públicas. Você pode preencher os dados manualmente.'
+        });
+      }
+    } catch (err) {
+      console.error("Erro na consulta EAN:", err);
+      setMensagemEan({
+        tipo: 'erro',
+        texto: 'Não foi possível consultar a base no momento.'
+      });
+    } finally {
+      setBuscandoEan(false);
+    }
+  };
 
   // Form Transferência
   const [quantidadeTransferir, setQuantidadeTransferir] = useState('');
@@ -123,13 +178,37 @@ export function GerenteLogistica() {
 
   const handleLeituraCamera = (codigo: string) => {
     setIsCameraScannerOpen(false);
-    if (!codigo) return;
+    const cod = (codigo || '').trim();
+    if (!cod) return;
+
     if (cameraTarget === 'busca') {
-      setTermoBusca(codigo.trim());
+      setTermoBusca(cod);
     } else if (cameraTarget === 'qr_fabrica') {
-      setQrCodeTag(codigo.trim());
+      setQrCodeTag(cod);
+      const match = cod.match(/\/01\/(\d{13,14})/);
+      if (match) {
+        let gtin = match[1];
+        if (gtin.length === 14 && gtin.startsWith('0')) gtin = gtin.substring(1);
+        if (!codigoBarras) setCodigoBarras(gtin);
+      }
+      consultarDadosEan(cod);
     } else if (cameraTarget === 'ean') {
-      setCodigoBarras(codigo.trim());
+      setCodigoBarras(cod);
+      consultarDadosEan(cod);
+    } else if (cameraTarget === 'cadastro_auto') {
+      setIsModalNovoOpen(true);
+      if (cod.includes('/01/') || cod.startsWith('http')) {
+        setQrCodeTag(cod);
+        const match = cod.match(/\/01\/(\d{13,14})/);
+        if (match) {
+          let gtin = match[1];
+          if (gtin.length === 14 && gtin.startsWith('0')) gtin = gtin.substring(1);
+          setCodigoBarras(gtin);
+        }
+      } else {
+        setCodigoBarras(cod);
+      }
+      consultarDadosEan(cod);
     }
   };
 
@@ -143,6 +222,7 @@ export function GerenteLogistica() {
         tipo,
         marca,
         descricao,
+        foto_url: fotoUrl || undefined,
         preco_custo: parseFloat(precoCusto),
         preco_venda: parseFloat(precoVenda),
         estoque_inicial_armazem: parseInt(estoqueInicialArmazem) || 0,
@@ -164,7 +244,7 @@ export function GerenteLogistica() {
 
   const resetarFormNovo = () => {
     setNome(''); setDescricao(''); setMarca(''); setPrecoCusto(''); setPrecoVenda('');
-    setCodigoBarras(''); setQrCodeTag(''); setValidadeInicial('');
+    setCodigoBarras(''); setQrCodeTag(''); setValidadeInicial(''); setFotoUrl(''); setMensagemEan(null);
   };
 
   const transferirEstoque = async (e: FormEvent) => {
@@ -262,22 +342,32 @@ export function GerenteLogistica() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { setCameraTarget('cadastro_auto'); setIsCameraScannerOpen(true); }}
+            className="min-h-[44px] px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all cursor-pointer active:scale-95"
+            title="Abre a câmera para ler o QR Code da embalagem ou código de barras e cadastrar na hora"
+          >
+            <Camera size={16} />
+            <span>Escanear QR/Barra para Cadastrar</span>
+          </button>
+
           <button
             type="button"
             onClick={() => { setCameraTarget('busca'); setIsCameraScannerOpen(true); }}
-            className="min-h-[44px] px-3.5 py-2 bg-[#131B2E] hover:bg-[#1E293B] border border-[#334155] text-slate-200 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer"
+            className="min-h-[44px] px-3.5 py-2 bg-[#131B2E] hover:bg-[#1E293B] border border-[#334155] text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
           >
-            <Camera size={16} className="text-[#38BDF8]" />
-            <span>Ler Câmera</span>
+            <Search size={15} className="text-[#38BDF8]" />
+            <span>Buscar</span>
           </button>
 
           <button
             onClick={() => setIsModalNovoOpen(true)}
-            className="min-h-[44px] px-4 py-2 bg-[#10B981] hover:bg-[#059669] text-[#0B1326] font-extrabold rounded-xl text-xs shadow-md flex items-center gap-2 transition-all cursor-pointer active:scale-95"
+            className="min-h-[44px] px-4 py-2 bg-[#10B981] hover:bg-[#059669] text-[#0B1326] font-extrabold rounded-xl text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
           >
             <Plus size={18} />
-            <span>Cadastrar Produto</span>
+            <span>Cadastrar Manual</span>
           </button>
         </div>
       </div>
@@ -776,7 +866,144 @@ export function GerenteLogistica() {
               </button>
             </div>
 
-            <form onSubmit={salvarNovoProduto} className="p-5 overflow-y-auto space-y-4 pb-8">
+            <form onSubmit={salvarNovoProduto} className="p-4 sm:p-5 overflow-y-auto space-y-4 pb-8">
+              {/* Seção de Identificação e Auto-Cadastro por Código */}
+              <div className="p-3.5 bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-500/40 rounded-2xl space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#FDE68A] flex items-center gap-1.5 font-mono">
+                    <Sparkles size={14} className="text-purple-400" /> Identificação e Auto-Cadastro por Código
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCameraTarget('qr_fabrica');
+                        setIsCameraScannerOpen(true);
+                      }}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm transition-all"
+                    >
+                      <Camera size={13} />
+                      <span>Escanear QR / Barra</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={buscandoEan}
+                      onClick={() => consultarDadosEan()}
+                      className="px-3 py-1.5 bg-[#10B981] hover:bg-[#059669] text-[#0B1326] rounded-xl text-xs font-extrabold flex items-center gap-1 shadow-sm transition-all disabled:opacity-50"
+                    >
+                      {buscandoEan ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" /> Buscando...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={13} /> Auto-Preencher
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {mensagemEan && (
+                  <div className={`p-2 rounded-xl text-xs flex items-center gap-2 ${
+                    mensagemEan.tipo === 'sucesso' 
+                      ? 'bg-emerald-500/20 text-[#4EDEA3] border border-emerald-500/40' 
+                      : mensagemEan.tipo === 'erro'
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                      : 'bg-amber-500/20 text-[#FFB95F] border border-amber-500/40'
+                  }`}>
+                    {mensagemEan.tipo === 'sucesso' && <CheckCircle size={14} className="text-emerald-400 shrink-0" />}
+                    <span>{mensagemEan.texto}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-300 uppercase mb-1 font-mono flex items-center gap-1">
+                      <QrCode size={12} className="text-purple-400" /> QR Code da Embalagem (GS1 Digital Link)
+                    </label>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={qrCodeTag}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setQrCodeTag(val);
+                          const match = val.match(/\/01\/(\d{13,14})/);
+                          if (match) {
+                            let gtin = match[1];
+                            if (gtin.length === 14 && gtin.startsWith('0')) gtin = gtin.substring(1);
+                            if (!codigoBarras) setCodigoBarras(gtin);
+                            consultarDadosEan(val);
+                          }
+                        }}
+                        placeholder="Cole ou bipe o QR Code..."
+                        className="flex-1 min-h-[40px] px-3 rounded-xl bg-[#0B1326] border border-[#334155] text-white text-xs font-mono outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCameraTarget('qr_fabrica');
+                          setIsCameraScannerOpen(true);
+                        }}
+                        className="px-2.5 bg-[#1E293B] hover:bg-[#334155] text-purple-400 border border-purple-500/30 rounded-xl text-xs flex items-center justify-center cursor-pointer"
+                        title="Ler com a câmera"
+                      >
+                        <Camera size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-300 uppercase mb-1 font-mono flex items-center gap-1">
+                      <Barcode size={12} className="text-blue-400" /> Código de Barras (EAN-13)
+                    </label>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={codigoBarras}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setCodigoBarras(val);
+                          if (/^\d{13,14}$/.test(val.trim())) {
+                            consultarDadosEan(val.trim());
+                          }
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            consultarDadosEan(codigoBarras);
+                          }
+                        }}
+                        placeholder="Ex: 7894900011517"
+                        className="flex-1 min-h-[40px] px-3 rounded-xl bg-[#0B1326] border border-[#334155] text-white text-xs font-mono outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCameraTarget('ean');
+                          setIsCameraScannerOpen(true);
+                        }}
+                        className="px-2.5 bg-[#1E293B] hover:bg-[#334155] text-blue-400 border border-blue-500/30 rounded-xl text-xs flex items-center justify-center cursor-pointer"
+                        title="Ler com a câmera"
+                      >
+                        <Camera size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {fotoUrl && (
+                  <div className="flex items-center gap-3 p-2 bg-[#0B1326] rounded-xl border border-purple-500/30">
+                    <img src={fotoUrl} alt="Foto Produto" className="w-12 h-12 object-contain rounded-lg bg-white p-0.5" />
+                    <div className="text-xs overflow-hidden">
+                      <p className="font-bold text-white">Foto Oficial Identificada</p>
+                      <p className="text-slate-400 text-[11px] truncate max-w-xs">{fotoUrl}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1 font-mono">Nome do Produto</label>

@@ -42,6 +42,21 @@ async def listar(
     servico = ProdutoService(db, usuario.tenant_id)
     return await servico.listar_produtos(skip, limit)
 
+@router.get("/consultar-ean/{codigo:path}")
+async def consultar_dados_ean(
+    codigo: str,
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Infere e auto-completa os dados de um produto a partir de seu Código de Barras (EAN-13)
+    ou URL no padrão GS1 Digital Link.
+    Retorna Nome, Marca, Categoria, Foto oficial, Lote e Validade quando disponíveis.
+    """
+    from app.services.consulta_ean_service import ConsultaEanService
+    servico = ConsultaEanService(db)
+    return await servico.consultar(codigo)
+
 @router.get("/codigo/{codigo}", response_model=ProdutoResponse)
 async def obter_por_codigo(
     codigo: str,
