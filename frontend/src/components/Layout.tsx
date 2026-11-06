@@ -1,475 +1,404 @@
-import React, { useState, useEffect } from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import {
-  UtensilsCrossed,
-  ShieldAlert,
-  LogOut,
-  Building2,
-  Menu,
-  X,
+import { useState } from 'react';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { 
+  LayoutDashboard, 
+  ClipboardList, 
+  LogOut, 
+  Menu, 
+  X, 
+  Wine, 
+  ShieldCheck, 
+  Building2, 
+  BarChart3, 
+  Boxes, 
+  FileSearch, 
+  ArrowLeft,
   ChevronRight,
-  Users,
-  ExternalLink,
-  Shield,
-  User,
-  Home,
-  ShieldCheck
+  User
 } from 'lucide-react';
-import api from '../services/api';
 
-interface LojaInfo {
-  id: number;
-  nome_fantasia: string;
-  numero_loja?: string;
-}
-
-export const Layout: React.FC = () => {
-  const location = useLocation();
+export function Layout() {
   const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [lojas, setLojas] = useState<LojaInfo[]>([]);
-  const [lojaAtiva, setLojaAtiva] = useState<string>('');
-  const [lojaAtivaNome, setLojaAtivaNome] = useState<string>('');
-  const [ambitoAtivo, setAmbitoAtivo] = useState<'LOJA' | 'SISTEMA'>(() => {
-    return (localStorage.getItem('@Barix:ambito') as 'LOJA' | 'SISTEMA') || 'LOJA';
-  });
+  const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const userStr = localStorage.getItem('bipfy_user') || localStorage.getItem('@Barix:user');
-  const user = userStr ? JSON.parse(userStr) : null;
-  const isSuperAdmin = Boolean(user?.is_superadmin || user?.cargo === 'SUPERADMIN');
+  // Recupera perfil e dados da sessão
+  const userRaw = localStorage.getItem('bipfy_user') || localStorage.getItem('barix_user');
+  const user = userRaw ? JSON.parse(userRaw) : null;
+  const cargo = (user?.cargo || '').toUpperCase();
 
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [location.pathname]);
-
-  useEffect(() => {
-    const savedTenant =
-      localStorage.getItem('@Barix:tenant_id') ||
-      localStorage.getItem('bipfy_tenant_id') ||
-      (user?.tenant_id ? String(user.tenant_id) : '');
-
-    if (savedTenant) {
-      setLojaAtiva(String(savedTenant));
-    }
-
-    if (isSuperAdmin) {
-      api
-        .get('/tenants/?limit=500')
-        .then((res) => {
-          const lista: LojaInfo[] = res.data || [];
-          setLojas(lista);
-
-          let idEfetivo = savedTenant;
-          if (!idEfetivo && lista.length > 0) {
-            const loja2181 = lista.find((l) => String(l.numero_loja) === '2181') || lista[0];
-            idEfetivo = String(loja2181.id);
-            localStorage.setItem('@Barix:tenant_id', idEfetivo);
-            localStorage.setItem('bipfy_tenant_id', idEfetivo);
-            setLojaAtiva(idEfetivo);
-          }
-
-          const encontrada = lista.find((l) => String(l.id) === String(idEfetivo));
-          if (encontrada) {
-            setLojaAtivaNome(encontrada.nome_fantasia);
-            localStorage.setItem('@Barix:ambito_titulo', encontrada.nome_fantasia);
-          }
-        })
-        .catch(() => {});
-    } else {
-      api
-        .get('/tenants/me')
-        .then((res) => {
-          if (res.data?.nome_fantasia) {
-            setLojaAtivaNome(res.data.nome_fantasia);
-            setLojaAtiva(String(res.data.id));
-            localStorage.setItem('@Barix:ambito_titulo', res.data.nome_fantasia);
-          }
-        })
-        .catch(() => {
-          if (user?.loja_atual?.nome_fantasia) {
-            setLojaAtivaNome(user.loja_atual.nome_fantasia);
-          }
-        });
-    }
-  }, [isSuperAdmin, user?.tenant_id]);
-
-  const handleTrocarLoja = (novoId: string) => {
-    setLojaAtiva(novoId);
-    if (novoId) {
-      localStorage.setItem('@Barix:tenant_id', novoId);
-      localStorage.setItem('bipfy_tenant_id', novoId);
-      localStorage.setItem('@Barix:ambito', 'LOJA');
-      setAmbitoAtivo('LOJA');
-      const encontrada = lojas.find((l) => String(l.id) === String(novoId));
-      if (encontrada) {
-        localStorage.setItem('@Barix:ambito_titulo', encontrada.nome_fantasia);
-      }
-    }
-    window.location.reload();
-  };
-
-  const handleAlternarAmbito = (novoAmbito: 'LOJA' | 'SISTEMA') => {
-    setAmbitoAtivo(novoAmbito);
-    localStorage.setItem('@Barix:ambito', novoAmbito);
-    if (novoAmbito === 'SISTEMA') {
-      navigate('/app/instancias');
-    } else {
-      navigate('/app');
-    }
-  };
+  const isSuperAdmin = cargo === 'SUPERADMIN' || cargo === 'WEBMASTER';
+  const isGerente = isSuperAdmin || ['ADMIN', 'GERENTE', 'DIRETOR', 'VENERAVEL'].includes(cargo);
+  const isOperador = isGerente || ['OPERADOR', 'CHANCELER', 'TESOUREIRO'].includes(cargo);
+  const isClientePuro = cargo === 'CLIENTE' || cargo === 'OBREIRO' || cargo === 'MEMBRO';
 
   const handleLogout = () => {
     localStorage.removeItem('bipfy_token');
-    localStorage.removeItem('barix_token');
-    localStorage.removeItem('@Barix:token');
     localStorage.removeItem('bipfy_user');
-    localStorage.removeItem('@Barix:user');
-    localStorage.removeItem('bipfy_tenant_id');
-    localStorage.removeItem('@Barix:tenant_id');
-    localStorage.removeItem('@Barix:ambito');
-    localStorage.removeItem('@Barix:ambito_titulo');
+    localStorage.removeItem('barix_token');
+    localStorage.removeItem('barix_user');
     navigate('/login');
   };
 
-  const isOperadorPuro =
-    (user?.cargo === 'OPERADOR_AGAPE' ||
-      user?.cargo === 'OPERADOR_BALCAO' ||
-      user?.cargo === 'GARCOM') &&
-    !isSuperAdmin;
+  // Mapeamento de Breadcrumb dinâmico
+  const getBreadcrumb = () => {
+    const path = location.pathname;
+    if (path === '/app' || path === '/app/hub') return { trail: ['Hub da Loja'], backTo: null };
+    if (path === '/app/gerencia') return { trail: ['Hub', 'Gerência'], backTo: '/app' };
+    if (path.includes('/gerencia/administrativo') || path === '/app/financeiro') {
+      return { trail: ['Hub', 'Gerência', 'Administrativo'], backTo: '/app/gerencia' };
+    }
+    if (path.includes('/gerencia/logistica') || path === '/app/logistica' || path === '/app/produtos') {
+      return { trail: ['Hub', 'Gerência', 'Logística & Estoque'], backTo: '/app/gerencia' };
+    }
+    if (path.includes('/auditoria')) {
+      return { trail: ['Hub', 'Gerência', 'Administrativo', 'Auditoria'], backTo: '/app/gerencia/administrativo' };
+    }
+    if (path.includes('/comandas')) {
+      return { trail: ['Hub', 'Operação', 'Comandas & PDV'], backTo: '/app' };
+    }
+    if (path.includes('/cliente')) {
+      return { trail: ['Hub', 'Portal do Cliente'], backTo: '/app' };
+    }
+    if (path.includes('/instancias')) {
+      return { trail: ['SaaS Global', 'Instâncias'], backTo: '/app' };
+    }
+    return { trail: ['Sistema'], backTo: '/app' };
+  };
 
-  const cargoRaw = (user?.cargo || user?.role || '').toUpperCase();
-  const isClientePuro = cargoRaw === 'CLIENTE' || cargoRaw === 'OBREIRO' || cargoRaw === 'VISITANTE';
-
-  const navItems = isClientePuro && !isSuperAdmin
-    ? [
-        { path: '/app/cliente', label: 'Meu Ágape (Cliente)', icon: User }
-      ]
-    : isOperadorPuro
-      ? [
-          { path: '/app', label: 'Hub Inicial da Loja', icon: Home },
-          { path: '/app/comandas', label: 'Operador: Salão & PDV', icon: UtensilsCrossed },
-          { path: '/app/cliente', label: 'Cliente: Meu Ágape', icon: User }
-        ]
-      : [
-          { path: '/app', label: 'Hub Inicial da Loja', icon: Home },
-          { path: '/app/gerencia', label: 'Gerente: Painel', icon: ShieldCheck },
-          { path: '/app/comandas', label: 'Operador: Salão & PDV', icon: UtensilsCrossed },
-          { path: '/app/cliente', label: 'Cliente: Meu Ágape', icon: User },
-          { path: '/app/equipe', label: 'Equipe do Bar', icon: Users },
-          { path: '/app/auditoria', label: 'Auditoria & Logs', icon: ShieldAlert }
-        ];
-
-  if (isSuperAdmin) {
-    navItems.push({ path: '/app/instancias', label: 'Lojas Maçônicas (SaaS)', icon: Building2 });
-  }
+  const breadcrumb = getBreadcrumb();
 
   return (
-    <div className="agape-sovereign-shell flex h-screen bg-[#070F1E] text-slate-200 font-sans overflow-hidden">
-      {/* Sidebar Desktop */}
-      <aside className="hidden lg:flex w-76 vidro-escuro border-r border-[#DDB96B]/20 flex-col shrink-0 z-20">
-        <div className="p-6 flex items-center gap-3.5 border-b border-[#DDB96B]/20">
-          <div className="w-12 h-12 rounded-2xl vidro-destaque flex items-center justify-center p-1.5 shrink-0">
-            <img src="/agape.svg" alt="Ágape" className="w-full h-full object-contain" />
-          </div>
-          <div>
-            <span className="text-xl font-bold tracking-widest font-cinzel text-sigma-gold block leading-none">
-              ÁGAPE
-            </span>
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#DDB96B]/80 block mt-1">
-              Módulo e-Sigma
-            </span>
-          </div>
-        </div>
-
-        {/* Painel de Âmbito de Operação (Sistema Global vs Loja Específica) */}
-        <div className="px-4 py-3.5 border-b border-[#DDB96B]/20 bg-[#0A1428]/90 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#DDB96B] flex items-center gap-1">
-              {ambitoAtivo === 'SISTEMA' ? (
-                <>
-                  <Shield className="w-3.5 h-3.5" /> Âmbito: Sistema Global
-                </>
-              ) : (
-                <>
-                  <Building2 className="w-3.5 h-3.5" /> Âmbito: Loja Maçônica
-                </>
-              )}
-            </span>
-            {isSuperAdmin && (
-              <div className="flex items-center rounded-lg bg-[#070F1E] p-0.5 border border-[#DDB96B]/30">
-                <button
-                  type="button"
-                  onClick={() => handleAlternarAmbito('LOJA')}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors cursor-pointer ${
-                    ambitoAtivo === 'LOJA'
-                      ? 'bg-[#DDB96B] text-[#070F1E]'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Loja
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAlternarAmbito('SISTEMA')}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors cursor-pointer ${
-                    ambitoAtivo === 'SISTEMA'
-                      ? 'bg-[#DDB96B] text-[#070F1E]'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Sistema
-                </button>
-              </div>
-            )}
-          </div>
-
-          {isSuperAdmin && lojas.length > 0 ? (
-            <div>
-              <label className="block text-[10px] text-slate-400 mb-1">
-                Loja ativa para Estoque (Armazém/Display) & PDV:
-              </label>
-              <select
-                value={lojaAtiva}
-                onChange={(e) => handleTrocarLoja(e.target.value)}
-                className="w-full text-xs bg-[#070F1E] text-[#FDE68A] font-semibold border border-[#DDB96B]/35 rounded-lg px-2.5 py-2 focus:outline-none focus:border-[#DDB96B]"
-              >
-                {lojas.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.nome_fantasia}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div className="p-2.5 rounded-xl bg-[#070F1E]/80 border border-[#DDB96B]/25">
-              <div className="text-xs font-bold text-[#FDE68A] truncate">
-                {lojaAtivaNome || user?.loja_atual?.nome_fantasia || 'Salão de Ágapes da Loja'}
-              </div>
-              <div className="text-[10px] text-slate-400 mt-0.5">
-                Estoque Armazém & Display isolados para esta Loja
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="px-6 pt-4 pb-2">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-[#DDB96B]/70">
-            Menu Operacional
-          </p>
-        </div>
-
-        <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive =
-              location.pathname === item.path ||
-              (item.path !== '/app' && location.pathname.startsWith(item.path));
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`group flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 ${
-                  isActive
-                    ? 'vidro-destaque text-[#FDE68A] font-semibold shadow-sm'
-                    : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-100 font-medium'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <Icon
-                    className={`w-5 h-5 transition-colors ${
-                      isActive ? 'icon-sigma-gold' : 'text-slate-400 group-hover:text-[#DDB96B]'
-                    }`}
-                  />
-                  <span className="text-sm">{item.label}</span>
-                </div>
-                {isActive && <ChevronRight className="w-4 h-4 text-[#DDB96B]" />}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="p-4 m-4 rounded-2xl card-deep-blue-glass">
-          <div className="flex items-center space-x-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-sigma-gold flex items-center justify-center font-bold text-sm shrink-0">
-              {user?.nome ? user.nome.charAt(0).toUpperCase() : 'U'}
-            </div>
-            <div className="overflow-hidden">
-              <p className="text-sm font-bold text-white truncate">
-                {user?.nome || 'Operador'}
-              </p>
-              <p className="text-xs text-[#DDB96B] truncate font-medium">
-                {isSuperAdmin ? 'SuperAdmin • e-Sigma' : user?.cargo || 'Gestor do Ágape'}
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <a
-              href="https://e-sigma.app"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full flex items-center justify-center space-x-2 px-4 py-2 text-xs font-semibold text-[#FDE68A] bg-white/[0.04] hover:bg-white/[0.08] border border-[#DDB96B]/25 rounded-xl transition-all"
+    <div className="flex h-screen bg-[#070F1E] font-sans text-slate-100 overflow-hidden">
+      
+      {/* Mobile Topbar */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#0B1326]/95 backdrop-blur-md border-b border-slate-800 z-50 flex items-center justify-between px-4 shadow-lg">
+        <div className="flex items-center gap-2">
+          {breadcrumb.backTo && (
+            <button 
+              onClick={() => navigate(breadcrumb.backTo!)} 
+              className="p-1.5 rounded-lg bg-slate-800/80 text-slate-300 hover:text-white"
             >
-              <ExternalLink className="w-3.5 h-3.5 text-[#DDB96B]" />
-              <span>Portal e-Sigma</span>
-            </a>
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-2 text-xs font-semibold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-xl transition-all cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Encerrar Sessão</span>
+              <ArrowLeft size={18} />
             </button>
+          )}
+          <div className="flex items-center gap-2 text-amber-400 font-bold text-lg tracking-tight">
+            <Wine className="w-5 h-5 text-amber-500" />
+            <span>Ágape</span>
           </div>
         </div>
-      </aside>
-
-      {/* Mobile Drawer Overlay */}
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 lg:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
-
-      {/* Mobile Sidebar Drawer */}
-      <aside
-        className={`fixed inset-y-0 left-0 w-72 vidro-escuro border-r border-[#DDB96B]/25 z-50 flex flex-col transform transition-transform duration-300 lg:hidden ${
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <div className="p-5 flex items-center justify-between border-b border-[#DDB96B]/20">
-          <div className="flex items-center space-x-3">
-            <img src="/agape.svg" alt="Ágape" className="w-9 h-9" />
-            <div>
-              <span className="text-lg font-bold font-cinzel text-sigma-gold block leading-none">
-                ÁGAPE
-              </span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#DDB96B]/80 block mt-0.5">
-                Módulo e-Sigma
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={() => setMobileMenuOpen(false)}
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5"
+        
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+            {user?.cargo || 'Usuário'}
+          </span>
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+            className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg"
           >
-            <X className="w-5 h-5" />
+            {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
+      </div>
 
-        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive =
-              location.pathname === item.path ||
-              (item.path !== '/app' && location.pathname.startsWith(item.path));
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
-                  isActive
-                    ? 'vidro-destaque text-[#FDE68A] font-semibold'
-                    : 'text-slate-300 hover:bg-white/5'
-                }`}
+      {/* Sidebar Lateral */}
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 z-40 w-64 bg-[#0B1326] border-r border-slate-800/90 flex flex-col shadow-2xl lg:shadow-none
+        transition-transform duration-300 ease-in-out
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        
+        {/* Topo do Sidebar: Marca e Perfil do Usuário */}
+        <div className="h-20 flex flex-col justify-center border-b border-slate-800/80 shrink-0 mt-16 lg:mt-0 px-5 bg-gradient-to-b from-slate-900/60 to-transparent">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-amber-500/20">
+                <Wine size={20} />
+              </div>
+              <div>
+                <h1 className="text-base font-black tracking-tight text-white flex items-center gap-1.5">
+                  Ágape <span className="text-[10px] font-semibold text-amber-400/90 tracking-widest uppercase">Bar</span>
+                </h1>
+                <p className="text-[10px] text-slate-400">
+                  {user?.tenant_id ? `Instância #${user.tenant_id}` : 'Ecossistema SaaS'}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Badge de Cargo */}
+          <div className="mt-1 flex items-center gap-1.5">
+            <span className={`inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+              isSuperAdmin 
+                ? 'bg-purple-950/60 text-purple-300 border-purple-500/40' 
+                : isGerente 
+                ? 'bg-amber-950/60 text-amber-300 border-amber-500/40'
+                : isOperador 
+                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+                : 'bg-cyan-950/60 text-cyan-300 border-cyan-500/40'
+            }`}>
+              <User size={10} />
+              {user?.cargo || 'Cliente'}
+            </span>
+            <span className="text-[10px] text-slate-500 truncate max-w-[120px]">
+              {user?.nome || user?.email || 'Conectado'}
+            </span>
+          </div>
+        </div>
+
+        {/* Navegação Estruturada por Níveis de Acesso */}
+        <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
+          
+          {/* SEÇÃO 1: NAVEGAÇÃO PRINCIPAL / HUB */}
+          {!isClientePuro && (
+            <div>
+              <NavLink
+                to="/app"
+                end
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all font-medium text-xs ${
+                    isActive
+                      ? 'bg-amber-500/15 text-amber-400 border-l-2 border-amber-500 font-semibold'
+                      : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                  }`
+                }
               >
-                <div className="flex items-center space-x-3">
-                  <Icon className={`w-5 h-5 ${isActive ? 'icon-sigma-gold' : 'text-slate-400'}`} />
-                  <span className="text-sm">{item.label}</span>
-                </div>
-                {isActive && <ChevronRight className="w-4 h-4 text-[#DDB96B]" />}
-              </Link>
-            );
-          })}
+                <LayoutDashboard size={18} />
+                <span>Hub Inicial da Loja</span>
+              </NavLink>
+            </div>
+          )}
+
+          {/* SEÇÃO 2: GERÊNCIA (Visível apenas para Gerentes, Admins e Superadmin) */}
+          {isGerente && (
+            <div className="space-y-1">
+              <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-400/70 flex items-center gap-1.5">
+                <ShieldCheck size={12} className="text-amber-500" />
+                <span>Painel Gerencial</span>
+              </div>
+              
+              <NavLink
+                to="/app/gerencia"
+                end
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center space-x-3 px-3 py-2 rounded-xl transition-all font-medium text-xs ${
+                    isActive
+                      ? 'bg-amber-500/15 text-amber-400 border-l-2 border-amber-500 font-semibold'
+                      : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                  }`
+                }
+              >
+                <ShieldCheck size={16} />
+                <span>Visão Geral Gerência</span>
+              </NavLink>
+
+              <NavLink
+                to="/app/gerencia/administrativo"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center space-x-3 px-3 py-2 rounded-xl transition-all font-medium text-xs ${
+                    isActive
+                      ? 'bg-amber-500/15 text-amber-400 border-l-2 border-amber-500 font-semibold'
+                      : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                  }`
+                }
+              >
+                <BarChart3 size={16} />
+                <span>Administrativo & Auditoria</span>
+              </NavLink>
+
+              <NavLink
+                to="/app/gerencia/logistica"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center space-x-3 px-3 py-2 rounded-xl transition-all font-medium text-xs ${
+                    isActive
+                      ? 'bg-amber-500/15 text-amber-400 border-l-2 border-amber-500 font-semibold'
+                      : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                  }`
+                }
+              >
+                <Boxes size={16} />
+                <span>Logística & Estoque FEFO</span>
+              </NavLink>
+
+              <NavLink
+                to="/app/auditoria"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center space-x-3 px-3 py-2 rounded-xl transition-all font-medium text-xs ${
+                    isActive
+                      ? 'bg-amber-500/15 text-amber-400 border-l-2 border-amber-500 font-semibold'
+                      : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                  }`
+                }
+              >
+                <FileSearch size={16} />
+                <span>Auditoria e Compliance</span>
+              </NavLink>
+            </div>
+          )}
+
+          {/* SEÇÃO 3: OPERAÇÃO (Visível para Operadores, Gerentes e Superadmin) */}
+          {isOperador && (
+            <div className="space-y-1">
+              <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400/70 flex items-center gap-1.5">
+                <ClipboardList size={12} className="text-emerald-500" />
+                <span>Operação do Bar</span>
+              </div>
+
+              <NavLink
+                to="/app/comandas"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center space-x-3 px-3 py-2 rounded-xl transition-all font-medium text-xs ${
+                    isActive
+                      ? 'bg-emerald-500/15 text-emerald-400 border-l-2 border-emerald-500 font-semibold'
+                      : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                  }`
+                }
+              >
+                <ClipboardList size={16} />
+                <span>PDV / Comandas de Balcão</span>
+              </NavLink>
+            </div>
+          )}
+
+          {/* SEÇÃO 4: CLIENTE & AUTOATENDIMENTO (Visível para Todos) */}
+          <div className="space-y-1">
+            <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-cyan-400/70 flex items-center gap-1.5">
+              <Wine size={12} className="text-cyan-500" />
+              <span>Autoatendimento</span>
+            </div>
+
+            <NavLink
+              to="/app/cliente"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={({ isActive }) =>
+                `flex items-center space-x-3 px-3 py-2 rounded-xl transition-all font-medium text-xs ${
+                  isActive
+                    ? 'bg-cyan-500/15 text-cyan-400 border-l-2 border-cyan-500 font-semibold'
+                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                }`
+              }
+            >
+              <Wine size={16} />
+              <span>Portal do Consumidor</span>
+            </NavLink>
+          </div>
+
+          {/* SEÇÃO 5: SUPERADMIN SAAS GLOBAL (Apenas SuperAdmin) */}
+          {isSuperAdmin && (
+            <div className="space-y-1">
+              <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-purple-400/70 flex items-center gap-1.5">
+                <Building2 size={12} className="text-purple-500" />
+                <span>Multi-Lojas (SaaS)</span>
+              </div>
+
+              <NavLink
+                to="/app/instancias"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center space-x-3 px-3 py-2 rounded-xl transition-all font-medium text-xs ${
+                    isActive
+                      ? 'bg-purple-500/15 text-purple-400 border-l-2 border-purple-500 font-semibold'
+                      : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                  }`
+                }
+              >
+                <Building2 size={16} />
+                <span>Gerenciar Instâncias</span>
+              </NavLink>
+            </div>
+          )}
         </nav>
 
-        <div className="p-4 border-t border-[#DDB96B]/20">
-          <button
+        {/* Rodapé do Sidebar */}
+        <div className="p-3 border-t border-slate-800/80 shrink-0 bg-slate-900/40 space-y-1">
+          {breadcrumb.backTo && (
+            <button 
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                navigate(breadcrumb.backTo!);
+              }}
+              className="flex items-center space-x-2.5 px-3 py-2 w-full text-left rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-xs font-medium"
+            >
+              <ArrowLeft size={16} />
+              <span>Voltar nível anterior</span>
+            </button>
+          )}
+
+          <button 
             onClick={handleLogout}
-            className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 text-xs font-semibold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-xl transition-all"
+            className="flex items-center space-x-2.5 px-3 py-2 w-full text-left rounded-xl text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 transition-colors text-xs font-medium"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut size={16} />
             <span>Encerrar Sessão</span>
           </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#070F1E]">
-        {/* Top Context Banner (Desktop & Mobile) - 100% responsivo sem extrapolação */}
-        <header className="vidro-escuro border-b border-[#DDB96B]/20 px-3 sm:px-6 py-2.5 flex items-center justify-between shrink-0 z-30 w-full max-w-full overflow-hidden">
-          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden p-1.5 sm:p-2 rounded-xl text-[#DDB96B] hover:bg-white/5 shrink-0"
-              aria-label="Abrir menu lateral"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
-              <Building2 className="w-4 h-4 text-[#DDB96B] shrink-0" />
-              <span className="text-xs sm:text-sm font-bold text-[#FDE68A] truncate">
-                {lojaAtivaNome || 'Carregando Loja...'}
-              </span>
-              <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#DDB96B]/15 text-[#DDB96B] border border-[#DDB96B]/30 shrink-0">
-                Armazém & Display Isolados
-              </span>
+      {/* Overlay Background no Mobile */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-30 lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Área de Conteúdo Principal */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        
+        {/* Desktop Topbar com Breadcrumb e Navegação Bidirecional */}
+        <header className="hidden lg:flex h-14 bg-[#0B1326]/70 backdrop-blur-md border-b border-slate-800/80 items-center justify-between px-8 shrink-0 z-10">
+          <div className="flex items-center gap-3">
+            {breadcrumb.backTo && (
+              <button
+                onClick={() => navigate(breadcrumb.backTo!)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-all border border-slate-700/60"
+              >
+                <ArrowLeft size={14} />
+                <span>Voltar</span>
+              </button>
+            )}
+
+            {/* Breadcrumb Trilha de Navegação */}
+            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              {breadcrumb.trail.map((item, idx) => (
+                <div key={idx} className="flex items-center gap-1.5">
+                  {idx > 0 && <ChevronRight size={12} className="text-slate-600" />}
+                  <span className={idx === breadcrumb.trail.length - 1 ? 'font-bold text-amber-400' : 'hover:text-slate-300'}>
+                    {item}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {isSuperAdmin && lojas.length > 0 && (
-              <select
-                value={lojaAtiva}
-                onChange={(e) => handleTrocarLoja(e.target.value)}
-                className="hidden md:block max-w-[200px] text-xs bg-[#0A1428] text-[#FDE68A] border border-[#DDB96B]/30 rounded-lg px-2 py-1.5 truncate"
-                title="Trocar Loja Maçônica Ativa"
-              >
-                {lojas.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.nome_fantasia}
-                  </option>
-                ))}
-              </select>
-            )}
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-sigma-gold flex items-center justify-center font-bold text-xs shrink-0">
-              {user?.nome ? user.nome.charAt(0).toUpperCase() : 'U'}
+          {/* Atalho de status e loja conectada */}
+          <div className="flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Loja Online</span>
             </div>
+            {user?.tenant_id && (
+              <span className="text-slate-500 font-mono text-[11px]">
+                Tenant #{user.tenant_id}
+              </span>
+            )}
           </div>
         </header>
 
-        {/* Page Container */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
-          <div className="max-w-7xl mx-auto">
+        {/* Conteúdo Injetado via Outlet */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden pt-16 lg:pt-0 bg-[#070F1E]">
+          <div className="w-full">
             <Outlet />
           </div>
         </main>
-
-        {/* Bottom Navigation Bar for Mobile / Tablet POS */}
-        <nav className="lg:hidden fixed bottom-0 inset-x-0 vidro-escuro border-t border-[#DDB96B]/25 px-2 py-1.5 flex items-center justify-around z-30">
-          {navItems.slice(0, 5).map((item) => {
-            const Icon = item.icon;
-            const isActive =
-              location.pathname === item.path ||
-              (item.path !== '/app' && location.pathname.startsWith(item.path));
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
-                  isActive ? 'text-[#FDE68A]' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Icon className={`w-5 h-5 ${isActive ? 'icon-sigma-gold' : ''}`} />
-                <span className="text-[10px] font-semibold mt-0.5 truncate max-w-[68px]">
-                  {item.label.split(' ')[0]}
-                </span>
-              </Link>
-            );
-          })}
-        </nav>
       </div>
+
     </div>
   );
-};
+}
