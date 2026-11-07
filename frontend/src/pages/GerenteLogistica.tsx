@@ -16,7 +16,6 @@ import {
   Trash2, 
   Save, 
   Camera, 
-  Zap,
   Layers
 } from 'lucide-react';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
@@ -82,14 +81,21 @@ export const GerenteLogistica: React.FC = () => {
   const [novoPrecoCusto, setNovoPrecoCusto] = useState('');
   const [isModalTransferir, setIsModalTransferir] = useState(false);
   const [qtdTransferir, setQtdTransferir] = useState('6');
+  
+  // Modal de Perda Rastreável por Lote
   const [isModalPerda, setIsModalPerda] = useState(false);
   const [qtdPerda, setQtdPerda] = useState('1');
   const [motivoPerda, setMotivoPerda] = useState('Quebra acidental no salão');
+  const [localPerda, setLocalPerda] = useState<'gondola' | 'armazem'>('gondola');
+  const [lotePerdaId, setLotePerdaId] = useState<string>('');
+
+  // Modal de Nova Compra / Entrada de Lote
   const [isModalNovoLote, setIsModalNovoLote] = useState(false);
-  const [novoLoteNumero, setNovoLoteNumero] = useState('L-NOVO-01');
-  const [novoLoteValidade, setNovoLoteValidade] = useState('');
+  const [novoLoteNumero, setNovoLoteNumero] = useState('L-COMPRA-01');
+  const [novoLoteValidade, setNovoLoteValidade] = useState(new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0]);
   const [novoLoteQtd, setNovoLoteQtd] = useState('24');
   const [novoLoteCusto, setNovoLoteCusto] = useState('5.00');
+  const [novoLoteDestino, setNovoLoteDestino] = useState<'armazem' | 'gondola'>('armazem');
 
   // Estados para a Tela 9 (Cadastrar Produto)
   const [metodoEntradaCadastro, setMetodoEntradaCadastro] = useState<'manual' | 'qr'>('manual');
@@ -102,8 +108,11 @@ export const GerenteLogistica: React.FC = () => {
   const [cadVenda, setCadVenda] = useState('9.00');
   const [cadGondola, setCadGondola] = useState('12');
   const [cadDeposito, setCadDeposito] = useState('48');
-  const [cadValidade, setCadValidade] = useState('15/08/2027');
+  const [cadLoteNumero, setCadLoteNumero] = useState('L-INICIAL-01');
+  const [cadValidade, setCadValidade] = useState(new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0]);
   const [isCameraQrAberta, setIsCameraQrAberta] = useState(false);
+  const [origemCamera, setOrigemCamera] = useState<'catalogo' | 'cadastro'>('catalogo');
+  const [consultandoEan, setConsultandoEan] = useState(false);
   const [salvandoProduto, setSalvandoProduto] = useState(false);
 
   useEffect(() => {
@@ -212,14 +221,20 @@ export const GerenteLogistica: React.FC = () => {
     if (!produtoEmGestao) return;
     try {
       const qtd = parseInt(qtdPerda);
+      if (isNaN(qtd) || qtd <= 0) {
+        alert('Informe uma quantidade válida maior que zero.');
+        return;
+      }
       await api.post(`/produtos/${produtoEmGestao.id}/perdas`, {
         quantidade: qtd,
-        ambiente: 'gondola',
-        motivo: motivoPerda
+        motivo: motivoPerda,
+        local: localPerda,
+        lote_id: lotePerdaId ? parseInt(lotePerdaId) : undefined
       });
       setIsModalPerda(false);
+      setLotePerdaId('');
       await carregarProdutos();
-      alert('Perda registrada na trilha de auditoria fiscal.');
+      alert('Perda registrada na trilha de auditoria fiscal e rastreada ao lote.');
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Erro ao registrar perda.');
     }
@@ -228,32 +243,98 @@ export const GerenteLogistica: React.FC = () => {
   const handleCriarLote = async () => {
     if (!produtoEmGestao) return;
     try {
+      if (!novoLoteNumero.trim()) {
+        alert('Informe a identificação do lote/NF da compra.');
+        return;
+      }
+      if (!novoLoteValidade) {
+        alert('Informe a data de validade do lote.');
+        return;
+      }
+      const qtd = parseInt(novoLoteQtd);
+      if (isNaN(qtd) || qtd <= 0) {
+        alert('Informe uma quantidade válida para a compra.');
+        return;
+      }
+      const custo = parseFloat(novoLoteCusto.replace(',', '.')) || produtoEmGestao.preco_custo;
+
       await api.post(`/produtos/${produtoEmGestao.id}/lotes`, {
-        numero_lote: novoLoteNumero,
-        data_validade: novoLoteValidade || new Date(Date.now() + 90*86400000).toISOString(),
-        quantidade_armazem: parseInt(novoLoteQtd) || 12,
-        quantidade_gondola: 0,
-        preco_custo_unitario: parseFloat(novoLoteCusto) || produtoEmGestao.preco_custo
+        numero_lote: novoLoteNumero.trim(),
+        data_validade: new Date(novoLoteValidade).toISOString(),
+        quantidade: qtd,
+        destino: novoLoteDestino,
+        preco_custo_unitario: custo
       });
+
       setIsModalNovoLote(false);
       await carregarProdutos();
-      alert('Entrada de Lote FEFO realizada com sucesso!');
+      alert(`Entrada de compra registrada! Lote ${novoLoteNumero} cadastrado no armazém.`);
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Erro ao registrar lote.');
+      alert(err.response?.data?.detail || 'Erro ao registrar compra/lote.');
     }
   };
 
-  // Ações da Tela 9: Cadastrar Produto
-  const handleSimularScanCadastro = () => {
-    setCadNome('Cerveja Patagonia Weisse 355ml');
-    setCadCodigo('QR-PATAG-W7893');
-    setCadCusto('6.20');
-    setCadVenda('14.00');
-    setCadGondola('10');
-    setCadDeposito('30');
-    setCadValidade('15/08/2027');
-    setCadFotoUrl('https://images.unsplash.com/photo-1608270191765-a83d1c1a2f90?w=600&auto=format&fit=crop&q=80');
-    setMetodoEntradaCadastro('manual');
+  // Abertura do Scanner de Câmera Real
+  const handleAbrirCamera = (origem: 'catalogo' | 'cadastro') => {
+    setOrigemCamera(origem);
+    setIsCameraQrAberta(true);
+  };
+
+  // Processamento do Código Lido pela Câmera Real (Sem Mock)
+  const handleProcessarCodigoLido = async (codigo: string) => {
+    setIsCameraQrAberta(false);
+    const codigoLimpo = codigo.trim();
+
+    if (origemCamera === 'cadastro') {
+      setCadCodigo(codigoLimpo);
+      try {
+        setConsultandoEan(true);
+        const res = await api.get(`/produtos/consultar-ean/${encodeURIComponent(codigoLimpo)}`);
+        if (res.data) {
+          const d = res.data;
+          if (d.nome) setCadNome(d.nome);
+          if (d.foto_url) setCadFotoUrl(d.foto_url);
+          if (d.preco_custo) setCadCusto(Number(d.preco_custo).toFixed(2));
+          if (d.preco_venda_sugerido) setCadVenda(Number(d.preco_venda_sugerido).toFixed(2));
+          if (d.categoria) {
+            setCadMainCat(String(d.categoria).toUpperCase() === 'ALIMENTOS' ? 'ALIMENTOS' : 'BEBIDAS');
+          }
+          if (d.subcategoria) {
+            setCadSubCat(String(d.subcategoria).toUpperCase().includes('NAO') ? 'NAO_ALCOOLICAS' : 'ALCOOLICAS');
+          }
+          if (d.lote_sugerido) setCadLoteNumero(d.lote_sugerido);
+          if (d.data_validade_sugerida) setCadValidade(d.data_validade_sugerida);
+        }
+      } catch (err) {
+        console.warn('Código lido não encontrado em bases públicas ou local:', err);
+      } finally {
+        setConsultandoEan(false);
+        setMetodoEntradaCadastro('manual');
+      }
+    } else {
+      // Origem Catálogo (Escanear / Repor Gôndola)
+      const produtoLocal = produtos.find(
+        (p) => p.codigo_barras === codigoLimpo || p.qr_code_tag === codigoLimpo || String(p.id) === codigoLimpo
+      );
+      if (produtoLocal) {
+        handleAbrirDetalhes(produtoLocal);
+      } else {
+        try {
+          const res = await api.get(`/produtos/codigo/${encodeURIComponent(codigoLimpo)}`);
+          if (res.data) {
+            handleAbrirDetalhes(res.data);
+            return;
+          }
+        } catch {
+          // Não encontrado
+        }
+        if (confirm(`Produto com código "${codigoLimpo}" não encontrado. Deseja cadastrá-lo agora?`)) {
+          setCadCodigo(codigoLimpo);
+          setModoView('cadastro');
+          handleProcessarCodigoLido(codigoLimpo);
+        }
+      }
+    }
   };
 
   const handleSalvarNovoProduto = async () => {
@@ -263,19 +344,27 @@ export const GerenteLogistica: React.FC = () => {
     }
     try {
       setSalvandoProduto(true);
+
+      const categoriaFormatada = cadMainCat.toLowerCase();
+      const subcategoriaFormatada = (cadMainCat === 'BEBIDAS' ? cadSubCat : 'snacks_petiscos').toLowerCase();
+      const validadeIso = cadValidade ? new Date(cadValidade).toISOString() : undefined;
+
       await api.post('/produtos/', {
         nome: cadNome.trim(),
         codigo_barras: cadCodigo.trim() || undefined,
         foto_url: cadFotoUrl.trim() || undefined,
-        categoria: cadMainCat,
-        subcategoria: cadMainCat === 'BEBIDAS' ? cadSubCat : 'SNACKS_PETISCOS',
+        categoria: categoriaFormatada,
+        subcategoria: subcategoriaFormatada,
         preco_venda: parseFloat(cadVenda.replace(',', '.')) || 9.00,
         preco_custo: parseFloat(cadCusto.replace(',', '.')) || 4.80,
-        quantidade_gondola: parseInt(cadGondola) || 0,
-        quantidade_armazem: parseInt(cadDeposito) || 0
+        estoque_inicial_gondola: parseInt(cadGondola) || 0,
+        estoque_inicial_armazem: parseInt(cadDeposito) || 0,
+        numero_lote_inicial: cadLoteNumero.trim() || 'L-COMPRA-01',
+        data_validade: validadeIso
       });
+
       await carregarProdutos();
-      alert('Produto cadastrado e integrado ao estoque com sucesso!');
+      alert('Produto cadastrado e lote de compra inicial registrado com sucesso!');
       setModoView('catalogo');
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Erro ao cadastrar produto.');
@@ -557,7 +646,7 @@ export const GerenteLogistica: React.FC = () => {
               <div className="h-4 w-px bg-white/10" />
 
               <button 
-                onClick={() => setModoView('cadastro')}
+                onClick={() => handleAbrirCamera('catalogo')}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/30 transition text-xs font-bold shadow-sm"
               >
                 <QrCode size={16} />
@@ -870,27 +959,19 @@ export const GerenteLogistica: React.FC = () => {
                   <QrCode size={48} className="text-cyan-400/30" />
                 </div>
                 <span className="absolute bottom-2 text-[10px] text-slate-300 bg-black/60 px-2.5 py-0.5 rounded-md font-medium">
-                  Aponte a câmera para o QR Code do produto ou nota
+                  {consultandoEan ? 'Consultando EAN na base pública...' : 'Aponte a câmera para o Código de Barras / QR Code do produto'}
                 </span>
               </div>
 
               <div className="w-full flex items-center gap-2">
                 <button 
                   type="button" 
-                  onClick={() => setIsCameraQrAberta(true)}
-                  className="flex-1 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/40 font-bold transition flex items-center justify-center gap-1.5 text-xs"
+                  onClick={() => handleAbrirCamera('cadastro')}
+                  disabled={consultandoEan}
+                  className="flex-1 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/40 font-bold transition flex items-center justify-center gap-1.5 text-xs disabled:opacity-50"
                 >
                   <Camera size={16} />
-                  Abrir Câmera do Dispositivo
-                </button>
-                <button 
-                  type="button" 
-                  onClick={handleSimularScanCadastro}
-                  className="py-2 px-3 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/40 font-bold transition flex items-center justify-center gap-1 text-xs"
-                  title="Simular Leitura"
-                >
-                  <Zap size={15} />
-                  Simular
+                  {consultandoEan ? 'Consultando...' : 'Abrir Câmera & Escanear EAN'}
                 </button>
               </div>
             </section>
@@ -1051,11 +1132,33 @@ export const GerenteLogistica: React.FC = () => {
               </div>
             </section>
 
-            {/* Seção 4: Estoque Inicial & Lote FEFO */}
+            {/* Seção 4: Estoque Inicial & Lote FEFO de Compra */}
             <section className="p-2.5 rounded-3xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/10 shadow-xl">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Estoque Inicial & Lote</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Entrada de Compra & Lote Inicial</span>
 
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <div>
+                  <label className="text-[8px] font-semibold text-slate-400 block mb-0.5">Identificador do Lote / NF</label>
+                  <input 
+                    type="text" 
+                    value={cadLoteNumero}
+                    onChange={(e) => setCadLoteNumero(e.target.value)}
+                    placeholder="L-COMPRA-01" 
+                    className="w-full px-2.5 py-1.5 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] font-semibold text-slate-400 block mb-0.5">Data de Validade</label>
+                  <input 
+                    type="date" 
+                    value={cadValidade}
+                    onChange={(e) => setCadValidade(e.target.value)}
+                    className="w-full px-2 py-1.5 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-amber-300 font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[8px] font-semibold text-slate-400 block mb-0.5">Gôndola (Bar)</label>
                   <input 
@@ -1068,24 +1171,13 @@ export const GerenteLogistica: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-[8px] font-semibold text-slate-400 block mb-0.5">Depósito</label>
+                  <label className="text-[8px] font-semibold text-slate-400 block mb-0.5">Depósito (Armazém)</label>
                   <input 
                     type="number" 
                     value={cadDeposito}
                     onChange={(e) => setCadDeposito(e.target.value)}
                     placeholder="48" 
                     className="w-full px-2 py-1.5 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-white text-center font-bold tabular-nums"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[8px] font-semibold text-slate-400 block mb-0.5">Validade FEFO</label>
-                  <input 
-                    type="text" 
-                    value={cadValidade}
-                    onChange={(e) => setCadValidade(e.target.value)}
-                    placeholder="DD/MM/AAAA" 
-                    className="w-full px-2 py-1.5 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-amber-300 text-center font-semibold tabular-nums"
                   />
                 </div>
               </div>
@@ -1141,64 +1233,126 @@ export const GerenteLogistica: React.FC = () => {
         </div>
       )}
 
-      {/* Modal de Perda */}
+      {/* Modal de Perda Rastreável ao Lote */}
       {isModalPerda && produtoEmGestao && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-[#0B1326] border border-rose-500/40 rounded-3xl p-6 w-full max-w-sm space-y-4 text-white shadow-2xl">
+          <div className="bg-[#0B1326] border border-rose-500/40 rounded-3xl p-6 w-full max-w-sm space-y-3.5 text-white shadow-2xl">
             <h3 className="text-sm font-bold flex items-center gap-2 text-rose-400">
               <Trash2 size={18} />
               Registrar Avaria / Quebra
             </h3>
+
+            {/* Local da Perda */}
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">Local da Ocorrência</label>
+              <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setLocalPerda('gondola')}
+                  className={`py-1.5 px-2 rounded-xl transition ${
+                    localPerda === 'gondola'
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold'
+                      : 'bg-white/5 text-slate-400 border border-white/10'
+                  }`}
+                >
+                  Gôndola (Bar)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLocalPerda('armazem')}
+                  className={`py-1.5 px-2 rounded-xl transition ${
+                    localPerda === 'armazem'
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold'
+                      : 'bg-white/5 text-slate-400 border border-white/10'
+                  }`}
+                >
+                  Depósito (Armazém)
+                </button>
+              </div>
+            </div>
+
+            {/* Rastreabilidade por Lote */}
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                Lote Afetado (Rastreabilidade)
+              </label>
+              <select
+                value={lotePerdaId}
+                onChange={(e) => setLotePerdaId(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-white/10 border border-white/15 text-white text-xs font-medium focus:outline-none focus:border-rose-400"
+              >
+                <option value="" className="bg-[#0B1326] text-slate-300">
+                  ⚡ Baixa Automática FEFO (Lote mais antigo)
+                </option>
+                {(produtoEmGestao.lotes || []).map((lote) => {
+                  const saldoLocal = localPerda === 'gondola' ? lote.quantidade_gondola : lote.quantidade_armazem;
+                  return (
+                    <option key={lote.id} value={lote.id} className="bg-[#0B1326] text-white">
+                      Lote {lote.numero_lote} (Saldo {localPerda === 'gondola' ? 'Bar' : 'Dep'}: {saldoLocal} un | Val: {lote.data_validade?.split('T')[0]})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
             <div>
               <label className="text-[10px] font-bold text-slate-400 block mb-1">Quantidade Perdida</label>
               <input 
                 type="number"
+                min="1"
                 value={qtdPerda}
                 onChange={(e) => setQtdPerda(e.target.value)}
-                className="w-full p-2.5 rounded-xl bg-white/10 border border-white/10 text-white font-bold text-center"
+                className="w-full p-2 rounded-xl bg-white/10 border border-white/10 text-white font-bold text-center text-sm"
               />
             </div>
+
             <div>
               <label className="text-[10px] font-bold text-slate-400 block mb-1">Motivo / Justificativa</label>
               <input 
                 type="text"
                 value={motivoPerda}
                 onChange={(e) => setMotivoPerda(e.target.value)}
-                className="w-full p-2.5 rounded-xl bg-white/10 border border-white/10 text-white text-xs"
+                placeholder="Ex: Quebra acidental de garrafa"
+                className="w-full p-2 rounded-xl bg-white/10 border border-white/10 text-white text-xs"
               />
             </div>
-            <div className="flex gap-2">
+
+            <div className="flex gap-2 pt-1">
               <button onClick={() => setIsModalPerda(false)} className="flex-1 py-2 rounded-xl bg-white/10 text-xs font-semibold">Cancelar</button>
-              <button onClick={handleRegistrarPerda} className="flex-1 py-2 rounded-xl bg-rose-500 text-white text-xs font-bold">Registrar</button>
+              <button onClick={handleRegistrarPerda} className="flex-1 py-2 rounded-xl bg-rose-500 text-white text-xs font-bold hover:bg-rose-600 transition">Registrar Perda</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal de Novo Lote FEFO */}
+      {/* Modal de Nova Compra / Entrada de Lote FEFO */}
       {isModalNovoLote && produtoEmGestao && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-[#0B1326] border border-amber-400/40 rounded-3xl p-6 w-full max-w-sm space-y-3 text-white shadow-2xl">
             <h3 className="text-sm font-bold flex items-center gap-2 text-amber-400">
-              <Plus size={18} /> Entrada de Lote FEFO
+              <Plus size={18} /> Registrar Compra / Novo Lote
             </h3>
+            
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-0.5">Identificador do Lote</label>
+              <label className="text-[10px] font-bold text-slate-400 block mb-0.5">Identificador do Lote / NF</label>
               <input 
                 type="text"
                 value={novoLoteNumero}
                 onChange={(e) => setNovoLoteNumero(e.target.value)}
-                className="w-full p-2 rounded-xl bg-white/10 border border-white/10 text-xs text-white"
+                placeholder="Ex: NF-9481 ou L-2027"
+                className="w-full p-2 rounded-xl bg-white/10 border border-white/10 text-xs text-white font-mono"
               />
             </div>
+
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-0.5">Qtd (Almox.)</label>
+                <label className="text-[10px] font-bold text-slate-400 block mb-0.5">Qtd Comprada</label>
                 <input 
                   type="number"
+                  min="1"
                   value={novoLoteQtd}
                   onChange={(e) => setNovoLoteQtd(e.target.value)}
-                  className="w-full p-2 rounded-xl bg-white/10 border border-white/10 text-xs text-white font-bold"
+                  className="w-full p-2 rounded-xl bg-white/10 border border-white/10 text-xs text-white font-bold text-center"
                 />
               </div>
               <div>
@@ -1207,37 +1361,65 @@ export const GerenteLogistica: React.FC = () => {
                   type="text"
                   value={novoLoteCusto}
                   onChange={(e) => setNovoLoteCusto(e.target.value)}
-                  className="w-full p-2 rounded-xl bg-white/10 border border-white/10 text-xs text-amber-300 font-bold"
+                  className="w-full p-2 rounded-xl bg-white/10 border border-white/10 text-xs text-amber-300 font-bold text-center"
                 />
               </div>
             </div>
+
             <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-0.5">Data de Validade</label>
+              <label className="text-[10px] font-bold text-slate-400 block mb-0.5">Data de Validade (FEFO)</label>
               <input 
                 type="date"
                 value={novoLoteValidade}
                 onChange={(e) => setNovoLoteValidade(e.target.value)}
-                className="w-full p-2 rounded-xl bg-white/10 border border-white/10 text-xs text-white"
+                className="w-full p-2 rounded-xl bg-white/10 border border-white/10 text-xs text-white font-medium"
               />
             </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">Destino Inicial da Carga</label>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setNovoLoteDestino('armazem')}
+                  className={`py-1.5 px-2 rounded-xl transition ${
+                    novoLoteDestino === 'armazem'
+                      ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40 font-bold'
+                      : 'bg-white/5 text-slate-400 border border-white/10'
+                  }`}
+                >
+                  Depósito (Armazém)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNovoLoteDestino('gondola')}
+                  className={`py-1.5 px-2 rounded-xl transition ${
+                    novoLoteDestino === 'gondola'
+                      ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40 font-bold'
+                      : 'bg-white/5 text-slate-400 border border-white/10'
+                  }`}
+                >
+                  Gôndola (Bar)
+                </button>
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-2">
               <button onClick={() => setIsModalNovoLote(false)} className="flex-1 py-2 rounded-xl bg-white/10 text-xs font-semibold">Cancelar</button>
-              <button onClick={handleCriarLote} className="flex-1 py-2 rounded-xl bg-amber-400 text-stone-950 text-xs font-bold">Adicionar Lote</button>
+              <button onClick={handleCriarLote} className="flex-1 py-2 rounded-xl bg-amber-400 text-stone-950 text-xs font-bold hover:bg-amber-300 transition">Salvar Lote de Compra</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Leitor de Câmera Modal */}
+      {/* Leitor de Câmera Modal Real (Sem Mock) */}
       {isCameraQrAberta && (
         <LeitorQrCameraModal 
           isOpen={isCameraQrAberta}
           onClose={() => setIsCameraQrAberta(false)}
-          onScanSuccess={(codigo) => {
-            setCadCodigo(codigo);
-            setIsCameraQrAberta(false);
-            setMetodoEntradaCadastro('manual');
-          }}
+          onScanSuccess={(codigo) => handleProcessarCodigoLido(codigo)}
+          titulo={origemCamera === 'cadastro' ? 'Escanear Código / EAN de Fábrica' : 'Bipar Produto para Reposição'}
+          subtitulo="Aponte a câmera para o Código de Barras (EAN-13) ou QR Code do produto"
         />
       )}
 
