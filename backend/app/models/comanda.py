@@ -10,46 +10,38 @@ class StatusComanda(str, enum.Enum):
     CANCELADA = "cancelada"
 
 class Comanda(Base):
-    __tablename__ = "agape_comandas"
+    __tablename__ = "comandas"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("agape_estabelecimentos.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("estabelecimentos.id"), nullable=False, index=True)
     cliente_id = Column(Integer, ForeignKey("agape_clientes.id"), nullable=True, index=True)
-    nome_cliente = Column(String(100), nullable=True)
-    identificador_cartao = Column(String(50), index=True, nullable=True)
+    nome_cliente = Column(String(100), nullable=True) # Mantido para comandas anônimas (sem conta)
+    identificador_cartao = Column(String(50), index=True, nullable=True) # Ex: Número do QR Code (removido unique=True global, unique deve ser por tenant)
     status = Column(Enum(StatusComanda), default=StatusComanda.ABERTA, nullable=False)
     data_abertura = Column(DateTime, default=datetime.utcnow, nullable=False)
     data_fechamento = Column(DateTime, nullable=True)
 
-    # Auditoria de Fechamento / Venda Direta
-    operador_id = Column(Integer, ForeignKey("agape_usuarios.id"), nullable=True, index=True)
-    forma_pagamento = Column(String(30), nullable=True) # pix, dinheiro, cartao_debito, cartao_credito, saldo_bar_fiado
-    valor_total = Column(Float, default=0.0)
-    troco = Column(Float, default=0.0)
-    observacao = Column(String(255), nullable=True)
-
+    # Relacionamentos
     estabelecimento = relationship("Estabelecimento", back_populates="comandas")
     cliente = relationship("Cliente")
-    operador = relationship("Usuario")
     itens = relationship("ItemComanda", back_populates="comanda", cascade="all, delete-orphan")
 
 class StatusPreparoItem(str, enum.Enum):
-    PENDENTE = "pendente"
-    PREPARANDO = "preparando"
-    PRONTO = "pronto"
-    ENTREGUE = "entregue"
+    PENDENTE = "pendente"    # Pedido feito no Totem/Celular
+    PREPARANDO = "preparando" # Barman começou a fazer
+    PRONTO = "pronto"        # Aguardando retirada
+    ENTREGUE = "entregue"    # Finalizado
 
 class ItemComanda(Base):
-    __tablename__ = "agape_itens_comanda"
+    __tablename__ = "itens_comanda"
 
     id = Column(Integer, primary_key=True, index=True)
-    comanda_id = Column(Integer, ForeignKey("agape_comandas.id"), nullable=False)
-    produto_id = Column(Integer, ForeignKey("agape_produtos.id"), nullable=False)
-    operador_id = Column(Integer, ForeignKey("agape_usuarios.id"), nullable=True, index=True) # Quem bipou no balcão (auditoria)
+    comanda_id = Column(Integer, ForeignKey("comandas.id"), nullable=False)
+    produto_id = Column(Integer, ForeignKey("produtos.id"), nullable=False)
     quantidade = Column(Integer, nullable=False, default=1)
-    valor_unitario = Column(Float, nullable=False)
+    valor_unitario = Column(Float, nullable=False) # Guardar o valor no momento da compra
     status = Column(Enum(StatusPreparoItem), default=StatusPreparoItem.PENDENTE, nullable=False)
     data_pedido = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     comanda = relationship("Comanda", back_populates="itens")
-    produto = relationship("Produto")
+    produto = relationship("Produto") # Apenas leitura para facilitar joins, se necessário

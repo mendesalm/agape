@@ -61,7 +61,7 @@ class CarteiraCliente(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     cliente_id = Column(Integer, ForeignKey("agape_clientes.id"), nullable=False, index=True)
-    tenant_id = Column(Integer, ForeignKey("agape_estabelecimentos.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("estabelecimentos.id"), nullable=False, index=True)
     
     saldo = Column(Float, default=0.0, nullable=False)
     limite_fiado = Column(Float, default=100.0, nullable=False) # Trava de limite devedor máximo (R$ 100,00)
@@ -104,7 +104,7 @@ class CartaoCliente(Base):
     rfid_uuid = Column(String(100), unique=True, nullable=False, index=True)
     
     cliente_id = Column(Integer, ForeignKey("agape_clientes.id"), nullable=False, index=True)
-    tenant_id = Column(Integer, ForeignKey("agape_estabelecimentos.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("estabelecimentos.id"), nullable=False, index=True)
     
     ativo = Column(Boolean, default=True)
     data_emissao = Column(DateTime, default=datetime.utcnow)
@@ -128,7 +128,7 @@ class CartaoFisico(Base):
     __tablename__ = "agape_cartoes_fisicos"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("agape_estabelecimentos.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("estabelecimentos.id"), nullable=False, index=True)
     codigo_identificador = Column(String(100), unique=True, nullable=False, index=True) # Ex: "AGAPE-CARD-042"
     
     tipo = Column(Enum(TipoCartaoFisico), default=TipoCartaoFisico.CORINGA_TEMPORARIO, nullable=False)
@@ -146,8 +146,8 @@ class VinculoCartaoCliente(Base):
     id = Column(Integer, primary_key=True, index=True)
     cartao_id = Column(Integer, ForeignKey("agape_cartoes_fisicos.id"), nullable=False, index=True)
     cliente_id = Column(Integer, ForeignKey("agape_clientes.id"), nullable=False, index=True)
-    tenant_id = Column(Integer, ForeignKey("agape_estabelecimentos.id"), nullable=False, index=True)
-    comanda_id = Column(Integer, ForeignKey("agape_comandas.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("estabelecimentos.id"), nullable=False, index=True)
+    comanda_id = Column(Integer, ForeignKey("comandas.id"), nullable=True, index=True)
     
     data_vinculo = Column(DateTime, default=datetime.utcnow, nullable=False)
     data_desvinculo = Column(DateTime, nullable=True)
