@@ -44,56 +44,10 @@ export const Auditoria: React.FC = () => {
     try {
       setLoading(true);
       const res = await api.get('/financeiro/auditoria').catch(() => ({ data: [] }));
-      if (Array.isArray(res.data) && res.data.length > 0) {
+      if (Array.isArray(res.data)) {
         setTransacoes(res.data);
       } else {
-        // Fallback alinhado ao Stitch
-        setTransacoes([
-          {
-            id: 1,
-            data: '21:42:10',
-            cliente_nome: 'Ir. Matheus Silva',
-            cliente_cpf: '000.***.***-01',
-            tipo: 'venda',
-            valor: 36.00,
-            descricao: 'Cerveja Artesanal IPA 500ml',
-            comanda_id: 104,
-            quantidade: -2
-          },
-          {
-            id: 2,
-            data: '21:28:44',
-            cliente_nome: 'Ir. Lucas Prado',
-            cliente_cpf: '000.***.***-02',
-            tipo: 'venda',
-            valor: 6.00,
-            descricao: 'Água Mineral com Gás',
-            comanda_id: 108,
-            quantidade: -1
-          },
-          {
-            id: 3,
-            data: '20:55:18',
-            cliente_nome: 'Op. Carlos',
-            cliente_cpf: '000.***.***-99',
-            tipo: 'perda',
-            valor: 0.00,
-            descricao: 'Taça de Cristal Bar',
-            motivo: 'Quebra acidental no salão',
-            quantidade: -1
-          },
-          {
-            id: 4,
-            data: '19:10:02',
-            cliente_nome: 'Almoxarifado Central',
-            cliente_cpf: '000.***.***-00',
-            tipo: 'entrada',
-            valor: 0.00,
-            descricao: 'Refrigerante Lata 350ml',
-            motivo: 'Lote #LT-88',
-            quantidade: 24
-          }
-        ]);
+        setTransacoes([]);
       }
     } catch (err) {
       console.error("Erro ao carregar auditoria", err);
