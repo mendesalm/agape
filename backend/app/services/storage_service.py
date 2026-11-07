@@ -54,6 +54,69 @@ class StorageService:
         return caminho_absoluto
 
     @staticmethod
+    def _padronizar_imagem_catalogo(img_pil):
+        """
+        Padroniza o enquadramento óptico de latas, garrafas e produtos em canvas 800x800:
+        1. Remove margens vazias/transparentes (autocrop).
+        2. Escala proporcionalmente para altura óptica padrão de 680px (85% do canvas).
+        3. Centraliza milimetricamente no canvas 800x800 transparente.
+        """
+        from PIL import Image, ImageChops
+
+        if 'A' in img_pil.mode:
+            alpha = img_pil.split()[-1]
+            mask = alpha.point(lambda p: 255 if p > 10 else 0)
+            bbox = mask.getbbox()
+            if not bbox:
+                bbox = (0, 0, img_pil.width, img_pil.height)
+            cropped = img_pil.crop(bbox)
+        else:
+            corner = img_pil.getpixel((0, 0))
+            bg = Image.new(img_pil.mode, img_pil.size, corner)
+            diff = ImageChops.difference(img_pil, bg)
+            mask = diff.convert('L').point(lambda p: 255 if p > 15 else 0)
+            bbox = mask.getbbox()
+            if not bbox:
+                bbox = (0, 0, img_pil.width, img_pil.height)
+            cropped = img_pil.crop(bbox)
+            if corner[0] > 220 and corner[1] > 220 and corner[2] > 220:
+                cropped = cropped.convert('RGBA')
+                datas = cropped.getdata()
+                newData = []
+                for item in datas:
+                    if item[0] > 235 and item[1] > 235 and item[2] > 235:
+                        newData.append((255, 255, 255, 0))
+                    else:
+                        newData.append(item)
+                cropped.putdata(newData)
+
+        cw, ch = cropped.size
+        target_canvas = 800
+
+        # Para latas e produtos verticais (altura >= largura): altura padrão de 680px
+        if ch >= cw:
+            target_h = 680
+            aspect = cw / ch
+            new_h = target_h
+            new_w = max(1, int(new_h * aspect))
+            if new_w > 720:
+                new_w = 720
+                new_h = max(1, int(new_w / aspect))
+        else:
+            # Para produtos horizontais (snacks, petiscos): largura de 680px
+            target_w = 680
+            aspect = ch / cw
+            new_w = target_w
+            new_h = max(1, int(new_w * aspect))
+
+        resized = cropped.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        canvas = Image.new('RGBA', (target_canvas, target_canvas), (0, 0, 0, 0))
+        paste_x = (target_canvas - new_w) // 2
+        paste_y = (target_canvas - new_h) // 2
+        canvas.paste(resized, (paste_x, paste_y), mask=resized if 'A' in resized.mode else None)
+        return canvas
+
+    @staticmethod
     async def salvar_foto_catalogo_mestre(arquivo: UploadFile) -> str:
         catalogo_folder = os.path.join(BASE_UPLOAD_DIR, "catalogo")
         StorageService._garantir_diretorio(catalogo_folder)
@@ -66,7 +129,7 @@ class StorageService:
         conteudo = await arquivo.read()
 
         try:
-            # Processa e converte com Pillow para WEBP otimizado
+            # Processa, orienta e normaliza dimensões ópticas com Pillow
             from PIL import Image, ImageOps
             import io
 
@@ -76,11 +139,10 @@ class StorageService:
             if img.mode not in ('RGB', 'RGBA'):
                 img = img.convert('RGB')
 
-            # Redimensiona para no máximo 800x800 com alta fidelidade
-            img.thumbnail((800, 800), Image.Resampling.LANCZOS)
-            img.save(caminho_absoluto, format="WEBP", quality=85, method=6)
+            canvas_normalizado = StorageService._padronizar_imagem_catalogo(img)
+            canvas_normalizado.save(caminho_absoluto, format="WEBP", quality=90, method=6)
         except Exception:
-            # Fallback seguro caso o arquivo não seja decodificado pelo Pillow
+            # Fallback seguro caso ocorra erro no processamento
             with open(caminho_absoluto, "wb") as buffer:
                 buffer.write(conteudo)
 
