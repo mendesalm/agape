@@ -200,7 +200,7 @@ async def semear_catalogo_padrao(
     verificar_permissao_admin(usuario)
 
     adicionados = 0
-    atualizados = 0
+    preservados = 0
     for item in PRODUTOS_POPULARES:
         query = select(CatalogoMestreProduto).where(CatalogoMestreProduto.codigo_barras == item["codigo_barras"])
         res = await db.execute(query)
@@ -223,23 +223,15 @@ async def semear_catalogo_padrao(
             db.add(novo)
             adicionados += 1
         else:
-            existente.nome = item["nome"]
-            existente.marca = item["marca"]
-            existente.categoria = item["categoria"]
-            existente.subcategoria = item["subcategoria"]
-            existente.tipo = item["tipo"]
-            existente.foto_url = item["foto_url"]
-            existente.preco_custo_sugerido = item["preco_custo_sugerido"]
-            existente.preco_venda_sugerido = item["preco_venda_sugerido"]
-            existente.descricao = item["descricao"]
-            existente.ativo = True
-            atualizados += 1
+            # Proteção estrita: Não sobrescreve produtos que já existem,
+            # preservando fotos locais WebP e preços ajustados pelo usuário.
+            preservados += 1
 
     await db.commit()
     return {
         "status": "sucesso", 
         "produtos_adicionados": adicionados,
-        "produtos_atualizados": atualizados,
+        "produtos_preservados": preservados,
         "total_catalogo_padrao": len(PRODUTOS_POPULARES)
     }
 

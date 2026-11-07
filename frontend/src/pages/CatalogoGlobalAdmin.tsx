@@ -242,12 +242,16 @@ export const CatalogoGlobalAdmin: React.FC = () => {
   };
 
   const handleSemearPadrao = async () => {
+    if (!confirm('Deseja verificar e adicionar apenas produtos que ainda não existem no catálogo? Seus produtos e fotos existentes serão 100% preservados.')) {
+      return;
+    }
+
     try {
       setSemeando(true);
       const res = await api.post('/catalogo-mestre/seed-inicial');
-      setMensagemSucesso(`Catálogo semeado com sucesso! ${res.data?.produtos_adicionados || 0} novo(s) item(ns) adicionado(s).`);
+      setMensagemSucesso(`Catálogo verificado! ${res.data?.produtos_adicionados || 0} novo(s) produto(s) adicionado(s) e ${res.data?.produtos_preservados || 0} produto(s) existentes preservados intactos.`);
       carregarProdutos();
-      setTimeout(() => setMensagemSucesso(null), 4000);
+      setTimeout(() => setMensagemSucesso(null), 5000);
     } catch (err: any) {
       console.error('Erro ao semear catálogo:', err);
       alert(err.response?.data?.detail || 'Falha ao semear catálogo padrão.');
