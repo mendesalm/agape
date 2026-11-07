@@ -130,7 +130,35 @@ class ConsultaEanService:
         lote_gs1 = parsed["lote"]
         validade_gs1 = parsed["data_validade"]
 
-        # 1. Busca no Banco Interno Ágape
+        # 1. Busca Prioritária no Catálogo Mestre Global (SuperAdmin com Fotos Locais)
+        from app.models.catalogo_mestre import CatalogoMestreProduto
+        query_mestre = select(CatalogoMestreProduto).where(
+            CatalogoMestreProduto.codigo_barras == gtin,
+            CatalogoMestreProduto.ativo == True
+        ).limit(1)
+        res_mestre = await self.db.execute(query_mestre)
+        produto_mestre = res_mestre.scalars().first()
+
+        if produto_mestre:
+            return {
+                "encontrado": True,
+                "origem": "catalogo_mestre_local",
+                "codigo_barras": gtin,
+                "qr_code_tag": codigo_bruto,
+                "nome": produto_mestre.nome,
+                "descricao": produto_mestre.descricao or "",
+                "marca": produto_mestre.marca or "",
+                "categoria": produto_mestre.categoria,
+                "subcategoria": produto_mestre.subcategoria,
+                "tipo": produto_mestre.tipo or "outros",
+                "foto_url": produto_mestre.foto_url or "",
+                "preco_custo": float(produto_mestre.preco_custo_sugerido or 0.0),
+                "preco_venda_sugerido": float(produto_mestre.preco_venda_sugerido or 0.0),
+                "lote_sugerido": lote_gs1,
+                "data_validade_sugerida": validade_gs1
+            }
+
+        # 2. Busca no Banco Interno Ágape das Lojas
         query = select(Produto).where(
             (Produto.codigo_barras == gtin) | (Produto.qr_code_tag == codigo_bruto)
         ).limit(1)

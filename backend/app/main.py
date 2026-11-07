@@ -21,8 +21,8 @@ from app.api.routers.webhook_router import router as webhook_router
 from app.api.routers.kds_router import router as kds_router
 from app.api.routers.checkout_router import router as checkout_router
 from app.api.routers.cartao_router import router as cartao_router
-from app.api.routers.esigma_router import router as esigma_router
 from app.api.routers.metagob_router import router as metagob_router
+from app.api.routers.catalogo_mestre_router import router as catalogo_mestre_router
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -82,8 +82,8 @@ app.include_router(webhook_router)
 app.include_router(kds_router)
 app.include_router(checkout_router)
 app.include_router(cartao_router)
-app.include_router(esigma_router)
 app.include_router(metagob_router)
+app.include_router(catalogo_mestre_router)
 
 @app.get("/", tags=["Healthcheck"])
 async def root():
@@ -91,4 +91,4 @@ async def root():
     Rota básica para verificação de disponibilidade (Healthcheck).
     """
     logger.info("Requisição recebida na rota raiz.")
-    return {"mensagem": "Bem-vindo à API do e-Sigma Ágape (agape.e-sigma.app)"}
+    return {"mensagem": "Bem-vindo à API do BipFy Sistema de Gerenciamento de Comércios"}

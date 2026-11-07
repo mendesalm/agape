@@ -14,7 +14,8 @@ import {
   FileSearch, 
   ArrowLeft,
   ChevronRight,
-  User
+  User,
+  Package
 } from 'lucide-react';
 
 export function Layout() {
@@ -62,6 +63,9 @@ export function Layout() {
     }
     if (path.includes('/instancias')) {
       return { trail: ['SaaS Global', 'Instâncias'], backTo: '/app' };
+    }
+    if (path.includes('/catalogo-global') || path.includes('/catalogo-mestre')) {
+      return { trail: ['SaaS Global', 'Catálogo Mestre'], backTo: '/app' };
     }
     return { trail: ['Sistema'], backTo: '/app' };
   };
@@ -310,6 +314,21 @@ export function Layout() {
               >
                 <Building2 size={16} />
                 <span>Gerenciar Instâncias</span>
+              </NavLink>
+
+              <NavLink
+                to="/app/catalogo-global"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center space-x-3 px-3 py-2 rounded-xl transition-all font-medium text-xs ${
+                    isActive
+                      ? 'bg-purple-500/15 text-purple-400 border-l-2 border-purple-500 font-semibold'
+                      : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                  }`
+                }
+              >
+                <Package size={16} />
+                <span>Catálogo Global Mestre</span>
               </NavLink>
             </div>
           )}

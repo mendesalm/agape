@@ -8,7 +8,8 @@ import {
   LogOut,
   Sparkles,
   ShoppingBag,
-  UserCheck
+  UserCheck,
+  Package
 } from 'lucide-react';
 
 export const HubInicialLoja: React.FC = () => {
@@ -213,13 +214,22 @@ export const HubInicialLoja: React.FC = () => {
       <footer className="relative z-10 pt-2 pb-1">
         <div className="rounded-2xl bg-white/[0.05] backdrop-blur-xl border border-white/10 p-2.5 flex items-center justify-between shadow-xl">
           {isSuperAdmin ? (
-            <button 
-              onClick={() => navigate('/app/instancias')}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition text-xs font-semibold"
-            >
-              <Store size={16} />
-              Trocar Loja (SaaS)
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => navigate('/app/instancias')}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition text-xs font-semibold"
+              >
+                <Store size={16} />
+                Trocar Loja (SaaS)
+              </button>
+              <button 
+                onClick={() => navigate('/app/catalogo-global')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 hover:text-purple-200 transition text-xs font-semibold"
+              >
+                <Package size={15} />
+                Catálogo Global
+              </button>
+            </div>
           ) : (
             <div className="flex items-center gap-2 px-3 py-1.5 text-slate-400 text-xs">
               <Store size={16} />

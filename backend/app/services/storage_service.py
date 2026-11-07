@@ -52,3 +52,30 @@ class StorageService:
             raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
             
         return caminho_absoluto
+
+    @staticmethod
+    async def salvar_foto_catalogo_mestre(arquivo: UploadFile) -> str:
+        catalogo_folder = os.path.join(BASE_UPLOAD_DIR, "catalogo")
+        StorageService._garantir_diretorio(catalogo_folder)
+
+        extensao = arquivo.filename.split('.')[-1] if '.' in arquivo.filename else 'jpg' # type: ignore
+        nome_seguro = f"mestre_{uuid.uuid4().hex}.{extensao}"
+
+        caminho_absoluto = os.path.abspath(os.path.join(catalogo_folder, nome_seguro))
+        StorageService._validar_path_traversal(caminho_absoluto)
+
+        with open(caminho_absoluto, "wb") as buffer:
+            shutil.copyfileobj(arquivo.file, buffer)
+
+        return f"/uploads/catalogo/{nome_seguro}"
+
+    @staticmethod
+    def obter_caminho_leitura_catalogo(nome_arquivo: str) -> str:
+        catalogo_folder = os.path.join(BASE_UPLOAD_DIR, "catalogo")
+        caminho_absoluto = os.path.abspath(os.path.join(catalogo_folder, nome_arquivo))
+        StorageService._validar_path_traversal(caminho_absoluto)
+
+        if not os.path.exists(caminho_absoluto):
+            raise HTTPException(status_code=404, detail="Imagem do catálogo não encontrada.")
+
+        return caminho_absoluto

@@ -28,3 +28,26 @@ async def visualizar_foto_produto(tenant_id: int, nome_arquivo: str):
     """
     caminho_absoluto = StorageService.obter_caminho_leitura(tenant_id, nome_arquivo)
     return FileResponse(caminho_absoluto)
+
+@router.get("/catalogo/{nome_arquivo}")
+async def visualizar_foto_catalogo(nome_arquivo: str):
+    """
+    Serve a imagem do Catálogo Global/Mestre com cabeçalhos de cache otimizados.
+    """
+    caminho_absoluto = StorageService.obter_caminho_leitura_catalogo(nome_arquivo)
+    return FileResponse(caminho_absoluto, headers={"Cache-Control": "public, max-age=86400"})
+
+@router.post("/catalogo")
+async def upload_foto_catalogo(
+    file: UploadFile = File(...),
+    usuario_atual: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Salva uma foto no Catálogo Global/Mestre de Produtos (SuperAdmin ou Webmaster).
+    """
+    cargo = (usuario_atual.cargo or '').upper()
+    if cargo not in ['SUPERADMIN', 'WEBMASTER', 'ADMIN', 'GERENTE']:
+        return {"error": "Permissão negada. Apenas administradores podem enviar fotos ao catálogo mestre."}
+
+    caminho_relativo = await StorageService.salvar_foto_catalogo_mestre(file)
+    return {"url": caminho_relativo}
