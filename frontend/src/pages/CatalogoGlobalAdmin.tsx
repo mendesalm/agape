@@ -13,13 +13,13 @@ import {
   Check, 
   AlertCircle, 
   RefreshCw, 
-  Wine, 
   Tag, 
   TrendingUp,
   Image as ImageIcon
 } from 'lucide-react';
 import { api } from '../services/api';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
+import { ProdutoGlassThumb } from '../components/ProdutoGlassThumb';
 
 export interface ProdutoMestre {
   id: number;
@@ -417,7 +417,6 @@ export const CatalogoGlobalAdmin: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-8">
             {produtos.map((prod) => {
-              const fotoResolvida = resolverUrl(prod.foto_url);
               const margem = (prod.preco_custo_sugerido && prod.preco_venda_sugerido && prod.preco_custo_sugerido > 0)
                 ? (((prod.preco_venda_sugerido - prod.preco_custo_sugerido) / prod.preco_custo_sugerido) * 100).toFixed(0)
                 : null;
@@ -428,37 +427,27 @@ export const CatalogoGlobalAdmin: React.FC = () => {
                   className="group relative rounded-2xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/10 hover:border-purple-500/50 p-3.5 shadow-xl transition-all duration-300 flex flex-col justify-between"
                 >
                   <div>
-                    {/* Imagem do Produto com Badge EAN */}
-                    <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-black/40 border border-white/5 mb-3 flex items-center justify-center">
-                      {fotoResolvida ? (
-                        <img
-                          src={fotoResolvida}
-                          alt={prod.nome}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          onError={(e) => {
-                            // Fallback caso a foto não carregue
-                            (e.target as HTMLElement).style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-500">
-                          <Wine size={32} className="text-purple-400/60 mb-1" />
-                          <span className="text-[10px] font-bold uppercase">{prod.marca || 'Sem Foto'}</span>
-                        </div>
-                      )}
-
+                    {/* Imagem do Produto com Fundo Glassmorphism + Ambient Glow e Badges */}
+                    <ProdutoGlassThumb
+                      fotoUrl={prod.foto_url}
+                      nome={prod.nome}
+                      categoria={prod.categoria}
+                      subcategoria={prod.subcategoria}
+                      tipo={prod.tipo || undefined}
+                      containerClassName="mb-3"
+                    >
                       {/* Pill de EAN Flutuante */}
-                      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-lg bg-black/70 backdrop-blur-md border border-white/15 text-[10px] font-mono text-cyan-300 flex items-center gap-1">
+                      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-lg bg-black/70 backdrop-blur-md border border-white/15 text-[10px] font-mono text-cyan-300 flex items-center gap-1 z-20">
                         <Barcode size={10} />
                         <span>{prod.codigo_barras}</span>
                       </div>
 
                       {/* Status Ativo */}
-                      <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ${prod.ativo ? 'bg-emerald-400' : 'bg-rose-500'}`} />
+                      <span className={`absolute top-2 right-2 w-2 h-2 rounded-full z-20 ${prod.ativo ? 'bg-emerald-400' : 'bg-rose-500'}`} />
 
                       {/* Badge do Formato (WebP Local vs Web) */}
                       {prod.foto_url && (
-                        <div className={`absolute bottom-2 left-2 px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase tracking-wider ${
+                        <div className={`absolute bottom-2 left-2 px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase tracking-wider z-20 ${
                           prod.foto_url.includes('.webp') || prod.foto_url.includes('/uploads/catalogo')
                             ? 'bg-emerald-500/80 text-white border border-emerald-400/40'
                             : 'bg-black/60 text-slate-300 border border-white/10'
@@ -469,7 +458,7 @@ export const CatalogoGlobalAdmin: React.FC = () => {
 
                       {/* Botão de Upload Rápido de Foto WebP */}
                       <label 
-                        className="absolute bottom-2 right-2 px-2 py-1 rounded-xl bg-purple-600/90 hover:bg-purple-600 backdrop-blur-md text-white text-[10px] font-bold shadow-lg flex items-center gap-1 cursor-pointer transition active:scale-95 group/btn"
+                        className="absolute bottom-2 right-2 px-2 py-1 rounded-xl bg-purple-600/90 hover:bg-purple-600 backdrop-blur-md text-white text-[10px] font-bold shadow-lg flex items-center gap-1 cursor-pointer transition active:scale-95 group/btn z-20"
                         title="Atribuir imagem (converte para WebP otimizado)"
                       >
                         {uploadandoProdId === prod.id ? (
@@ -486,7 +475,7 @@ export const CatalogoGlobalAdmin: React.FC = () => {
                           disabled={uploadandoProdId === prod.id}
                         />
                       </label>
-                    </div>
+                    </ProdutoGlassThumb>
 
                     {/* Informações Textuais */}
                     <div className="mb-3">

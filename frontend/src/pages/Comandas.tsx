@@ -17,11 +17,11 @@ import {
   UserCheck,
   UserPlus,
   RotateCcw,
-  Package,
   Camera,
   RefreshCw
 } from 'lucide-react';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
+import { ProdutoGlassThumb } from '../components/ProdutoGlassThumb';
 
 interface ItemComanda {
   id: number;
@@ -52,6 +52,8 @@ interface Produto {
   codigo_barras?: string;
   qr_code_tag?: string;
   marca?: string;
+  categoria?: string;
+  subcategoria?: string;
   foto_url?: string;
 }
 
@@ -568,17 +570,15 @@ export function Comandas() {
                 <div className="p-3.5 bg-gradient-to-r from-amber-500/15 via-white/[0.04] to-transparent border border-amber-400/40 rounded-2xl space-y-3 animate-fadeIn my-1 shadow-lg">
                   <div className="flex justify-between items-start gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      {produtoConferencia.foto_url ? (
-                        <img 
-                          src={produtoConferencia.foto_url} 
-                          alt={produtoConferencia.nome} 
-                          className="w-14 h-14 object-cover rounded-xl bg-white/10 border border-white/10 p-0.5 shrink-0" 
-                        />
-                      ) : (
-                        <div className="w-14 h-14 rounded-xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-300 shrink-0">
-                          <Package size={24} />
-                        </div>
-                      )}
+                      <ProdutoGlassThumb
+                        fotoUrl={produtoConferencia.foto_url}
+                        nome={produtoConferencia.nome}
+                        categoria={produtoConferencia.categoria}
+                        subcategoria={produtoConferencia.subcategoria}
+                        tamanho="sm"
+                        aspectRatio="square"
+                        containerClassName="w-14 h-14 p-1 shrink-0 rounded-xl"
+                      />
                       <div className="min-w-0">
                         <span className="text-[9px] font-bold text-amber-400 uppercase tracking-widest bg-amber-400/10 px-2 py-0.2 rounded-full inline-block">
                           Conferir Item
@@ -682,13 +682,13 @@ export function Comandas() {
                     return (
                       <div key={idx} className="flex justify-between items-center p-2 rounded-xl bg-white/[0.04] border border-white/5">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          {foto ? (
-                            <img src={foto} alt="" className="w-9 h-9 object-cover rounded-lg bg-white/10 border border-white/10 p-0.5 shrink-0" />
-                          ) : (
-                            <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
-                              <Package size={16} />
-                            </div>
-                          )}
+                          <ProdutoGlassThumb
+                            fotoUrl={foto}
+                            nome={item.produto_nome || getProdutoNome(item.produto_id)}
+                            tamanho="sm"
+                            aspectRatio="square"
+                            containerClassName="w-9 h-9 p-0.5 shrink-0 rounded-lg"
+                          />
                           <div className="min-w-0">
                             <div className="font-bold text-white text-xs truncate">
                               {item.quantidade}x {item.produto_nome || getProdutoNome(item.produto_id)}
@@ -847,13 +847,13 @@ export function Comandas() {
                         return (
                           <div key={i} className="flex justify-between items-center p-2 rounded-lg bg-white/[0.03]">
                             <div className="flex items-center gap-2 min-w-0">
-                              {foto ? (
-                                <img src={foto} alt="" className="w-7 h-7 object-cover rounded bg-white/10 border border-white/10 shrink-0" />
-                              ) : (
-                                <div className="w-7 h-7 rounded bg-white/5 flex items-center justify-center text-slate-500 shrink-0">
-                                  <Package size={12} />
-                                </div>
-                              )}
+                              <ProdutoGlassThumb
+                                fotoUrl={foto}
+                                nome={it.produto_nome || getProdutoNome(it.produto_id)}
+                                tamanho="sm"
+                                aspectRatio="square"
+                                containerClassName="w-7 h-7 p-0.5 shrink-0 rounded-md"
+                              />
                               <span className="font-medium text-xs text-slate-200 truncate">
                                 {it.quantidade}x {it.produto_nome || getProdutoNome(it.produto_id)}
                               </span>

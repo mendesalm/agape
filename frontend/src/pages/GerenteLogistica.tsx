@@ -19,6 +19,7 @@ import {
   Layers
 } from 'lucide-react';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
+import { ProdutoGlassThumb } from '../components/ProdutoGlassThumb';
 
 interface LoteEstoque {
   id: number;
@@ -584,23 +585,17 @@ export const GerenteLogistica: React.FC = () => {
                       onClick={() => handleAbrirDetalhes(prod)}
                       className="group relative rounded-3xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/10 shadow-xl overflow-hidden cursor-pointer hover:border-cyan-400/50 transition-all flex flex-col justify-between active:scale-[0.98]"
                     >
-                      {/* Miniatura / Foto com Proporção */}
-                      <div className="relative h-24 w-full overflow-hidden bg-slate-900/60 flex items-center justify-center">
-                        {prod.foto_url ? (
-                          <img 
-                            src={prod.foto_url} 
-                            alt={prod.nome} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-                          />
-                        ) : (
-                          <div className="w-12 h-16 rounded-xl bg-gradient-to-b from-cyan-600/30 to-slate-900 border border-cyan-400/30 flex flex-col items-center justify-center p-1 text-cyan-300">
-                            <Wine size={20} />
-                            <span className="text-[7px] font-bold mt-1 uppercase truncate max-w-[40px]">{prod.marca || 'Item'}</span>
-                          </div>
-                        )}
-
+                      {/* Miniatura / Foto com Fundo Glassmorphism & Ambient Glow */}
+                      <ProdutoGlassThumb
+                        fotoUrl={prod.foto_url}
+                        nome={prod.nome}
+                        categoria={prod.categoria}
+                        subcategoria={prod.subcategoria}
+                        aspectRatio="auto"
+                        containerClassName="h-28 w-full rounded-t-3xl rounded-b-none border-b border-white/5"
+                      >
                         {/* Badge de Estoque no Bar */}
-                        <span className={`absolute top-1.5 right-1.5 px-2 py-0.5 rounded-lg text-[9px] font-extrabold shadow-md ${
+                        <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-lg text-[9px] font-extrabold shadow-md z-20 ${
                           isCritico
                             ? 'bg-rose-500/90 text-white'
                             : isBaixo
@@ -609,7 +604,7 @@ export const GerenteLogistica: React.FC = () => {
                         }`}>
                           {prod.quantidade_gondola} no Bar
                         </span>
-                      </div>
+                      </ProdutoGlassThumb>
 
                       {/* Informações Básicas */}
                       <div className="p-2.5 flex flex-col justify-between flex-1">
@@ -701,13 +696,15 @@ export const GerenteLogistica: React.FC = () => {
           <section className="relative z-10 my-1">
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white/[0.09] to-white/[0.03] backdrop-blur-xl border border-white/15 p-3.5 shadow-xl">
               <div className="flex items-center gap-3.5">
-                <div className="w-16 h-18 rounded-2xl bg-slate-900 border border-slate-700 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
-                  {produtoEmGestao.foto_url ? (
-                    <img src={produtoEmGestao.foto_url} alt={produtoEmGestao.nome} className="w-full h-full object-cover" />
-                  ) : (
-                    <Wine size={26} className="text-cyan-400" />
-                  )}
-                </div>
+                <ProdutoGlassThumb
+                  fotoUrl={produtoEmGestao.foto_url}
+                  nome={produtoEmGestao.nome}
+                  categoria={produtoEmGestao.categoria}
+                  subcategoria={produtoEmGestao.subcategoria}
+                  tamanho="md"
+                  aspectRatio="square"
+                  containerClassName="shrink-0 rounded-2xl"
+                />
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
