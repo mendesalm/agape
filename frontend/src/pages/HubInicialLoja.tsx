@@ -2,189 +2,242 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ShieldCheck, 
-  UtensilsCrossed, 
-  User, 
+  Wine, 
   ArrowRight, 
-  Crown
+  Store,
+  LogOut,
+  Sparkles,
+  ShoppingBag,
+  UserCheck
 } from 'lucide-react';
 
 export const HubInicialLoja: React.FC = () => {
   const navigate = useNavigate();
 
-  const userStr = localStorage.getItem('bipfy_user') || localStorage.getItem('@Barix:user');
+  const userStr = localStorage.getItem('bipfy_user') || localStorage.getItem('barix_user') || localStorage.getItem('@Barix:user');
   const user = userStr ? JSON.parse(userStr) : null;
   const lojaNome = localStorage.getItem('@Barix:ambito_titulo') || user?.loja_atual?.nome_fantasia || 'Loja Ágape';
-  const lojaNumero = user?.loja_atual?.numero_loja || '';
+  const lojaNumero = user?.tenant_id || user?.loja_atual?.numero_loja || '2181';
 
   const cargoRaw = (user?.cargo || user?.role || '').toUpperCase();
-  const isSuperAdmin = Boolean(user?.is_superadmin || cargoRaw === 'SUPERADMIN');
-  const isGerente = isSuperAdmin || cargoRaw.includes('GERENTE') || cargoRaw.includes('ADMIN') || cargoRaw.includes('WEBMASTER');
+  const isSuperAdmin = Boolean(user?.is_superadmin || cargoRaw === 'SUPERADMIN' || cargoRaw === 'WEBMASTER');
+  const isGerente = isSuperAdmin || cargoRaw.includes('GERENTE') || cargoRaw.includes('ADMIN');
+  const isOperador = isGerente || cargoRaw.includes('OPERADOR');
   const isClientePuro = cargoRaw === 'CLIENTE' || cargoRaw === 'OBREIRO' || cargoRaw === 'VISITANTE';
 
-  // 1. Regra de Negócio: Cliente puro entra DIRETO na tela do cliente sem passar por este hub
+  // Regra de Negócio: Cliente puro entra DIRETO na tela do cliente sem passar por este hub
   useEffect(() => {
     if (isClientePuro && !isGerente && !cargoRaw.includes('OPERADOR')) {
       navigate('/app/cliente', { replace: true });
     }
   }, [isClientePuro, isGerente, cargoRaw, navigate]);
 
+  const handleLogout = () => {
+    localStorage.removeItem('bipfy_token');
+    localStorage.removeItem('bipfy_user');
+    localStorage.removeItem('barix_token');
+    localStorage.removeItem('barix_user');
+    navigate('/login');
+  };
+
   return (
-    <div className="min-h-full p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6 sm:space-y-8 animate-fadeIn select-none">
+    <div className="relative min-h-[calc(100vh-3.5rem)] flex flex-col justify-between p-4 sm:p-6 lg:p-8 max-w-lg lg:max-w-4xl mx-auto overflow-hidden animate-fadeIn select-none">
       
+      {/* Esferas de Iluminação Ambiente (Glass Ambient Glow) */}
+      <div className="pointer-events-none absolute -top-16 -left-16 w-64 h-64 rounded-full bg-amber-500/15 blur-3xl" />
+      <div className="pointer-events-none absolute top-1/3 -right-20 w-72 h-72 rounded-full bg-emerald-500/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-16 left-1/4 w-64 h-64 rounded-full bg-blue-600/15 blur-3xl" />
+
       {/* ============================================================== */}
-      {/* CABEÇALHO DO HUB INICIAL (Soberano e Acolhedor)                 */}
+      {/* 1. TOP HEADER & IDENTIFICAÇÃO DO AMBIENTE                      */}
       {/* ============================================================== */}
-      <div className="vidro-escuro border border-[#DDB96B]/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-        <div className="absolute -right-16 -top-16 w-64 h-64 bg-[#DDB96B]/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -left-16 -bottom-16 w-64 h-64 bg-[#10B981]/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-widest bg-[#DDB96B]/20 text-[#FDE68A] border border-[#DDB96B]/40 flex items-center gap-1.5">
-                <Crown size={12} className="text-[#DDB96B]" />
-                {isSuperAdmin ? 'Superadministrador' : isGerente ? 'Perfil Gerencial' : 'Perfil Operador'}
-              </span>
-              {lojaNumero && (
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-mono text-slate-300 bg-slate-800/80 border border-slate-700">
-                  Loja #{lojaNumero}
-                </span>
-              )}
-            </div>
-
-            <h1 className="text-2xl sm:text-3xl font-black font-cinzel text-white tracking-wide">
-              Bem-vindo ao Ágape, <span className="text-sigma-gold">{user?.nome?.split(' ')[0] || 'Irmão'}</span>
-            </h1>
-
-            <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
-              Ambiente ativo: <strong className="text-white">{lojaNome}</strong>. Selecione abaixo a área de trabalho para a sessão de hoje:
-            </p>
+      <header className="relative z-10 flex items-center justify-between pt-1 mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/25 ring-1 ring-white/20 text-slate-950 font-black">
+            <Wine size={22} />
           </div>
-
-          <div className="hidden sm:flex items-center gap-3 self-end sm:self-center">
-            <div className="w-14 h-14 rounded-2xl vidro-destaque p-2 flex items-center justify-center shadow-inner shrink-0">
-              <img src="/agape.svg" alt="Ágape" className="w-full h-full object-contain" />
-            </div>
+          <div>
+            <span className="text-lg font-black tracking-tight bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-500 bg-clip-text text-transparent block">
+              Ágape
+            </span>
+            <span className="block text-[10px] font-semibold tracking-wider text-slate-400 uppercase -mt-0.5">
+              Gestão Integrada
+            </span>
           </div>
         </div>
-      </div>
+
+        {/* Badge da Sessão / Loja */}
+        <div className="flex items-center gap-2">
+          <div className="px-3 py-1 rounded-full bg-white/[0.06] backdrop-blur-md border border-white/10 flex items-center gap-1.5 shadow-inner">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs font-mono font-semibold text-slate-300">#{lojaNumero}</span>
+          </div>
+        </div>
+      </header>
 
       {/* ============================================================== */}
-      {/* BENTO CARDS: GERENTE, OPERADOR E CLIENTE                       */}
+      {/* 2. CARD DE BOAS-VINDAS (Glassmorphism Minimalista)             */}
       {/* ============================================================== */}
-      <div className={`grid gap-4 sm:gap-6 ${isGerente ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto'}`}>
-
-        {/* ------------------------------------------------------------ */}
-        {/* CARD 1: GERENTE (Apenas visível para Gerente/Admin)          */}
-        {/* ------------------------------------------------------------ */}
-        {isGerente && (
-          <div 
-            onClick={() => navigate('/app/gerencia')}
-            className="group relative bg-[#0B1326] hover:bg-[#101A33] border border-[#DDB96B]/40 hover:border-[#DDB96B] rounded-3xl p-6 sm:p-7 shadow-xl hover:shadow-2xl hover:shadow-[#DDB96B]/10 transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[#DDB96B]/10 rounded-full blur-2xl group-hover:bg-[#DDB96B]/20 transition-all" />
-
-            <div className="space-y-4 relative z-10">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#DDB96B]/20 to-[#0B1326] border border-[#DDB96B]/50 flex items-center justify-center text-[#FDE68A] shadow-md group-hover:scale-105 transition-transform">
-                <ShieldCheck className="w-7 h-7" />
+      <section className="relative z-10 my-2">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white/[0.09] to-white/[0.03] backdrop-blur-xl border border-white/15 p-4 sm:p-5 shadow-2xl">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.04] to-transparent" />
+          
+          <div className="flex items-start justify-between gap-3 relative z-10">
+            <div className="flex-1 min-w-0">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-400/10 border border-amber-400/25 text-amber-300 text-[10px] font-bold uppercase tracking-wider mb-2">
+                <Sparkles size={12} className="text-amber-400" />
+                {isSuperAdmin ? 'SuperAdmin Global' : isGerente ? 'Perfil Gerencial' : 'Operador do Bar'}
               </div>
-
-              <div>
-                <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#DDB96B] block">
-                  Gestão Estratégica
-                </span>
-                <h3 className="text-xl sm:text-2xl font-black text-white font-cinzel mt-1">
-                  Gerente
-                </h3>
-              </div>
-
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Acesse o painel secundário da gerência com divisão clara entre <strong>Administrativo</strong> (DRE, Auditoria) e <strong>Logística</strong> (Estoque com fotos e Lotes).
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-tight">
+                Olá, <span className="bg-gradient-to-r from-amber-200 to-amber-400 bg-clip-text text-transparent">{user?.nome?.split(' ')[0] || 'Usuário'}</span>
+              </h1>
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed truncate">
+                {lojaNome} • Escolha o módulo de acesso para iniciar
               </p>
             </div>
 
-            <div className="pt-6 relative z-10 border-t border-slate-800/80 mt-6 flex items-center justify-between text-xs font-bold font-mono text-[#FDE68A] group-hover:text-white transition-colors">
-              <span>Abrir Gerência</span>
-              <div className="w-8 h-8 rounded-xl bg-[#DDB96B]/20 group-hover:bg-[#DDB96B] group-hover:text-[#0B1326] flex items-center justify-center transition-all">
-                <ArrowRight size={16} />
+            <div className="w-12 h-12 rounded-2xl bg-white/[0.06] border border-white/10 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner text-amber-400">
+              <ShieldCheck size={26} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ============================================================== */}
+      {/* 3. MÓDULOS DE ACESSO (CARDS INTERATIVOS GLASSMORPHISM)         */}
+      {/* ============================================================== */}
+      <main className="relative z-10 flex-1 flex flex-col justify-center gap-3.5 my-3">
+        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-1 flex items-center justify-between">
+          <span>Módulos de Acesso</span>
+          <span className="text-[10px] text-amber-400/80 font-normal">Toque para entrar</span>
+        </div>
+
+        {/* OPÇÃO 1: GERENTE (Apenas Gerente/Admin/SuperAdmin) */}
+        {isGerente && (
+          <div 
+            onClick={() => navigate('/app/gerencia')}
+            className="group relative rounded-2xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/10 p-4 shadow-xl hover:border-amber-400/50 hover:from-white/[0.12] transition-all duration-300 cursor-pointer active:scale-[0.98]"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-700/10 border border-amber-400/30 flex items-center justify-center text-amber-300 shadow-inner group-hover:scale-105 transition-transform">
+                  <ShieldCheck size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-bold text-white tracking-tight group-hover:text-amber-300 transition-colors">
+                      Gerente
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400/90 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
+                      Gestão
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 font-normal mt-0.5">
+                    DRE, métricas financeiras, auditoria e estoque com lotes FEFO
+                  </p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-white/[0.05] border border-white/10 flex items-center justify-center text-slate-400 group-hover:text-amber-300 group-hover:bg-amber-400/20 group-hover:border-amber-400/40 transition-all shrink-0">
+                <ArrowRight size={18} />
               </div>
             </div>
           </div>
         )}
 
-        {/* ------------------------------------------------------------ */}
-        {/* CARD 2: OPERADOR (Visível para Operadores e Gerentes)        */}
-        {/* ------------------------------------------------------------ */}
-        <div 
-          onClick={() => navigate('/app/comandas')}
-          className="group relative bg-[#0B1326] hover:bg-[#101A33] border border-[#10B981]/40 hover:border-[#10B981] rounded-3xl p-6 sm:p-7 shadow-xl hover:shadow-2xl hover:shadow-[#10B981]/10 transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[#10B981]/10 rounded-full blur-2xl group-hover:bg-[#10B981]/20 transition-all" />
-
-          <div className="space-y-4 relative z-10">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#10B981]/20 to-[#0B1326] border border-[#10B981]/50 flex items-center justify-center text-[#4EDEA3] shadow-md group-hover:scale-105 transition-transform">
-              <UtensilsCrossed className="w-7 h-7" />
-            </div>
-
-            <div>
-              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#4EDEA3] block">
-                Salão & Ponto de Venda
-              </span>
-              <h3 className="text-xl sm:text-2xl font-black text-white font-cinzel mt-1">
-                Operador
-              </h3>
-            </div>
-
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Atendimento de balcão e salão: abertura de comandas por QR Code soberano, lançamento de itens, controle de comandas ativas e fechamento.
-            </p>
-          </div>
-
-          <div className="pt-6 relative z-10 border-t border-slate-800/80 mt-6 flex items-center justify-between text-xs font-bold font-mono text-[#4EDEA3] group-hover:text-white transition-colors">
-            <span>Iniciar Atendimento</span>
-            <div className="w-8 h-8 rounded-xl bg-[#10B981]/20 group-hover:bg-[#10B981] group-hover:text-[#0B1326] flex items-center justify-center transition-all">
-              <ArrowRight size={16} />
+        {/* OPÇÃO 2: OPERADOR (Visível para Operadores e Gerentes) */}
+        {isOperador && (
+          <div 
+            onClick={() => navigate('/app/comandas')}
+            className="group relative rounded-2xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/10 p-4 shadow-xl hover:border-emerald-400/50 hover:from-white/[0.12] transition-all duration-300 cursor-pointer active:scale-[0.98]"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-700/10 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shadow-inner group-hover:scale-105 transition-transform">
+                  <ShoppingBag size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-bold text-white tracking-tight group-hover:text-emerald-300 transition-colors">
+                      Operador
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/90 bg-emerald-400/10 px-2 py-0.5 rounded-md border border-emerald-400/20">
+                      PDV & Balcão
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 font-normal mt-0.5">
+                    Comandas digitais QR Code, lançamentos rápidos e fechamento
+                  </p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-white/[0.05] border border-white/10 flex items-center justify-center text-slate-400 group-hover:text-emerald-300 group-hover:bg-emerald-400/20 group-hover:border-emerald-400/40 transition-all shrink-0">
+                <ArrowRight size={18} />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* ------------------------------------------------------------ */}
-        {/* CARD 3: CLIENTE (Visível para todos)                        */}
-        {/* ------------------------------------------------------------ */}
+        {/* OPÇÃO 3: CLIENTE (Autoatendimento) */}
         <div 
           onClick={() => navigate('/app/cliente')}
-          className="group relative bg-[#0B1326] hover:bg-[#101A33] border border-[#38BDF8]/40 hover:border-[#38BDF8] rounded-3xl p-6 sm:p-7 shadow-xl hover:shadow-2xl hover:shadow-[#38BDF8]/10 transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden"
+          className="group relative rounded-2xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/10 p-4 shadow-xl hover:border-cyan-400/50 hover:from-white/[0.12] transition-all duration-300 cursor-pointer active:scale-[0.98]"
         >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[#38BDF8]/10 rounded-full blur-2xl group-hover:bg-[#38BDF8]/20 transition-all" />
-
-          <div className="space-y-4 relative z-10">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#38BDF8]/20 to-[#0B1326] border border-[#38BDF8]/50 flex items-center justify-center text-[#7BD0FF] shadow-md group-hover:scale-105 transition-transform">
-              <User className="w-7 h-7" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-700/10 border border-cyan-400/30 flex items-center justify-center text-cyan-300 shadow-inner group-hover:scale-105 transition-transform">
+                <UserCheck size={24} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-bold text-white tracking-tight group-hover:text-cyan-300 transition-colors">
+                    Cliente
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400/90 bg-cyan-400/10 px-2 py-0.5 rounded-md border border-cyan-400/20">
+                    Autoatendimento
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 font-normal mt-0.5">
+                  Consulta de consumo, saldo pré-pago, extrato e pagamento Pix
+                </p>
+              </div>
             </div>
-
-            <div>
-              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#7BD0FF] block">
-                Portal do Irmão
-              </span>
-              <h3 className="text-xl sm:text-2xl font-black text-white font-cinzel mt-1">
-                Cliente
-              </h3>
-            </div>
-
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Autoatendimento soberano: visualize seu QR Code de identificação no balcão, saldo pré-pago, fatura em aberto e quitação via Pix ou Cartão.
-            </p>
-          </div>
-
-          <div className="pt-6 relative z-10 border-t border-slate-800/80 mt-6 flex items-center justify-between text-xs font-bold font-mono text-[#7BD0FF] group-hover:text-white transition-colors">
-            <span>Acessar Meu Perfil</span>
-            <div className="w-8 h-8 rounded-xl bg-[#38BDF8]/20 group-hover:bg-[#38BDF8] group-hover:text-[#0B1326] flex items-center justify-center transition-all">
-              <ArrowRight size={16} />
+            <div className="w-8 h-8 rounded-full bg-white/[0.05] border border-white/10 flex items-center justify-center text-slate-400 group-hover:text-cyan-300 group-hover:bg-cyan-400/20 group-hover:border-cyan-400/40 transition-all shrink-0">
+              <ArrowRight size={18} />
             </div>
           </div>
         </div>
+      </main>
 
-      </div>
+      {/* ============================================================== */}
+      {/* 4. COMPACT GLASS BOTTOM BAR                                    */}
+      {/* ============================================================== */}
+      <footer className="relative z-10 pt-2 pb-1">
+        <div className="rounded-2xl bg-white/[0.05] backdrop-blur-xl border border-white/10 p-2.5 flex items-center justify-between shadow-xl">
+          {isSuperAdmin ? (
+            <button 
+              onClick={() => navigate('/app/instancias')}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition text-xs font-semibold"
+            >
+              <Store size={16} />
+              Trocar Loja (SaaS)
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-1.5 text-slate-400 text-xs">
+              <Store size={16} />
+              <span>{lojaNome}</span>
+            </div>
+          )}
+
+          <div className="h-4 w-px bg-white/10" />
+
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-rose-500/15 text-slate-400 hover:text-rose-300 transition text-xs font-semibold"
+          >
+            <LogOut size={16} />
+            Sair
+          </button>
+        </div>
+      </footer>
 
     </div>
   );

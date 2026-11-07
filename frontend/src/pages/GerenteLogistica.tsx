@@ -22,7 +22,12 @@ import {
   Boxes, 
   Trash2, 
   DollarSign, 
-  ArrowRight 
+  ArrowRight,
+  Wine,
+  Utensils,
+  Beer,
+  CupSoda,
+  ScanLine 
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
@@ -131,6 +136,10 @@ export const GerenteLogistica: React.FC = () => {
 
   // Filtros em Pills
   const [filtroPill, setFiltroPill] = useState<'todos' | 'repor_bar' | 'baixo_estoque'>('todos');
+  
+  // Categorias do Stitch (Bebidas vs Alimentos / Alcoólicas vs Não Alcoólicas)
+  const [categoriaPrincipal, setCategoriaPrincipal] = useState<'BEBIDAS' | 'ALIMENTOS'>('BEBIDAS');
+  const [subcategoriaBebidas, setSubcategoriaBebidas] = useState<'TODAS' | 'ALCOOLICAS' | 'NAO_ALCOOLICAS'>('TODAS');
 
   // Item em Gestão (Cascata Drill-down)
   const [produtoEmGestao, setProdutoEmGestao] = useState<Produto | null>(null);
@@ -394,6 +403,20 @@ export const GerenteLogistica: React.FC = () => {
 
   // Filtragem dos Produtos
   const produtosFiltrados = produtos.filter((p) => {
+    // 1. Categoria Principal (Bebidas vs Alimentos)
+    const catUpper = (p.categoria || '').toUpperCase();
+    if (categoriaPrincipal && catUpper !== categoriaPrincipal) {
+      return false;
+    }
+
+    // 2. Subcategoria (Alcoólicas vs Não Alcoólicas) quando em Bebidas
+    if (categoriaPrincipal === 'BEBIDAS' && subcategoriaBebidas !== 'TODAS') {
+      const subUpper = (p.subcategoria || '').toUpperCase();
+      if (subUpper !== subcategoriaBebidas) {
+        return false;
+      }
+    }
+
     const buscaMatch =
       p.nome.toLowerCase().includes(termoBusca.toLowerCase()) ||
       (p.codigo_barras && p.codigo_barras.includes(termoBusca)) ||
@@ -409,6 +432,11 @@ export const GerenteLogistica: React.FC = () => {
     }
     return true;
   });
+
+  const qtdBebidas = produtos.filter(p => (p.categoria || '').toUpperCase() === 'BEBIDAS').length;
+  const qtdAlimentos = produtos.filter(p => (p.categoria || '').toUpperCase() === 'ALIMENTOS').length;
+  const qtdAlcoolicas = produtos.filter(p => (p.categoria || '').toUpperCase() === 'BEBIDAS' && (p.subcategoria || '').toUpperCase() === 'ALCOOLICAS').length;
+  const qtdNaoAlcoolicas = produtos.filter(p => (p.categoria || '').toUpperCase() === 'BEBIDAS' && (p.subcategoria || '').toUpperCase() === 'NAO_ALCOOLICAS').length;
 
   // Métricas do Dashboard Logístico
   const totalItens = produtos.length;
@@ -843,6 +871,104 @@ export const GerenteLogistica: React.FC = () => {
             </div>
           </div>
 
+          {/* ============================================================== */}
+          {/* SELETOR PRINCIPAL DE CATEGORIAS (PADRÃO STITCH: BEBIDAS X ALIMENTOS) */}
+          {/* ============================================================== */}
+          <nav className="grid grid-cols-2 p-1 rounded-2xl bg-white/[0.05] backdrop-blur-xl border border-white/10 gap-1 text-xs font-semibold">
+            <button 
+              onClick={() => {
+                setCategoriaPrincipal('BEBIDAS');
+                setSubcategoriaBebidas('TODAS');
+              }}
+              className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
+                categoriaPrincipal === 'BEBIDAS'
+                  ? 'bg-gradient-to-r from-amber-500/25 to-yellow-500/20 text-amber-300 border border-amber-400/40 shadow-sm font-bold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Wine size={16} />
+              <span>Bebidas</span>
+              <span className="px-2 py-0.5 rounded-full bg-amber-400/20 text-[10px] font-bold text-amber-300">
+                {qtdBebidas}
+              </span>
+            </button>
+
+            <button 
+              onClick={() => {
+                setCategoriaPrincipal('ALIMENTOS');
+                setSubcategoriaBebidas('TODAS');
+              }}
+              className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
+                categoriaPrincipal === 'ALIMENTOS'
+                  ? 'bg-gradient-to-r from-amber-500/25 to-yellow-500/20 text-amber-300 border border-amber-400/40 shadow-sm font-bold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Utensils size={16} />
+              <span>Alimentos</span>
+              <span className="px-2 py-0.5 rounded-full bg-white/10 text-[10px] font-semibold text-slate-300">
+                {qtdAlimentos}
+              </span>
+            </button>
+          </nav>
+
+          {/* SUB-CATEGORIAS DE BEBIDAS (STITCH: ALCOÓLICAS X NÃO ALCOÓLICAS) */}
+          {categoriaPrincipal === 'BEBIDAS' && (
+            <div className="grid grid-cols-2 gap-2.5">
+              <button 
+                onClick={() => setSubcategoriaBebidas(subcategoriaBebidas === 'ALCOOLICAS' ? 'TODAS' : 'ALCOOLICAS')}
+                className={`group rounded-2xl p-3 backdrop-blur-xl border text-left transition-all active:scale-95 ${
+                  subcategoriaBebidas === 'ALCOOLICAS'
+                    ? 'bg-gradient-to-b from-white/[0.08] to-white/[0.02] border-amber-400/50 shadow-xl'
+                    : 'bg-white/[0.03] border-white/10 hover:border-amber-400/30'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300">
+                    <Beer size={18} />
+                  </div>
+                  <span className="text-[10px] font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full">
+                    {qtdAlcoolicas} itens
+                  </span>
+                </div>
+                <div className="mt-2">
+                  <span className="text-xs font-bold text-white group-hover:text-amber-300 block">
+                    Alcoólicas
+                  </span>
+                  <span className="text-[10px] text-slate-400 block truncate">
+                    Cervejas, Chopp e Doses
+                  </span>
+                </div>
+              </button>
+
+              <button 
+                onClick={() => setSubcategoriaBebidas(subcategoriaBebidas === 'NAO_ALCOOLICAS' ? 'TODAS' : 'NAO_ALCOOLICAS')}
+                className={`group rounded-2xl p-3 backdrop-blur-xl border text-left transition-all active:scale-95 ${
+                  subcategoriaBebidas === 'NAO_ALCOOLICAS'
+                    ? 'bg-gradient-to-b from-white/[0.08] to-white/[0.02] border-cyan-400/50 shadow-xl'
+                    : 'bg-white/[0.03] border-white/10 hover:border-cyan-400/30'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-400/25 flex items-center justify-center text-cyan-300">
+                    <CupSoda size={18} />
+                  </div>
+                  <span className="text-[10px] font-bold text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded-full">
+                    {qtdNaoAlcoolicas} itens
+                  </span>
+                </div>
+                <div className="mt-2">
+                  <span className="text-xs font-bold text-white group-hover:text-cyan-300 block">
+                    Não Alcoólicas
+                  </span>
+                  <span className="text-[10px] text-slate-400 block truncate">
+                    Refrigerantes, Águas e Sucos
+                  </span>
+                </div>
+              </button>
+            </div>
+          )}
+
           {/* BARRA DE FILTROS & BUSCA */}
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
             {/* Campo de Busca */}
@@ -1009,6 +1135,32 @@ export const GerenteLogistica: React.FC = () => {
               ))}
             </div>
           )}
+
+          {/* COMPACT GLASS BOTTOM ACTION BAR (PADRÃO STITCH) */}
+          <footer className="pt-2 pb-1">
+            <div className="rounded-2xl bg-white/[0.05] backdrop-blur-xl border border-white/10 p-2.5 flex items-center justify-between shadow-xl">
+              <button 
+                onClick={() => setFiltroPill(filtroPill === 'repor_bar' ? 'todos' : 'repor_bar')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition text-xs font-semibold"
+              >
+                <ArrowRightLeft size={16} />
+                Repor Gôndola ({reposicoesPendentes})
+              </button>
+
+              <div className="h-4 w-px bg-white/10" />
+
+              <button 
+                onClick={() => {
+                  setPassoNovoProduto('escolha');
+                  setIsModalNovoAberto(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/30 transition text-xs font-bold shadow-sm"
+              >
+                <ScanLine size={16} />
+                Escanear Código
+              </button>
+            </div>
+          </footer>
 
         </div>
       )}
