@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import or_, desc
@@ -8,6 +8,7 @@ from app.core.database import obter_sessao
 from app.api.dependencias import obter_usuario_logado
 from app.models.usuario import Usuario
 from app.models.catalogo_mestre import CatalogoMestreProduto
+from app.services.storage_service import StorageService
 from app.schemas.catalogo_mestre_schema import (
     CatalogoMestreCreate,
     CatalogoMestreUpdate,
@@ -138,6 +139,31 @@ async def atualizar_produto_mestre(
         else:
             setattr(produto, campo, valor)
 
+    await db.commit()
+    await db.refresh(produto)
+    return produto
+
+@router.post("/{produto_id}/foto", response_model=CatalogoMestreResponse)
+async def atribuir_foto_produto_mestre(
+    produto_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Recebe uma imagem (WebP, JPG, PNG, etc.), converte e otimiza para WebP
+    e atribui diretamente ao produto mestre especificado.
+    """
+    verificar_permissao_admin(usuario)
+
+    query = select(CatalogoMestreProduto).where(CatalogoMestreProduto.id == produto_id)
+    res = await db.execute(query)
+    produto = res.scalars().first()
+    if not produto:
+        raise HTTPException(status_code=404, detail="Produto não encontrado.")
+
+    url_foto = await StorageService.salvar_foto_catalogo_mestre(file)
+    produto.foto_url = url_foto
     await db.commit()
     await db.refresh(produto)
     return produto

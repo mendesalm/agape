@@ -49,6 +49,7 @@ export const CatalogoGlobalAdmin: React.FC = () => {
   const [semeando, setSemeando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [enviandoFoto, setEnviandoFoto] = useState(false);
+  const [uploadandoProdId, setUploadandoProdId] = useState<number | null>(null);
   const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null);
   const [mensagemErro, setMensagemErro] = useState<string | null>(null);
 
@@ -155,6 +156,32 @@ export const CatalogoGlobalAdmin: React.FC = () => {
       alert(err.response?.data?.detail || err.response?.data?.error || 'Erro ao fazer upload da imagem.');
     } finally {
       setEnviandoFoto(false);
+    }
+  };
+
+  const handleUploadFotoCard = async (prodId: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const arquivo = e.target.files?.[0];
+    if (!arquivo) return;
+
+    try {
+      setUploadandoProdId(prodId);
+      const formData = new FormData();
+      formData.append('file', arquivo);
+
+      const res = await api.post(`/catalogo-mestre/${prodId}/foto`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (res.data) {
+        setProdutos((prev) => prev.map((p) => (p.id === prodId ? res.data : p)));
+        setMensagemSucesso(`Foto WebP de "${res.data.nome}" atribuída com sucesso!`);
+        setTimeout(() => setMensagemSucesso(null), 3500);
+      }
+    } catch (err: any) {
+      console.error('Erro ao atribuir foto ao produto:', err);
+      alert(err.response?.data?.detail || 'Erro ao fazer upload da foto para o produto.');
+    } finally {
+      setUploadandoProdId(null);
     }
   };
 
@@ -428,6 +455,37 @@ export const CatalogoGlobalAdmin: React.FC = () => {
 
                       {/* Status Ativo */}
                       <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ${prod.ativo ? 'bg-emerald-400' : 'bg-rose-500'}`} />
+
+                      {/* Badge do Formato (WebP Local vs Web) */}
+                      {prod.foto_url && (
+                        <div className={`absolute bottom-2 left-2 px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase tracking-wider ${
+                          prod.foto_url.includes('.webp') || prod.foto_url.includes('/uploads/catalogo')
+                            ? 'bg-emerald-500/80 text-white border border-emerald-400/40'
+                            : 'bg-black/60 text-slate-300 border border-white/10'
+                        }`}>
+                          {prod.foto_url.includes('.webp') || prod.foto_url.includes('/uploads/catalogo') ? 'WEBP Local' : 'Foto Web'}
+                        </div>
+                      )}
+
+                      {/* Botão de Upload Rápido de Foto WebP */}
+                      <label 
+                        className="absolute bottom-2 right-2 px-2 py-1 rounded-xl bg-purple-600/90 hover:bg-purple-600 backdrop-blur-md text-white text-[10px] font-bold shadow-lg flex items-center gap-1 cursor-pointer transition active:scale-95 group/btn"
+                        title="Atribuir imagem (converte para WebP otimizado)"
+                      >
+                        {uploadandoProdId === prod.id ? (
+                          <RefreshCw size={11} className="animate-spin" />
+                        ) : (
+                          <Camera size={11} className="text-purple-200 group-hover/btn:scale-110 transition-transform" />
+                        )}
+                        <span>{uploadandoProdId === prod.id ? 'Salvando...' : 'Atribuir WebP'}</span>
+                        <input 
+                          type="file" 
+                          accept="image/webp, image/jpeg, image/png, image/avif, image/*" 
+                          onChange={(e) => handleUploadFotoCard(prod.id, e)} 
+                          className="hidden" 
+                          disabled={uploadandoProdId === prod.id}
+                        />
+                      </label>
                     </div>
 
                     {/* Informações Textuais */}
@@ -563,9 +621,14 @@ export const CatalogoGlobalAdmin: React.FC = () => {
 
               {/* Upload de Foto Local ou URL Externa */}
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                  Foto do Produto (Local ou Web)
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    Foto do Produto (WebP / Imagem)
+                  </label>
+                  <span className="text-[10px] text-cyan-300/80 font-mono">
+                    Converte automaticamente para WebP 800x800
+                  </span>
+                </div>
                 <div className="flex flex-col sm:flex-row gap-3 items-center">
                   {/* Preview da Foto */}
                   <div className="w-20 h-20 rounded-2xl bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 relative">
@@ -590,7 +653,7 @@ export const CatalogoGlobalAdmin: React.FC = () => {
                       <input
                         type="file"
                         ref={fileInputRef}
-                        accept="image/*"
+                        accept="image/webp, image/jpeg, image/png, image/avif, image/*"
                         onChange={handleUploadFoto}
                         className="hidden"
                       />
@@ -601,7 +664,7 @@ export const CatalogoGlobalAdmin: React.FC = () => {
                         className="flex-1 py-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/10 text-white text-xs font-semibold transition flex items-center justify-center gap-2"
                       >
                         <Upload size={14} className="text-purple-400" />
-                        <span>{enviandoFoto ? 'Enviando foto...' : 'Fazer Upload de Foto Local'}</span>
+                        <span>{enviandoFoto ? 'Otimizando em WebP...' : 'Upload de Foto Local (WebP, JPG, PNG)'}</span>
                       </button>
                     </div>
 
