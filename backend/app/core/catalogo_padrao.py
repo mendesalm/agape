@@ -81,6 +81,18 @@ PRODUTOS_POPULARES = [
         "descricao": "Amstel puro malte em latão 473ml."
     },
     {
+        "codigo_barras": "7891991017423",
+        "nome": "Cerveja Amstel Ultra Low Carb Lata 269ml",
+        "marca": "Amstel",
+        "categoria": "bebidas",
+        "subcategoria": "alcoolicas",
+        "tipo": "cervejas",
+        "foto_url": "https://images.unsplash.com/photo-1566633806327-68e152aaf26d?w=600&auto=format&fit=crop&q=80",
+        "preco_custo_sugerido": 3.80,
+        "preco_venda_sugerido": 7.50,
+        "descricao": "Cerveja puro malte leve e refrescante com apenas 72 calorias e sem glúten em lata 269ml."
+    },
+    {
         "codigo_barras": "7891991001347",
         "nome": "Cerveja Brahma Duplo Malte Lata 350ml",
         "marca": "Brahma",
@@ -360,6 +372,18 @@ PRODUTOS_POPULARES = [
         "preco_venda_sugerido": 9.00,
         "descricao": "Cerveja clara e brilhante feita com energia solar, sabor leve e refrescante."
     },
+    {
+        "codigo_barras": "7891991017430",
+        "nome": "Cerveja Amstel Ultra Low Carb Garrafa 275ml",
+        "marca": "Amstel",
+        "categoria": "bebidas",
+        "subcategoria": "alcoolicas",
+        "tipo": "cervejas",
+        "foto_url": "https://images.unsplash.com/photo-1566633806327-68e152aaf26d?w=600&auto=format&fit=crop&q=80",
+        "preco_custo_sugerido": 4.50,
+        "preco_venda_sugerido": 9.00,
+        "descricao": "Amstel Ultra em garrafa long neck 275ml com 72 calorias e baixo teor de carboidratos."
+    },
 
     # =========================================================================
     # 3. CERVEJAS GARRAFA RETORNÁVEL / COMPARTILHADA 600ml
@@ -536,6 +560,30 @@ PRODUTOS_POPULARES = [
         "preco_venda_sugerido": 7.00,
         "descricao": "Tônica tradicional com quinino de amargor requintado, base para Gin Tônica."
     },
+    {
+        "codigo_barras": "7891991000876",
+        "nome": "Refrigerante Sukita Laranja Lata 350ml",
+        "marca": "Sukita",
+        "categoria": "bebidas",
+        "subcategoria": "nao_alcoolicas",
+        "tipo": "refrigerantes",
+        "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
+        "preco_custo_sugerido": 2.70,
+        "preco_venda_sugerido": 6.00,
+        "descricao": "Refrigerante sabor laranja borbulhante e refrescante em lata 350ml."
+    },
+    {
+        "codigo_barras": "7891991000883",
+        "nome": "Refrigerante Sukita Uva Lata 350ml",
+        "marca": "Sukita",
+        "categoria": "bebidas",
+        "subcategoria": "nao_alcoolicas",
+        "tipo": "refrigerantes",
+        "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
+        "preco_custo_sugerido": 2.70,
+        "preco_venda_sugerido": 6.00,
+        "descricao": "Refrigerante sabor uva com alta carbonatação e sabor marcante em lata 350ml."
+    },
 
     # =========================================================================
     # 5. REFRIGERANTES PET E GARRAFA (600ml e 2 Litros)
@@ -551,6 +599,18 @@ PRODUTOS_POPULARES = [
         "preco_custo_sugerido": 4.20,
         "preco_venda_sugerido": 8.50,
         "descricao": "Coca-Cola individual em garrafa PET de 600ml com tampa de rosca."
+    },
+    {
+        "codigo_barras": "7894900700619",
+        "nome": "Refrigerante Coca-Cola Sem Açúcar Garrafa 600ml",
+        "marca": "Coca-Cola",
+        "categoria": "bebidas",
+        "subcategoria": "nao_alcoolicas",
+        "tipo": "refrigerantes",
+        "foto_url": "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=600&auto=format&fit=crop&q=80",
+        "preco_custo_sugerido": 4.20,
+        "preco_venda_sugerido": 8.50,
+        "descricao": "Refrigerante individual de cola zero açúcar em garrafa PET de 600ml."
     },
     {
         "codigo_barras": "7891991008063",
