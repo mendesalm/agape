@@ -1,13 +1,10 @@
 """
-Catálogo Mestre Padrão de Produtos do Ecossistema Barix / Ágape
-Contém as cervejas, refrigerantes, águas, energéticos e snacks mais populares
-do Brasil com códigos EAN-13 reais, especificações e faixas de preços sugeridas.
+Catálogo Mestre Padrão Oficial do Ecossistema Barix / Ágape
+Gerado a partir do estado definitivo do banco de dados com fotos WebP locais.
+Total de produtos: 65
 """
 
 PRODUTOS_POPULARES = [
-    # =========================================================================
-    # 1. CERVEJAS EM LATA (350ml e Latão 473ml)
-    # =========================================================================
     {
         "codigo_barras": "7891991000845",
         "nome": "Cerveja Heineken Puro Malte Lata 350ml",
@@ -15,9 +12,9 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
-        "foto_url": "https://images.unsplash.com/photo-1618886614638-80e3c103d31a?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.80,
-        "preco_venda_sugerido": 9.00,
+        "foto_url": "/uploads/catalogo/mestre_62e7fdb46269496c86b94458dfb7f1fd.webp",
+        "preco_custo_sugerido": 4.8,
+        "preco_venda_sugerido": 9.0,
         "descricao": "Lager puro malte de coloração dourada, amargor marcante e lúpulo exclusivo tipo A."
     },
     {
@@ -27,9 +24,9 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
-        "foto_url": "https://images.unsplash.com/photo-1618886614638-80e3c103d31a?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 6.20,
-        "preco_venda_sugerido": 12.00,
+        "foto_url": "/uploads/catalogo/mestre_5b7b99989a07412dace2e8a95756275c.webp",
+        "preco_custo_sugerido": 6.2,
+        "preco_venda_sugerido": 12.0,
         "descricao": "Heineken puro malte em latão 473ml para momentos de maior consumo."
     },
     {
@@ -40,8 +37,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1608270191765-a83d1c1a2f90?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.20,
-        "preco_venda_sugerido": 8.00,
+        "preco_custo_sugerido": 4.2,
+        "preco_venda_sugerido": 8.0,
         "descricao": "Cerveja puro malte tradicional de Munique com amargor suave e alta refrescância."
     },
     {
@@ -52,8 +49,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1608270191765-a83d1c1a2f90?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 5.40,
-        "preco_venda_sugerido": 10.00,
+        "preco_custo_sugerido": 5.4,
+        "preco_venda_sugerido": 10.0,
         "descricao": "Estilo tradicional Munich Helles em latão 473ml."
     },
     {
@@ -63,9 +60,9 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
-        "foto_url": "https://images.unsplash.com/photo-1566633806327-68e152aaf26d?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.60,
-        "preco_venda_sugerido": 7.00,
+        "foto_url": "/uploads/catalogo/mestre_a35caec15d1d4318a7f991ae1f07325f.webp",
+        "preco_custo_sugerido": 3.6,
+        "preco_venda_sugerido": 7.0,
         "descricao": "Cerveja puro malte de receita holandesa de Amsterdã, leve e equilibrada."
     },
     {
@@ -75,22 +72,10 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
-        "foto_url": "https://images.unsplash.com/photo-1566633806327-68e152aaf26d?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.60,
-        "preco_venda_sugerido": 9.00,
+        "foto_url": "/uploads/catalogo/mestre_71ed7405de7d4db09e820b65da42db2a.webp",
+        "preco_custo_sugerido": 4.6,
+        "preco_venda_sugerido": 9.0,
         "descricao": "Amstel puro malte em latão 473ml."
-    },
-    {
-        "codigo_barras": "7891991017423",
-        "nome": "Cerveja Amstel Ultra Low Carb Lata 269ml",
-        "marca": "Amstel",
-        "categoria": "bebidas",
-        "subcategoria": "alcoolicas",
-        "tipo": "cervejas",
-        "foto_url": "https://images.unsplash.com/photo-1566633806327-68e152aaf26d?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.80,
-        "preco_venda_sugerido": 7.50,
-        "descricao": "Cerveja puro malte leve e refrescante com apenas 72 calorias e sem glúten em lata 269ml."
     },
     {
         "codigo_barras": "7891991001347",
@@ -100,8 +85,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.70,
-        "preco_venda_sugerido": 7.00,
+        "preco_custo_sugerido": 3.7,
+        "preco_venda_sugerido": 7.0,
         "descricao": "Combinação equilibrada de dois tipos de malte: Pilsner leve e Munich encorpado."
     },
     {
@@ -112,8 +97,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.70,
-        "preco_venda_sugerido": 9.00,
+        "preco_custo_sugerido": 4.7,
+        "preco_venda_sugerido": 9.0,
         "descricao": "Brahma Duplo Malte em formato latão 473ml."
     },
     {
@@ -124,8 +109,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1571613316887-6f8d5cbf7ef7?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.40,
-        "preco_venda_sugerido": 6.50,
+        "preco_custo_sugerido": 3.4,
+        "preco_venda_sugerido": 6.5,
         "descricao": "O sabor autêntico do chopp brasileiro em lata 350ml."
     },
     {
@@ -136,8 +121,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1518057111178-44a106bad636?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.30,
-        "preco_venda_sugerido": 6.50,
+        "preco_custo_sugerido": 3.3,
+        "preco_venda_sugerido": 6.5,
         "descricao": "Cerveja clara, leve e de alta drinkability."
     },
     {
@@ -148,8 +133,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.30,
-        "preco_venda_sugerido": 6.50,
+        "preco_custo_sugerido": 3.3,
+        "preco_venda_sugerido": 6.5,
         "descricao": "A cerveja BOA com a tradição brasileira Antarctica."
     },
     {
@@ -160,8 +145,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.10,
-        "preco_venda_sugerido": 8.00,
+        "preco_custo_sugerido": 4.1,
+        "preco_venda_sugerido": 8.0,
         "descricao": "Pilsen clássica desde 1931 com amargor suave e lúpulos selecionados."
     },
     {
@@ -172,8 +157,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.90,
-        "preco_venda_sugerido": 7.50,
+        "preco_custo_sugerido": 3.9,
+        "preco_venda_sugerido": 7.5,
         "descricao": "A King of Beers, maturada com lascas de faia (beechwood)."
     },
     {
@@ -184,8 +169,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 5.10,
-        "preco_venda_sugerido": 9.50,
+        "preco_custo_sugerido": 5.1,
+        "preco_venda_sugerido": 9.5,
         "descricao": "Budweiser tradicional americana em latão 473ml."
     },
     {
@@ -196,8 +181,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1518057111178-44a106bad636?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 5.20,
-        "preco_venda_sugerido": 10.00,
+        "preco_custo_sugerido": 5.2,
+        "preco_venda_sugerido": 10.0,
         "descricao": "Cerveja clara mexicana premiada em lata moderna 350ml."
     },
     {
@@ -208,8 +193,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.50,
-        "preco_venda_sugerido": 8.50,
+        "preco_custo_sugerido": 4.5,
+        "preco_venda_sugerido": 8.5,
         "descricao": "Puro malte alemã de Bremen com amargor superior característico (IBU 20)."
     },
     {
@@ -220,8 +205,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1566633806327-68e152aaf26d?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.60,
-        "preco_venda_sugerido": 9.00,
+        "preco_custo_sugerido": 4.6,
+        "preco_venda_sugerido": 9.0,
         "descricao": "Versão sem glúten e com menos calorias mantendo o sabor original de Stella Artois."
     },
     {
@@ -232,8 +217,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1608270191765-a83d1c1a2f90?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.90,
-        "preco_venda_sugerido": 7.50,
+        "preco_custo_sugerido": 3.9,
+        "preco_venda_sugerido": 7.5,
         "descricao": "Puro malte brasileira de Blumenau inspirada na lei da pureza alemã."
     },
     {
@@ -244,8 +229,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1518057111178-44a106bad636?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.40,
-        "preco_venda_sugerido": 8.50,
+        "preco_custo_sugerido": 4.4,
+        "preco_venda_sugerido": 8.5,
         "descricao": "Cerveja ultra leve com apenas 79 calorias e 80% menos carboidratos."
     },
     {
@@ -256,14 +241,10 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.80,
-        "preco_venda_sugerido": 9.50,
+        "preco_custo_sugerido": 4.8,
+        "preco_venda_sugerido": 9.5,
         "descricao": "Cerveja artesanal com casca de laranja que confere notas cítricas e refrescantes."
     },
-
-    # =========================================================================
-    # 2. CERVEJAS LONG NECK (330ml / 355ml)
-    # =========================================================================
     {
         "codigo_barras": "7891991010356",
         "nome": "Cerveja Heineken Long Neck 330ml",
@@ -271,9 +252,9 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
-        "foto_url": "https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 5.20,
-        "preco_venda_sugerido": 10.00,
+        "foto_url": "/uploads/catalogo/mestre_25cd8c645e294dadb2f83b783fb6001c.webp",
+        "preco_custo_sugerido": 5.2,
+        "preco_venda_sugerido": 10.0,
         "descricao": "Garrafa de vidro verde descartável 330ml com o puro malte original Heineken."
     },
     {
@@ -283,9 +264,9 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "nao_alcoolicas",
         "tipo": "cervejas",
-        "foto_url": "https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 5.20,
-        "preco_venda_sugerido": 10.00,
+        "foto_url": "/uploads/catalogo/mestre_8255be634c2742328fa10bf2233fdba4.webp",
+        "preco_custo_sugerido": 5.2,
+        "preco_venda_sugerido": 10.0,
         "descricao": "Zero álcool, 100% puro malte. Todo o sabor clássico Heineken sem teor alcoólico."
     },
     {
@@ -296,8 +277,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1518057111178-44a106bad636?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 5.50,
-        "preco_venda_sugerido": 11.00,
+        "preco_custo_sugerido": 5.5,
+        "preco_venda_sugerido": 11.0,
         "descricao": "Cerveja premium mexicana transparente. Perfeita para consumo com fatia de limão taiti."
     },
     {
@@ -308,8 +289,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1566633806327-68e152aaf26d?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 5.00,
-        "preco_venda_sugerido": 10.00,
+        "preco_custo_sugerido": 5.0,
+        "preco_venda_sugerido": 10.0,
         "descricao": "Pilsner belga premium com mais de 600 anos de tradição em Leuven."
     },
     {
@@ -320,8 +301,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.50,
-        "preco_venda_sugerido": 9.00,
+        "preco_custo_sugerido": 4.5,
+        "preco_venda_sugerido": 9.0,
         "descricao": "Lager americana encorpada com processo de maturação em lascas de faia."
     },
     {
@@ -332,8 +313,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1608270191765-a83d1c1a2f90?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.80,
-        "preco_venda_sugerido": 9.50,
+        "preco_custo_sugerido": 4.8,
+        "preco_venda_sugerido": 9.5,
         "descricao": "A cervejaria oficial de Munique desde 1397 em garrafa long neck."
     },
     {
@@ -344,8 +325,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 5.10,
-        "preco_venda_sugerido": 10.00,
+        "preco_custo_sugerido": 5.1,
+        "preco_venda_sugerido": 10.0,
         "descricao": "A mais autêntica e amarga German Pilsner em vidro verde."
     },
     {
@@ -356,8 +337,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1608270191765-a83d1c1a2f90?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 5.40,
-        "preco_venda_sugerido": 11.00,
+        "preco_custo_sugerido": 5.4,
+        "preco_venda_sugerido": 11.0,
         "descricao": "India Pale Ale de cor âmbar, com amargor pronunciado e aroma cítrico de lúpulo."
     },
     {
@@ -368,26 +349,10 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1518057111178-44a106bad636?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.60,
-        "preco_venda_sugerido": 9.00,
+        "preco_custo_sugerido": 4.6,
+        "preco_venda_sugerido": 9.0,
         "descricao": "Cerveja clara e brilhante feita com energia solar, sabor leve e refrescante."
     },
-    {
-        "codigo_barras": "7891991017430",
-        "nome": "Cerveja Amstel Ultra Low Carb Garrafa 275ml",
-        "marca": "Amstel",
-        "categoria": "bebidas",
-        "subcategoria": "alcoolicas",
-        "tipo": "cervejas",
-        "foto_url": "https://images.unsplash.com/photo-1566633806327-68e152aaf26d?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.50,
-        "preco_venda_sugerido": 9.00,
-        "descricao": "Amstel Ultra em garrafa long neck 275ml com 72 calorias e baixo teor de carboidratos."
-    },
-
-    # =========================================================================
-    # 3. CERVEJAS GARRAFA RETORNÁVEL / COMPARTILHADA 600ml
-    # =========================================================================
     {
         "codigo_barras": "7891991000135",
         "nome": "Cerveja Original Antarctica 600ml",
@@ -396,8 +361,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 7.50,
-        "preco_venda_sugerido": 14.00,
+        "preco_custo_sugerido": 7.5,
+        "preco_venda_sugerido": 14.0,
         "descricao": "A garrafa clássica de 600ml mais pedida nas mesas de bares e confrarias."
     },
     {
@@ -407,9 +372,9 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
-        "foto_url": "https://images.unsplash.com/photo-1618886614638-80e3c103d31a?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 8.50,
-        "preco_venda_sugerido": 16.00,
+        "foto_url": "/uploads/catalogo/mestre_1e9e6cd0203440fd8455e685928b8ce7.webp",
+        "preco_custo_sugerido": 8.5,
+        "preco_venda_sugerido": 16.0,
         "descricao": "A pura malte favorita em garrafa de 600ml para compartilhar com irmãos e amigos."
     },
     {
@@ -420,8 +385,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1608270191765-a83d1c1a2f90?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 7.80,
-        "preco_venda_sugerido": 14.50,
+        "preco_custo_sugerido": 7.8,
+        "preco_venda_sugerido": 14.5,
         "descricao": "Garrafa de 600ml da cerveja puro malte alemã de maior crescimento no Brasil."
     },
     {
@@ -432,8 +397,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
         "foto_url": "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 6.80,
-        "preco_venda_sugerido": 13.00,
+        "preco_custo_sugerido": 6.8,
+        "preco_venda_sugerido": 13.0,
         "descricao": "Garrafa de 600ml combinando maltes Pilsner e Munich com equilíbrio ideal."
     },
     {
@@ -443,15 +408,11 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
-        "foto_url": "https://images.unsplash.com/photo-1566633806327-68e152aaf26d?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 6.80,
-        "preco_venda_sugerido": 13.00,
+        "foto_url": "/uploads/catalogo/mestre_e1346944b7f44f02b03af7fadb739f43.webp",
+        "preco_custo_sugerido": 6.8,
+        "preco_venda_sugerido": 13.0,
         "descricao": "Garrafa 600ml da receita holandesa puro malte Amstel."
     },
-
-    # =========================================================================
-    # 4. REFRIGERANTES EM LATA (350ml)
-    # =========================================================================
     {
         "codigo_barras": "7894900010015",
         "nome": "Refrigerante Coca-Cola Original Lata 350ml",
@@ -460,8 +421,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
         "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.00,
-        "preco_venda_sugerido": 6.00,
+        "preco_custo_sugerido": 3.0,
+        "preco_venda_sugerido": 6.0,
         "descricao": "O refrigerante mais consumido do mundo na embalagem lata de alumínio 350ml."
     },
     {
@@ -472,8 +433,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
         "foto_url": "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.00,
-        "preco_venda_sugerido": 6.00,
+        "preco_custo_sugerido": 3.0,
+        "preco_venda_sugerido": 6.0,
         "descricao": "Zero calorias com o inconfundível sabor Coca-Cola."
     },
     {
@@ -484,8 +445,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
         "foto_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 2.80,
-        "preco_venda_sugerido": 6.00,
+        "preco_custo_sugerido": 2.8,
+        "preco_venda_sugerido": 6.0,
         "descricao": "O sabor do Brasil com extrato natural do fruto da Amazônia."
     },
     {
@@ -496,8 +457,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
         "foto_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 2.80,
-        "preco_venda_sugerido": 6.00,
+        "preco_custo_sugerido": 2.8,
+        "preco_venda_sugerido": 6.0,
         "descricao": "Guaraná natural com zero adição de açúcares."
     },
     {
@@ -508,8 +469,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
         "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 2.80,
-        "preco_venda_sugerido": 6.00,
+        "preco_custo_sugerido": 2.8,
+        "preco_venda_sugerido": 6.0,
         "descricao": "Refrigerante cítrico e frutado sabor laranja com suco natural."
     },
     {
@@ -520,8 +481,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
         "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 2.80,
-        "preco_venda_sugerido": 6.00,
+        "preco_custo_sugerido": 2.8,
+        "preco_venda_sugerido": 6.0,
         "descricao": "Refrigerante borbulhante com sabor marcante de uva."
     },
     {
@@ -532,8 +493,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
         "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 2.80,
-        "preco_venda_sugerido": 6.00,
+        "preco_custo_sugerido": 2.8,
+        "preco_venda_sugerido": 6.0,
         "descricao": "Sabor limão cristalino, refrescante e sem corantes artificiais."
     },
     {
@@ -544,8 +505,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
         "foto_url": "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.20,
-        "preco_venda_sugerido": 7.00,
+        "preco_custo_sugerido": 3.2,
+        "preco_venda_sugerido": 7.0,
         "descricao": "Combinação sofisticada de maçã, grapefruit e laranja. Ideal puro ou em drinks."
     },
     {
@@ -556,38 +517,10 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
         "foto_url": "https://images.unsplash.com/photo-1523362628745-0c100150b504?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.20,
-        "preco_venda_sugerido": 7.00,
+        "preco_custo_sugerido": 3.2,
+        "preco_venda_sugerido": 7.0,
         "descricao": "Tônica tradicional com quinino de amargor requintado, base para Gin Tônica."
     },
-    {
-        "codigo_barras": "7891991000876",
-        "nome": "Refrigerante Sukita Laranja Lata 350ml",
-        "marca": "Sukita",
-        "categoria": "bebidas",
-        "subcategoria": "nao_alcoolicas",
-        "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 2.70,
-        "preco_venda_sugerido": 6.00,
-        "descricao": "Refrigerante sabor laranja borbulhante e refrescante em lata 350ml."
-    },
-    {
-        "codigo_barras": "7891991000883",
-        "nome": "Refrigerante Sukita Uva Lata 350ml",
-        "marca": "Sukita",
-        "categoria": "bebidas",
-        "subcategoria": "nao_alcoolicas",
-        "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 2.70,
-        "preco_venda_sugerido": 6.00,
-        "descricao": "Refrigerante sabor uva com alta carbonatação e sabor marcante em lata 350ml."
-    },
-
-    # =========================================================================
-    # 5. REFRIGERANTES PET E GARRAFA (600ml e 2 Litros)
-    # =========================================================================
     {
         "codigo_barras": "7894900010619",
         "nome": "Refrigerante Coca-Cola Garrafa 600ml",
@@ -595,22 +528,10 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.20,
-        "preco_venda_sugerido": 8.50,
+        "foto_url": "/uploads/catalogo/mestre_7c66a80a08df4398af227b6de26c0a70.webp",
+        "preco_custo_sugerido": 4.2,
+        "preco_venda_sugerido": 8.5,
         "descricao": "Coca-Cola individual em garrafa PET de 600ml com tampa de rosca."
-    },
-    {
-        "codigo_barras": "7894900700619",
-        "nome": "Refrigerante Coca-Cola Sem Açúcar Garrafa 600ml",
-        "marca": "Coca-Cola",
-        "categoria": "bebidas",
-        "subcategoria": "nao_alcoolicas",
-        "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.20,
-        "preco_venda_sugerido": 8.50,
-        "descricao": "Refrigerante individual de cola zero açúcar em garrafa PET de 600ml."
     },
     {
         "codigo_barras": "7891991008063",
@@ -620,8 +541,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
         "foto_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 4.00,
-        "preco_venda_sugerido": 8.00,
+        "preco_custo_sugerido": 4.0,
+        "preco_venda_sugerido": 8.0,
         "descricao": "Guaraná Antarctica em embalagem individual PET de 600ml."
     },
     {
@@ -631,9 +552,9 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 8.50,
-        "preco_venda_sugerido": 16.00,
+        "foto_url": "/uploads/catalogo/mestre_2de4bc31dfdc481aac9c475023a480f0.webp",
+        "preco_custo_sugerido": 8.5,
+        "preco_venda_sugerido": 16.0,
         "descricao": "Garrafa família de 2 Litros para eventos, jantares e confraternizações."
     },
     {
@@ -644,14 +565,10 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
         "foto_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 7.80,
-        "preco_venda_sugerido": 14.50,
+        "preco_custo_sugerido": 7.8,
+        "preco_venda_sugerido": 14.5,
         "descricao": "Guaraná Antarctica em garrafa família de 2 Litros."
     },
-
-    # =========================================================================
-    # 6. ÁGUAS, SUCOS E CHÁS
-    # =========================================================================
     {
         "codigo_barras": "7891048038012",
         "nome": "Água Mineral Crystal Sem Gás 500ml",
@@ -660,8 +577,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "agua",
         "foto_url": "https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 1.50,
-        "preco_venda_sugerido": 4.00,
+        "preco_custo_sugerido": 1.5,
+        "preco_venda_sugerido": 4.0,
         "descricao": "Água mineral límpida e natural engarrafada na fonte."
     },
     {
@@ -672,8 +589,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "agua",
         "foto_url": "https://images.unsplash.com/photo-1523362628745-0c100150b504?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 1.70,
-        "preco_venda_sugerido": 4.50,
+        "preco_custo_sugerido": 1.7,
+        "preco_venda_sugerido": 4.5,
         "descricao": "Água mineral natural com leve gaseificação refrescante."
     },
     {
@@ -684,8 +601,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "agua",
         "foto_url": "https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 1.80,
-        "preco_venda_sugerido": 4.50,
+        "preco_custo_sugerido": 1.8,
+        "preco_venda_sugerido": 4.5,
         "descricao": "Água mineral leve de baixa concentração de sódio."
     },
     {
@@ -696,8 +613,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "chas",
         "foto_url": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.20,
-        "preco_venda_sugerido": 6.50,
+        "preco_custo_sugerido": 3.2,
+        "preco_venda_sugerido": 6.5,
         "descricao": "Chá de erva-mate tostada com suco de limão, servido gelado."
     },
     {
@@ -708,14 +625,10 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "sucos",
         "foto_url": "https://images.unsplash.com/photo-1546173159-315724a31696?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.50,
-        "preco_venda_sugerido": 7.00,
+        "preco_custo_sugerido": 3.5,
+        "preco_venda_sugerido": 7.0,
         "descricao": "Néctar de uva integral em lata 290ml, rico em antioxidantes."
     },
-
-    # =========================================================================
-    # 7. ENERGÉTICOS
-    # =========================================================================
     {
         "codigo_barras": "9002490100070",
         "nome": "Energético Red Bull Energy Drink 250ml",
@@ -724,8 +637,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "energeticos",
         "foto_url": "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 7.50,
-        "preco_venda_sugerido": 15.00,
+        "preco_custo_sugerido": 7.5,
+        "preco_venda_sugerido": 15.0,
         "descricao": "Red Bull te dá asas. A fórmula original que revitaliza mente e corpo."
     },
     {
@@ -736,8 +649,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "energeticos",
         "foto_url": "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 7.50,
-        "preco_venda_sugerido": 15.00,
+        "preco_custo_sugerido": 7.5,
+        "preco_venda_sugerido": 15.0,
         "descricao": "As mesmas asas energéticas do Red Bull original, totalmente sem açúcar."
     },
     {
@@ -748,8 +661,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "energeticos",
         "foto_url": "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 7.80,
-        "preco_venda_sugerido": 16.00,
+        "preco_custo_sugerido": 7.8,
+        "preco_venda_sugerido": 16.0,
         "descricao": "Sabor refrescante de frutas tropicais (maracujá e manga) em lata amarela."
     },
     {
@@ -760,8 +673,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "energeticos",
         "foto_url": "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 7.20,
-        "preco_venda_sugerido": 14.00,
+        "preco_custo_sugerido": 7.2,
+        "preco_venda_sugerido": 14.0,
         "descricao": "O clássico Monster em latão 473ml com taurina, ginseng e cafeína."
     },
     {
@@ -772,14 +685,10 @@ PRODUTOS_POPULARES = [
         "subcategoria": "nao_alcoolicas",
         "tipo": "energeticos",
         "foto_url": "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 7.20,
-        "preco_venda_sugerido": 14.00,
+        "preco_custo_sugerido": 7.2,
+        "preco_venda_sugerido": 14.0,
         "descricao": "Sabor cítrico suave, zero calorias e lata fosca texturizada."
     },
-
-    # =========================================================================
-    # 8. SNACKS & PETISCOS RÁPIDOS DE BALCÃO
-    # =========================================================================
     {
         "codigo_barras": "7896058500203",
         "nome": "Amendoim Torrado e Salgado Dori 120g",
@@ -788,8 +697,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "snacks",
         "tipo": "amendoim",
         "foto_url": "https://images.unsplash.com/photo-1599785209707-a456fc1337bb?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 2.80,
-        "preco_venda_sugerido": 6.00,
+        "preco_custo_sugerido": 2.8,
+        "preco_venda_sugerido": 6.0,
         "descricao": "Amendoim sem pele tostado e crocante com sal refinado."
     },
     {
@@ -800,8 +709,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "snacks",
         "tipo": "amendoim",
         "foto_url": "https://images.unsplash.com/photo-1599785209707-a456fc1337bb?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 3.00,
-        "preco_venda_sugerido": 6.50,
+        "preco_custo_sugerido": 3.0,
+        "preco_venda_sugerido": 6.5,
         "descricao": "Casquinha extra crocante temperada com molho de soja."
     },
     {
@@ -812,8 +721,8 @@ PRODUTOS_POPULARES = [
         "subcategoria": "snacks",
         "tipo": "batata",
         "foto_url": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 8.50,
-        "preco_venda_sugerido": 16.00,
+        "preco_custo_sugerido": 8.5,
+        "preco_venda_sugerido": 16.0,
         "descricao": "Lâminas crocantes de batata no clássico tubo protetor com tampa."
     },
     {
@@ -824,8 +733,56 @@ PRODUTOS_POPULARES = [
         "subcategoria": "snacks",
         "tipo": "batata",
         "foto_url": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=600&auto=format&fit=crop&q=80",
-        "preco_custo_sugerido": 8.50,
-        "preco_venda_sugerido": 16.00,
+        "preco_custo_sugerido": 8.5,
+        "preco_venda_sugerido": 16.0,
         "descricao": "Sabor marcante de sour cream & onion em batatas empilhadas perfeitamente."
+    },
+    {
+        "codigo_barras": "7894900700619",
+        "nome": "Refrigerante Coca-Cola Sem Açúcar Garrafa 600ml",
+        "marca": "Coca-Cola",
+        "categoria": "bebidas",
+        "subcategoria": "nao_alcoolicas",
+        "tipo": "refrigerantes",
+        "foto_url": "/uploads/catalogo/mestre_13d0beeed44d48e6ac57c1ce1a0b3a1c.webp",
+        "preco_custo_sugerido": 4.2,
+        "preco_venda_sugerido": 8.5,
+        "descricao": "Refrigerante individual de cola zero açúcar em garrafa PET de 600ml."
+    },
+    {
+        "codigo_barras": "7891991000876",
+        "nome": "Refrigerante Sukita Laranja Lata 350ml",
+        "marca": "Sukita",
+        "categoria": "bebidas",
+        "subcategoria": "nao_alcoolicas",
+        "tipo": "refrigerantes",
+        "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
+        "preco_custo_sugerido": 2.7,
+        "preco_venda_sugerido": 6.0,
+        "descricao": "Refrigerante sabor laranja borbulhante e refrescante em lata 350ml."
+    },
+    {
+        "codigo_barras": "7891991000883",
+        "nome": "Refrigerante Sukita Uva Lata 350ml",
+        "marca": "Sukita",
+        "categoria": "bebidas",
+        "subcategoria": "nao_alcoolicas",
+        "tipo": "refrigerantes",
+        "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
+        "preco_custo_sugerido": 2.7,
+        "preco_venda_sugerido": 6.0,
+        "descricao": "Refrigerante sabor uva com alta carbonatação e sabor marcante em lata 350ml."
+    },
+    {
+        "codigo_barras": "7891991017423",
+        "nome": "Cerveja Amstel Ultra Low Carb Lata 269ml",
+        "marca": "Amstel",
+        "categoria": "bebidas",
+        "subcategoria": "alcoolicas",
+        "tipo": "cervejas",
+        "foto_url": "/uploads/catalogo/mestre_dd310df7eeb34fd5a587e87011391826.webp",
+        "preco_custo_sugerido": 3.8,
+        "preco_venda_sugerido": 7.5,
+        "descricao": "Cerveja puro malte leve e refrescante com apenas 72 calorias e sem glúten em lata 269ml."
     }
 ]
