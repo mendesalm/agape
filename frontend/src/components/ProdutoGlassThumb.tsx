@@ -20,7 +20,8 @@ export const resolverUrlFoto = (url?: string | null): string => {
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
   const base = (api.defaults.baseURL || 'http://localhost:8000').replace(/\/$/, '');
   const path = url.startsWith('/') ? url : `/${url}`;
-  return `${base}${path}`;
+  const sep = path.includes('?') ? '&' : '?';
+  return `${base}${path}${sep}v=std680`;
 };
 
 export const ProdutoGlassThumb: React.FC<ProdutoGlassThumbProps> = ({

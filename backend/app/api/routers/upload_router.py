@@ -32,10 +32,10 @@ async def visualizar_foto_produto(tenant_id: int, nome_arquivo: str):
 @router.get("/catalogo/{nome_arquivo}")
 async def visualizar_foto_catalogo(nome_arquivo: str):
     """
-    Serve a imagem do Catálogo Global/Mestre com cabeçalhos de cache otimizados.
+    Serve a imagem do Catálogo Global/Mestre com validação imediata (sem cache preso no navegador).
     """
     caminho_absoluto = StorageService.obter_caminho_leitura_catalogo(nome_arquivo)
-    return FileResponse(caminho_absoluto, headers={"Cache-Control": "public, max-age=86400"})
+    return FileResponse(caminho_absoluto, headers={"Cache-Control": "no-cache, must-revalidate"})
 
 @router.post("/catalogo")
 async def upload_foto_catalogo(
