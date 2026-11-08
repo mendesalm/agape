@@ -18,7 +18,10 @@ import {
   UserPlus,
   RotateCcw,
   Camera,
-  RefreshCw
+  RefreshCw,
+  BookOpen,
+  Search,
+  Wine
 } from 'lucide-react';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
 import { ProdutoGlassThumb } from '../components/ProdutoGlassThumb';
@@ -85,6 +88,11 @@ export function Comandas() {
   // Estados dos Modais
   const [isModalNovaOpen, setIsModalNovaOpen] = useState(false);
   const [comandaSelecionada, setComandaSelecionada] = useState<Comanda | null>(null);
+
+  // Estados do Modal Cardápio de Produtos (Escolha Manual sem Equipamento)
+  const [isModalMenuProdutosOpen, setIsModalMenuProdutosOpen] = useState(false);
+  const [buscaMenuProduto, setBuscaMenuProduto] = useState('');
+  const [categoriaFiltroMenu, setCategoriaFiltroMenu] = useState('todos');
 
   // Estados dos Cartões Coringa (Visitantes)
   const [isModalAssociarCoringaOpen, setIsModalAssociarCoringaOpen] = useState(false);
@@ -210,6 +218,51 @@ export function Comandas() {
       setCodigoProdutoInput('');
     }
   };
+
+  // 2.1 Seleção Direta do Cardápio / Menu (Sem necessidade de leitor/câmera)
+  const handleSelecionarProdutoMenu = (prod: Produto) => {
+    setProdutoConferencia(prod);
+    setQtdConferencia(1);
+    setIsModalMenuProdutosOpen(false);
+  };
+
+  const categoriasMenu = [
+    { id: 'todos', label: 'Todos' },
+    { id: 'cervejas', label: 'Cervejas' },
+    { id: 'nao_alcoolicas', label: 'Refrigerantes & Sucos' },
+    { id: 'destilados', label: 'Doses & Destilados' },
+    { id: 'alimentos', label: 'Petiscos & Snacks' }
+  ];
+
+  const produtosFiltradosMenu = produtos.filter((p) => {
+    if (buscaMenuProduto.trim()) {
+      const q = buscaMenuProduto.toLowerCase();
+      const matchNome = (p.nome || '').toLowerCase().includes(q);
+      const matchMarca = (p.marca || '').toLowerCase().includes(q);
+      const matchEan = (p.codigo_barras || '').toLowerCase().includes(q);
+      if (!matchNome && !matchMarca && !matchEan) return false;
+    }
+
+    if (categoriaFiltroMenu === 'todos') return true;
+    const cat = (p.categoria || '').toLowerCase();
+    const sub = (p.subcategoria || '').toLowerCase();
+    const nome = (p.nome || '').toLowerCase();
+
+    if (categoriaFiltroMenu === 'cervejas') {
+      return nome.includes('cerveja') || sub.includes('cerveja') || (cat.includes('bebida') && sub.includes('alcool'));
+    }
+    if (categoriaFiltroMenu === 'nao_alcoolicas') {
+      return sub.includes('nao_alcool') || nome.includes('coca') || nome.includes('sukita') || nome.includes('fanta') || nome.includes('guaran') || nome.includes('agua') || nome.includes('suco') || nome.includes('cha');
+    }
+    if (categoriaFiltroMenu === 'destilados') {
+      return sub.includes('dose') || sub.includes('destilad') || nome.includes('whisky') || nome.includes('gin') || nome.includes('vodka') || nome.includes('cachaca');
+    }
+    if (categoriaFiltroMenu === 'alimentos') {
+      return cat.includes('alimento') || sub.includes('snack') || nome.includes('amendoim') || nome.includes('batata') || nome.includes('torresmo') || nome.includes('petisco');
+    }
+
+    return true;
+  });
 
   // 3. Conferência & Lançamento na Conta
   const handleConfirmarVendaBalcao = async () => {
@@ -523,11 +576,23 @@ export function Comandas() {
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                     <Barcode size={15} className="text-amber-400" />
-                    Passo 2: Bipar Lata / Garrafa / Embalagem
+                    Passo 2: Bipar Produto ou Escolher do Menu
                   </span>
-                  <span className="text-[9px] text-amber-300 bg-amber-400/10 px-2 py-0.5 rounded-full font-bold">
-                    FEFO Automático
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={!comandaBalcaoAtiva}
+                      onClick={() => setIsModalMenuProdutosOpen(true)}
+                      className="text-[10px] text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 transition disabled:opacity-40"
+                      title="Abrir cardápio visual de produtos"
+                    >
+                      <BookOpen size={11} />
+                      <span>Cardápio</span>
+                    </button>
+                    <span className="text-[9px] text-cyan-300 bg-cyan-400/10 px-2 py-0.5 rounded-full font-bold">
+                      FEFO Auto
+                    </span>
+                  </div>
                 </div>
 
                 <form onSubmit={e => handleBiparProdutoBalcao(e)} className="flex gap-2 mb-3">
@@ -554,6 +619,16 @@ export function Comandas() {
                     title="Escanear com a Câmera"
                   >
                     <Camera size={18} />
+                  </button>
+                  <button 
+                    type="button"
+                    disabled={!comandaBalcaoAtiva}
+                    onClick={() => setIsModalMenuProdutosOpen(true)}
+                    className="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 flex items-center gap-1.5 text-xs font-bold transition disabled:opacity-40 shadow-sm"
+                    title="Escolher produto do cardápio visual"
+                  >
+                    <BookOpen size={16} />
+                    <span className="hidden sm:inline">Menu</span>
                   </button>
                   <button 
                     type="submit" 
@@ -636,9 +711,18 @@ export function Comandas() {
                   </div>
                 </div>
               ) : (
-                <div className="p-6 border border-dashed border-white/10 rounded-2xl text-center text-slate-500 my-auto">
-                  <Barcode className="w-10 h-10 mx-auto mb-1.5 text-slate-600" />
-                  <p className="text-xs font-medium">Aguardando bipagem do produto no balcão...</p>
+                <div className="p-5 border border-dashed border-white/10 rounded-2xl text-center text-slate-500 my-auto flex flex-col items-center justify-center">
+                  <Barcode className="w-8 h-8 mx-auto mb-1.5 text-slate-600" />
+                  <p className="text-xs font-medium text-slate-400 mb-3">Bipe a embalagem ou escolha diretamente do cardápio</p>
+                  <button
+                    type="button"
+                    disabled={!comandaBalcaoAtiva}
+                    onClick={() => setIsModalMenuProdutosOpen(true)}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95 transition disabled:opacity-40 disabled:pointer-events-none"
+                  >
+                    <BookOpen size={16} />
+                    <span>Escolher do Menu / Cardápio</span>
+                  </button>
                 </div>
               )}
             </section>
@@ -1075,6 +1159,136 @@ export function Comandas() {
           titulo={cameraContexto === 'cartao' ? 'Ler Cartão ou QR Code do Cliente' : 'Bipar Código de Barras / QR da Embalagem'}
           subtitulo="Aponte a câmera para o QR Code do cartão ou para a lata/garrafa"
         />
+      )}
+
+      {/* Modal: Escolher Produto do Cardápio / Menu (Sem Equipamento) */}
+      {isModalMenuProdutosOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+          <div className="relative w-full max-w-4xl max-h-[90vh] flex flex-col rounded-3xl bg-[#0a1120] border border-white/15 shadow-2xl overflow-hidden animate-scaleUp">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-amber-950/30 via-slate-900/60 to-slate-900/40">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-inner">
+                  <BookOpen size={20} />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-black text-white">Cardápio do Bar — Selecionar Produto</h2>
+                  <p className="text-xs text-slate-400">Toque no produto para lançar diretamente na conferência do balcão</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsModalMenuProdutosOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Barra de Busca e Filtros de Categoria */}
+            <div className="p-3 sm:p-4 border-b border-white/10 bg-slate-900/40 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  type="text"
+                  value={buscaMenuProduto}
+                  onChange={(e) => setBuscaMenuProduto(e.target.value)}
+                  placeholder="Buscar produto por nome, marca ou EAN..."
+                  className="w-full pl-10 pr-8 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/50"
+                  autoFocus
+                />
+                {buscaMenuProduto && (
+                  <button
+                    onClick={() => setBuscaMenuProduto('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Categorias Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 custom-scrollbar text-[11px] font-bold">
+                {categoriasMenu.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setCategoriaFiltroMenu(cat.id)}
+                    className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all ${
+                      categoriaFiltroMenu === cat.id
+                        ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/25'
+                        : 'bg-white/[0.06] hover:bg-white/10 text-slate-300 border border-white/10'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Grid de Produtos com ProdutoGlassThumb */}
+            <div className="p-4 overflow-y-auto flex-1 custom-scrollbar min-h-[300px]">
+              {produtosFiltradosMenu.length === 0 ? (
+                <div className="py-16 text-center text-slate-400">
+                  <Wine size={38} className="mx-auto mb-2 text-slate-600" />
+                  <p className="text-sm font-semibold">Nenhum produto encontrado</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {produtos.length === 0 
+                      ? 'Não há produtos cadastrados no estoque deste bar.' 
+                      : 'Tente buscar com outro termo ou selecione outro filtro de categoria.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {produtosFiltradosMenu.map((prod) => (
+                    <button
+                      key={prod.id}
+                      type="button"
+                      onClick={() => handleSelecionarProdutoMenu(prod)}
+                      className="group relative rounded-2xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] hover:from-white/[0.14] hover:to-white/[0.06] backdrop-blur-xl border border-white/10 hover:border-amber-400/50 p-2.5 text-left transition-all duration-200 flex flex-col justify-between shadow-lg hover:shadow-amber-500/10 hover:-translate-y-0.5 active:scale-95"
+                    >
+                      <div>
+                        <ProdutoGlassThumb
+                          fotoUrl={prod.foto_url}
+                          nome={prod.nome}
+                          categoria={prod.categoria}
+                          subcategoria={prod.subcategoria}
+                          tamanho="full"
+                          aspectRatio="square"
+                          containerClassName="mb-2"
+                        />
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 line-clamp-1">
+                          {prod.marca || prod.categoria || 'Bar'}
+                        </span>
+                        <h3 className="text-xs font-bold text-white line-clamp-2 mt-0.5 group-hover:text-amber-300 transition-colors">
+                          {prod.nome}
+                        </h3>
+                      </div>
+
+                      <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between">
+                        <span className="text-xs sm:text-sm font-black text-amber-400 tabular-nums">
+                          R$ {prod.preco_venda.toFixed(2).replace('.', ',')}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-lg bg-amber-400/10 text-amber-300 font-bold group-hover:bg-amber-400 group-hover:text-slate-950 transition-colors">
+                          Escolher
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer do Modal */}
+            <div className="p-3 border-t border-white/10 bg-slate-900/60 flex items-center justify-between text-xs text-slate-400">
+              <span>Exibindo <strong>{produtosFiltradosMenu.length}</strong> produtos disponíveis</span>
+              <button
+                onClick={() => setIsModalMenuProdutosOpen(false)}
+                className="px-4 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 font-semibold transition"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
