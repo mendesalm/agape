@@ -228,7 +228,7 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
-        "foto_url": "https://images.unsplash.com/photo-1518057111178-44a106bad636?w=600&auto=format&fit=crop&q=80",
+        "foto_url": "/uploads/catalogo/mestre_697ded7a4dfb4240a98d2476bed4d05c.webp",
         "preco_custo_sugerido": 4.4,
         "preco_venda_sugerido": 8.5,
         "descricao": "Cerveja ultra leve com apenas 79 calorias e 80% menos carboidratos."
@@ -408,7 +408,7 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
-        "foto_url": "/uploads/catalogo/mestre_e1346944b7f44f02b03af7fadb739f43.webp",
+        "foto_url": "/uploads/catalogo/mestre_671f89b7823d49f8b861326940e6c44b.webp",
         "preco_custo_sugerido": 6.8,
         "preco_venda_sugerido": 13.0,
         "descricao": "Garrafa 600ml da receita holandesa puro malte Amstel."
@@ -420,7 +420,7 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
+        "foto_url": "/uploads/catalogo/mestre_8d43fbfc17cf4805a3090f55a69cd1ca.webp",
         "preco_custo_sugerido": 3.0,
         "preco_venda_sugerido": 6.0,
         "descricao": "O refrigerante mais consumido do mundo na embalagem lata de alumínio 350ml."
@@ -432,7 +432,7 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=600&auto=format&fit=crop&q=80",
+        "foto_url": "/uploads/catalogo/mestre_f10a7c17565c4d72a62da1056b9e65ed.webp",
         "preco_custo_sugerido": 3.0,
         "preco_venda_sugerido": 6.0,
         "descricao": "Zero calorias com o inconfundível sabor Coca-Cola."
@@ -444,7 +444,7 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&auto=format&fit=crop&q=80",
+        "foto_url": "/uploads/catalogo/mestre_8121f96d0fb54c2888e524151e848007.webp",
         "preco_custo_sugerido": 2.8,
         "preco_venda_sugerido": 6.0,
         "descricao": "O sabor do Brasil com extrato natural do fruto da Amazônia."
@@ -456,7 +456,7 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&auto=format&fit=crop&q=80",
+        "foto_url": "/uploads/catalogo/mestre_b67200eefe4a4ec396ded344d26277b3.webp",
         "preco_custo_sugerido": 2.8,
         "preco_venda_sugerido": 6.0,
         "descricao": "Guaraná natural com zero adição de açúcares."
@@ -468,7 +468,7 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
+        "foto_url": "/uploads/catalogo/mestre_b093be2e22ec474a9780d5af461f4276.webp",
         "preco_custo_sugerido": 2.8,
         "preco_venda_sugerido": 6.0,
         "descricao": "Refrigerante cítrico e frutado sabor laranja com suco natural."
@@ -480,7 +480,7 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
+        "foto_url": "/uploads/catalogo/mestre_a94032fcfd9745518fa9093b7843f7da.webp",
         "preco_custo_sugerido": 2.8,
         "preco_venda_sugerido": 6.0,
         "descricao": "Refrigerante borbulhante com sabor marcante de uva."
@@ -492,7 +492,7 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
+        "foto_url": "/uploads/catalogo/mestre_aa49a883ba2942cf918e4f19cdd38c24.webp",
         "preco_custo_sugerido": 2.8,
         "preco_venda_sugerido": 6.0,
         "descricao": "Sabor limão cristalino, refrescante e sem corantes artificiais."
@@ -504,7 +504,7 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=600&auto=format&fit=crop&q=80",
+        "foto_url": "/uploads/catalogo/mestre_78076e8f7a8a497390d3c818a7547b7d.webp",
         "preco_custo_sugerido": 3.2,
         "preco_venda_sugerido": 7.0,
         "descricao": "Combinação sofisticada de maçã, grapefruit e laranja. Ideal puro ou em drinks."
@@ -516,7 +516,7 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1523362628745-0c100150b504?w=600&auto=format&fit=crop&q=80",
+        "foto_url": "/uploads/catalogo/mestre_fa7227ebfef8424ab81649790f18616f.webp",
         "preco_custo_sugerido": 3.2,
         "preco_venda_sugerido": 7.0,
         "descricao": "Tônica tradicional com quinino de amargor requintado, base para Gin Tônica."
@@ -756,7 +756,7 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
+        "foto_url": "/uploads/catalogo/mestre_590477f512154fd8af1a130032d9c3c8.webp",
         "preco_custo_sugerido": 2.7,
         "preco_venda_sugerido": 6.0,
         "descricao": "Refrigerante sabor laranja borbulhante e refrescante em lata 350ml."
@@ -768,7 +768,7 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "nao_alcoolicas",
         "tipo": "refrigerantes",
-        "foto_url": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80",
+        "foto_url": "/uploads/catalogo/mestre_2ecacaf162f54ab4955cad06d3de62b8.webp",
         "preco_custo_sugerido": 2.7,
         "preco_venda_sugerido": 6.0,
         "descricao": "Refrigerante sabor uva com alta carbonatação e sabor marcante em lata 350ml."
@@ -780,7 +780,7 @@ PRODUTOS_POPULARES = [
         "categoria": "bebidas",
         "subcategoria": "alcoolicas",
         "tipo": "cervejas",
-        "foto_url": "/uploads/catalogo/mestre_dd310df7eeb34fd5a587e87011391826.webp",
+        "foto_url": "/uploads/catalogo/mestre_d853518a48ac49a983b3cd39abe32d48.webp",
         "preco_custo_sugerido": 3.8,
         "preco_venda_sugerido": 7.5,
         "descricao": "Cerveja puro malte leve e refrescante com apenas 72 calorias e sem glúten em lata 269ml."

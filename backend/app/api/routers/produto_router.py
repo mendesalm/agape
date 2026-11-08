@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 
 from app.core.database import obter_sessao
 from app.schemas.produto_schema import (
@@ -17,6 +17,28 @@ from app.api.dependencias import obter_usuario_logado
 from app.models.usuario import Usuario
 
 router = APIRouter(prefix="/produtos", tags=["Produtos e Estoque em 2 Níveis (SaaS)"])
+
+@router.post("/sincronizar-catalogo")
+async def sincronizar_catalogo_loja(
+    tenant_id: Optional[int] = Query(None, description="ID do estabelecimento para sincronização"),
+    auto_importar: bool = Query(True, description="Importar produtos do catálogo mestre ausentes na loja"),
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Sincroniza o estoque e catálogo da loja com o Catálogo Global Mestre:
+    - Atualiza produtos existentes com fotos HD/WebP padronizadas e códigos EAN oficiais.
+    - Importa novos produtos com lote inicial pronto para venda.
+    """
+    alvo_tenant = usuario.tenant_id
+    if not alvo_tenant:
+        if (usuario.cargo or '').upper() == 'SUPERADMIN':
+            alvo_tenant = tenant_id or 1
+        else:
+            raise HTTPException(status_code=400, detail="Usuário sem loja vinculada.")
+
+    servico = ProdutoService(db, alvo_tenant)
+    return await servico.sincronizar_com_catalogo_mestre(auto_importar_novos=auto_importar)
 
 @router.get("/alertas", response_model=AlertaEstoqueGeral)
 async def obter_alertas_estoque(

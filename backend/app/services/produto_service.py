@@ -434,3 +434,231 @@ class ProdutoService:
             lotes_vencendo=lotes_vencendo,
             lotes_vencidos=lotes_vencidos
         )
+
+    async def sincronizar_com_catalogo_mestre(self, auto_importar_novos: bool = True) -> dict:
+        """
+        Sincroniza os produtos da loja com o Catálogo Global Mestre de Produtos:
+        1. Para produtos já existentes:
+           - Localiza correspondência no catálogo mestre (por EAN validado ou similaridade ponderada de tokens).
+           - Atualiza foto_url oficial (WebPs padronizados), codigo_barras oficial, marca, categoria, subcategoria e tipo.
+        2. Para produtos do catálogo mestre ainda não existentes na loja:
+           - Se auto_importar_novos=True, cadastra o produto e cria um lote inicial de estoque (24 na gôndola, 48 no armazém).
+        """
+        from sqlalchemy.future import select
+        from app.models.catalogo_mestre import CatalogoMestreProduto
+        from app.models.produto import CategoriaProduto, SubcategoriaProduto
+        from app.models.estoque import LoteEstoque
+        from datetime import datetime, timedelta
+        import re
+
+        def extrair_tokens(texto):
+            if not texto: return set()
+            texto = texto.lower()
+            for c, r in [('á','a'),('à','a'),('ã','a'),('â','a'),('é','e'),('ê','e'),('í','i'),('ó','o'),('ô','o'),('õ','o'),('ú','u'),('ç','c')]:
+                texto = texto.replace(c, r)
+            tokens = re.findall(r'[a-z0-9]+', texto)
+            stop = {'de', 'com', 'sem', 'em', 'para', 'e', 'do', 'da', 'dos', 'das', 'ml', 'g', 'l'}
+            return set(t for t in tokens if t not in stop)
+
+        MARCAS_CONHECIDAS = ['heineken', 'stella', 'corona', 'coca', 'guarana', 'crystal', 'red bull', 'amstel', 'spaten', 'brahma', 'skol', 'antarctica', 'schweppes', 'sukita', 'fanta', 'sprite']
+
+        def converter_categoria(cat_str: str) -> CategoriaProduto:
+            c = (cat_str or "").lower().strip()
+            if "alim" in c or "snack" in c or "comida" in c:
+                return CategoriaProduto.ALIMENTOS
+            elif "tabac" in c:
+                return CategoriaProduto.TABACOS_CONVENIENCIA
+            return CategoriaProduto.BEBIDAS
+
+        def converter_subcategoria(sub_str: str) -> SubcategoriaProduto:
+            s = (sub_str or "").lower().strip()
+            if "nao" in s or "sem" in s:
+                return SubcategoriaProduto.NAO_ALCOOLICAS
+            elif "snack" in s or "petisco" in s:
+                return SubcategoriaProduto.SNACKS_PETISCOS
+            elif "refeic" in s:
+                return SubcategoriaProduto.REFEICOES
+            elif "sobrem" in s:
+                return SubcategoriaProduto.SOBREMESAS
+            elif "alcool" in s or "cerveja" in s or "vinho" in s or "destil" in s:
+                return SubcategoriaProduto.ALCOOLICAS
+            return SubcategoriaProduto.OUTROS
+
+        # 1. Carregar produtos ativos do catálogo mestre
+        res_mestre = await self.db.execute(
+            select(CatalogoMestreProduto).where(CatalogoMestreProduto.ativo == True)
+        )
+        mestres = res_mestre.scalars().all()
+
+        # 2. Carregar produtos existentes da loja
+        produtos_loja = await self.repo.listar_todos(skip=0, limit=2000)
+
+        atualizados = []
+        mestres_pareados_ids = set()
+
+        for p_loja in produtos_loja:
+            tokens_loja = extrair_tokens(p_loja.nome)
+            is_zero_loja = ('sem' in p_loja.nome.lower() or 'zero' in p_loja.nome.lower())
+            is_lata_loja = ('lata' in p_loja.nome.lower())
+            
+            melhor_m = None
+            melhor_score = -100
+
+            # 1. Casamento por EAN com verificação de coerência de marca
+            if p_loja.codigo_barras:
+                for m in mestres:
+                    if m.codigo_barras == p_loja.codigo_barras:
+                        tokens_m = extrair_tokens(m.nome)
+                        conflito = any((marca in tokens_loja) != (marca in tokens_m) for marca in MARCAS_CONHECIDAS)
+                        if not conflito:
+                            melhor_m = m
+                            break
+
+            # 2. Casamento por similaridade de tokens
+            if not melhor_m:
+                for m in mestres:
+                    tokens_m = extrair_tokens(m.nome)
+                    inter = tokens_loja.intersection(tokens_m)
+                    if not inter:
+                        continue
+                    
+                    score = len(inter) * 2
+
+                    # Penalidade/Bônus de marca
+                    for marca in MARCAS_CONHECIDAS:
+                        if marca in tokens_loja and marca in tokens_m:
+                            score += 10
+                        elif (marca in tokens_loja) != (marca in tokens_m):
+                            score -= 15
+
+                    # Penalidade estrita de tipo de bebida
+                    if ('cerveja' in p_loja.nome.lower()) != ('cerveja' in m.nome.lower()):
+                        score -= 25
+                    if ('tonica' in p_loja.nome.lower()) != ('tonica' in m.nome.lower()):
+                        score -= 25
+                    if ('refrigerante' in p_loja.nome.lower()) and ('cerveja' in m.nome.lower()):
+                        score -= 30
+
+                    # Zero vs normal
+                    is_zero_m = ('sem' in m.nome.lower() or 'zero' in m.nome.lower())
+                    if is_zero_loja == is_zero_m:
+                        score += 4
+                    else:
+                        score -= 8
+
+                    # Lata vs Long Neck / Garrafa
+                    is_lata_m = ('lata' in m.nome.lower())
+                    if is_lata_loja == is_lata_m:
+                        score += 3
+                    else:
+                        score -= 3
+
+                    # Volume
+                    for vol in ['350', '330', '473', '600', '250', '500', '2l']:
+                        if vol in p_loja.nome.lower() and vol in m.nome.lower():
+                            score += 5
+                        elif vol in p_loja.nome.lower() and vol not in m.nome.lower():
+                            score -= 4
+
+                    if score > melhor_score and score >= 8:
+                        melhor_score = score
+                        melhor_m = m
+
+            if melhor_m:
+                mestres_pareados_ids.add(melhor_m.id)
+                mudou = False
+                if melhor_m.foto_url and p_loja.foto_url != melhor_m.foto_url:
+                    p_loja.foto_url = melhor_m.foto_url
+                    mudou = True
+                if melhor_m.codigo_barras and p_loja.codigo_barras != melhor_m.codigo_barras:
+                    p_loja.codigo_barras = melhor_m.codigo_barras
+                    mudou = True
+                if melhor_m.marca and p_loja.marca != melhor_m.marca:
+                    p_loja.marca = melhor_m.marca
+                    mudou = True
+                if melhor_m.tipo and p_loja.tipo != melhor_m.tipo:
+                    p_loja.tipo = melhor_m.tipo
+                    mudou = True
+                if melhor_m.categoria:
+                    nova_cat = converter_categoria(melhor_m.categoria)
+                    if p_loja.categoria != nova_cat:
+                        p_loja.categoria = nova_cat
+                        mudou = True
+                if melhor_m.subcategoria:
+                    nova_sub = converter_subcategoria(melhor_m.subcategoria)
+                    if p_loja.subcategoria != nova_sub:
+                        p_loja.subcategoria = nova_sub
+                        mudou = True
+
+                if mudou:
+                    self.db.add(p_loja)
+                    atualizados.append({
+                        "id": p_loja.id,
+                        "nome": p_loja.nome,
+                        "mestre_nome": melhor_m.nome,
+                        "codigo_barras": p_loja.codigo_barras,
+                        "foto_url": p_loja.foto_url
+                    })
+
+        # 3. Importação de novos produtos do catálogo mestre ausentes na loja
+        importados = []
+        if auto_importar_novos:
+            eans_existentes = {p.codigo_barras for p in produtos_loja if p.codigo_barras}
+            nomes_existentes = {p.nome.lower().strip() for p in produtos_loja}
+
+            for m in mestres:
+                if m.id in mestres_pareados_ids:
+                    continue
+                if m.codigo_barras and m.codigo_barras in eans_existentes:
+                    continue
+                if m.nome.lower().strip() in nomes_existentes:
+                    continue
+
+                novo_prod = Produto(
+                    tenant_id=self.tenant_id,
+                    nome=m.nome,
+                    codigo_barras=m.codigo_barras,
+                    marca=m.marca,
+                    categoria=converter_categoria(m.categoria),
+                    subcategoria=converter_subcategoria(m.subcategoria),
+                    tipo=m.tipo,
+                    foto_url=m.foto_url,
+                    descricao=m.descricao,
+                    preco_custo=m.preco_custo_sugerido or 0.0,
+                    preco_venda=m.preco_venda_sugerido or 0.0,
+                    estoque_minimo_gondola=5,
+                    estoque_minimo_armazem=15,
+                    ativo=True
+                )
+                self.db.add(novo_prod)
+                await self.db.flush()
+
+                # Cria lote inicial
+                lote_inicial = LoteEstoque(
+                    tenant_id=self.tenant_id,
+                    produto_id=novo_prod.id,
+                    numero_lote=f"L-INIC-{m.codigo_barras[-4:] if m.codigo_barras else str(novo_prod.id)}",
+                    quantidade_gondola=24,
+                    quantidade_armazem=48,
+                    preco_custo_unitario=novo_prod.preco_custo,
+                    data_fabricacao=datetime.utcnow() - timedelta(days=15),
+                    data_validade=datetime.utcnow() + timedelta(days=180),
+                    ativo=True
+                )
+                self.db.add(lote_inicial)
+                importados.append({
+                    "id": novo_prod.id,
+                    "nome": novo_prod.nome,
+                    "codigo_barras": novo_prod.codigo_barras,
+                    "foto_url": novo_prod.foto_url
+                })
+
+        await self.db.commit()
+        return {
+            "status": "sucesso",
+            "atualizados_count": len(atualizados),
+            "importados_count": len(importados),
+            "total_loja": len(produtos_loja) + len(importados),
+            "atualizados": atualizados,
+            "importados": importados
+        }

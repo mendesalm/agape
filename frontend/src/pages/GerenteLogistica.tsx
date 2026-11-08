@@ -16,7 +16,8 @@ import {
   Trash2, 
   Save, 
   Camera, 
-  Layers
+  Layers,
+  RefreshCw
 } from 'lucide-react';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
 import { ProdutoGlassThumb } from '../components/ProdutoGlassThumb';
@@ -75,6 +76,7 @@ export const GerenteLogistica: React.FC = () => {
   const [categoriaPrincipal, setCategoriaPrincipal] = useState<'BEBIDAS' | 'ALIMENTOS'>('BEBIDAS');
   const [subcategoriaBebidas, setSubcategoriaBebidas] = useState<'TODAS' | 'ALCOOLICAS' | 'NAO_ALCOOLICAS'>('TODAS');
   const [filtroPill, setFiltroPill] = useState<'todos' | 'repor_bar' | 'baixo_estoque'>('todos');
+  const [sincronizandoCatalogo, setSincronizandoCatalogo] = useState(false);
 
   // Estados para a Tela 8 (Detalhe do Produto & Lotes)
   const [isEditandoPreco, setIsEditandoPreco] = useState(false);
@@ -374,6 +376,22 @@ export const GerenteLogistica: React.FC = () => {
     }
   };
 
+  const handleSincronizarCatalogo = async () => {
+    if (!confirm('Deseja sincronizar o catálogo deste Bar com o Catálogo Global Mestre?\n\n• Atualiza fotos padronizadas em alta resolução (WebP)\n• Atualiza códigos de barras de fábrica (EAN-13)\n• Importa novos produtos com lotes iniciais prontos para venda')) {
+      return;
+    }
+    try {
+      setSincronizandoCatalogo(true);
+      const res = await api.post('/produtos/sincronizar-catalogo');
+      await carregarProdutos();
+      alert(`Sincronização concluída com sucesso!\n\n• ${res.data.atualizados_count} produtos atualizados com fotos HD e EANs oficiais\n• ${res.data.importados_count} novos produtos importados do catálogo mestre\n• Total de produtos ativos no bar: ${res.data.total_loja}`);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao sincronizar com o catálogo mestre.');
+    } finally {
+      setSincronizandoCatalogo(false);
+    }
+  };
+
   return (
     <div className="relative min-h-[calc(100vh-3.5rem)] flex flex-col justify-between p-4 sm:p-6 lg:p-8 max-w-lg lg:max-w-4xl mx-auto overflow-hidden animate-fadeIn select-none text-slate-100">
       
@@ -411,6 +429,16 @@ export const GerenteLogistica: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              <button 
+                onClick={handleSincronizarCatalogo}
+                disabled={sincronizandoCatalogo}
+                className="h-10 px-3 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 flex items-center gap-1.5 transition active:scale-95 shadow-inner hover:bg-indigo-500/30 text-xs font-semibold disabled:opacity-50"
+                title="Sincronizar produtos e fotos com o Catálogo Global Mestre"
+              >
+                <RefreshCw size={16} className={sincronizandoCatalogo ? 'animate-spin' : ''} />
+                <span className="hidden sm:inline">Sincronizar Catálogo</span>
+              </button>
+
               <button 
                 onClick={() => setModoView('cadastro')}
                 className="w-10 h-10 rounded-2xl bg-cyan-400/20 border border-cyan-400/40 text-cyan-300 flex items-center justify-center transition active:scale-95 shadow-inner hover:bg-cyan-400/30"
