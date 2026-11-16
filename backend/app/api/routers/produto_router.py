@@ -78,12 +78,13 @@ async def obter_alertas_estoque(
 @router.get("/", response_model=List[ProdutoResponse])
 async def listar(
     skip: int = 0, 
-    limit: int = 100, 
+    limit: int = 100,
+    apenas_com_estoque: bool = Query(False, description="Retornar apenas produtos ativos com estoque maior que zero"),
     db: AsyncSession = Depends(obter_sessao),
     usuario: Usuario = Depends(obter_usuario_logado)
 ):
     servico = ProdutoService(db, usuario.tenant_id)
-    return await servico.listar_produtos(skip, limit)
+    return await servico.listar_produtos(skip, limit, apenas_com_estoque=apenas_com_estoque)
 
 @router.get("/consultar-ean/{codigo:path}")
 async def consultar_dados_ean(

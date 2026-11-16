@@ -36,7 +36,7 @@ export function ComandaMenuScreen({ route, navigation }: Props) {
   const carregarCardapio = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/produtos/');
+      const res = await api.get('/produtos/?apenas_com_estoque=true');
       // Apenas produtos disponíveis na gôndola/geladeira
       const disponiveis = res.data.filter((p: any) => p.ativo && p.quantidade_gondola > 0);
       setProdutos(disponiveis);

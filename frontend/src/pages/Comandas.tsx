@@ -121,7 +121,7 @@ export function Comandas() {
       setLoading(true);
       const [respComandas, respProdutos] = await Promise.all([
         api.get('/comandas/').catch(() => ({ data: [] })),
-        api.get('/produtos/').catch(() => ({ data: [] }))
+        api.get('/produtos/?apenas_com_estoque=true').catch(() => ({ data: [] }))
       ]);
       setComandas(Array.isArray(respComandas.data) ? respComandas.data : []);
       setProdutos(Array.isArray(respProdutos.data) ? respProdutos.data : []);
@@ -234,7 +234,9 @@ export function Comandas() {
     { id: 'alimentos', label: 'Petiscos & Snacks' }
   ];
 
-  const produtosFiltradosMenu = produtos.filter((p) => {
+  const produtosDisponiveis = produtos.filter((p) => (p.quantidade_estoque ?? 0) > 0);
+
+  const produtosFiltradosMenu = produtosDisponiveis.filter((p) => {
     if (buscaMenuProduto.trim()) {
       const q = buscaMenuProduto.toLowerCase();
       const matchNome = (p.nome || '').toLowerCase().includes(q);
@@ -902,7 +904,7 @@ export function Comandas() {
                         className="flex-1 px-2.5 py-1.5 rounded-lg text-xs bg-[#0B1324] text-white border border-white/10 focus:outline-none"
                       >
                         <option value="" disabled className="text-slate-500">Selecione um Produto...</option>
-                        {produtos.map(p => (
+                        {produtosDisponiveis.map(p => (
                           <option key={p.id} value={p.id} className="text-white bg-[#0B1324]">
                             {p.nome} - R$ {p.preco_venda.toFixed(2).replace('.', ',')}
                           </option>
@@ -1231,8 +1233,8 @@ export function Comandas() {
                   <Wine size={38} className="mx-auto mb-2 text-slate-600" />
                   <p className="text-sm font-semibold">Nenhum produto encontrado</p>
                   <p className="text-xs text-slate-500 mt-1">
-                    {produtos.length === 0 
-                      ? 'Não há produtos cadastrados no estoque deste bar.' 
+                    {produtosDisponiveis.length === 0 
+                      ? 'Não há produtos com estoque disponível neste bar.' 
                       : 'Tente buscar com outro termo ou selecione outro filtro de categoria.'}
                   </p>
                 </div>

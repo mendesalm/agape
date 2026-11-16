@@ -57,11 +57,20 @@ class ProdutoService:
                 
         return produto
 
-    async def listar_produtos(self, skip: int = 0, limit: int = 100) -> List[Produto]:
+    async def listar_produtos(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        apenas_com_estoque: bool = False
+    ) -> List[Produto]:
         produtos = await self.repo.listar_todos(skip, limit)
+        resultado = []
         for p in produtos:
             await self._injetar_dados_estoque(p)
-        return produtos
+            if apenas_com_estoque and (not p.ativo or getattr(p, "quantidade_estoque", 0) <= 0):
+                continue
+            resultado.append(p)
+        return resultado
 
     async def obter_produto(self, produto_id: int) -> Produto:
         produto = await self.repo.buscar_por_id(produto_id)
