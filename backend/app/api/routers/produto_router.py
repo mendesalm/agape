@@ -99,7 +99,28 @@ async def consultar_dados_ean(
     """
     from app.services.consulta_ean_service import ConsultaEanService
     servico = ConsultaEanService(db)
-    return await servico.consultar(codigo)
+    return await servico.consultar(codigo, tenant_id=usuario.tenant_id)
+
+@router.get("/{produto_id}/buscar-codigos-alternativos")
+async def buscar_codigos_alternativos_internet(
+    produto_id: int,
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Pesquisa na internet (Open Food Facts) outros códigos de barras de produtos
+    semelhantes ao produto informado, para sugerir referenciamento ao usuário.
+    """
+    from app.services.consulta_ean_service import ConsultaEanService
+    servico_prod = ProdutoService(db, usuario.tenant_id)
+    produto = await servico_prod.obter_produto(produto_id)
+    consulta = ConsultaEanService(db)
+    sugestoes = await consulta.buscar_codigos_alternativos_internet(produto)
+    return {
+        "produto_id": produto.id,
+        "nome": produto.nome,
+        "sugestoes": sugestoes
+    }
 
 @router.get("/codigo/{codigo}", response_model=ProdutoResponse)
 async def obter_por_codigo(

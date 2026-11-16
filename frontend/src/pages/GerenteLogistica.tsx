@@ -85,6 +85,9 @@ export const GerenteLogistica: React.FC = () => {
   const [novoPrecoCusto, setNovoPrecoCusto] = useState('');
   const [novoCodigoAlternativo, setNovoCodigoAlternativo] = useState('');
   const [salvandoCodigoAlternativo, setSalvandoCodigoAlternativo] = useState(false);
+  const [buscandoSugestoesEan, setBuscandoSugestoesEan] = useState(false);
+  const [sugestoesEanInternet, setSugestoesEanInternet] = useState<Array<{ codigo: string; nome: string; marca?: string; foto_url?: string; score: number }>>([]);
+  const [produtoSimilarSugerido, setProdutoSimilarSugerido] = useState<{ id: number; nome: string; codigo_barras?: string; codigos_barras_alternativos?: string[]; foto_url?: string } | null>(null);
   const [isModalTransferir, setIsModalTransferir] = useState(false);
   const [qtdTransferir, setQtdTransferir] = useState('6');
   
@@ -188,6 +191,8 @@ export const GerenteLogistica: React.FC = () => {
     setProdutoEmGestao(prod);
     setNovoPrecoVenda(prod.preco_venda.toFixed(2));
     setNovoPrecoCusto(prod.preco_custo.toFixed(2));
+    setSugestoesEanInternet([]);
+    setNovoCodigoAlternativo('');
     setModoView('detalhe');
   };
 
@@ -294,11 +299,23 @@ export const GerenteLogistica: React.FC = () => {
 
     if (origemCamera === 'cadastro') {
       setCadCodigo(codigoLimpo);
+      setProdutoSimilarSugerido(null);
       try {
         setConsultandoEan(true);
         const res = await api.get(`/produtos/consultar-ean/${encodeURIComponent(codigoLimpo)}`);
         if (res.data) {
           const d = res.data;
+          if (d.produto_existente_loja) {
+            const prodExistente = produtos.find((p) => p.id === d.produto_existente_loja.id);
+            if (prodExistente) {
+              alert(`Este código já está vinculado ao produto "${prodExistente.nome}". Abrindo detalhes do produto.`);
+              handleAbrirDetalhes(prodExistente);
+              return;
+            }
+          }
+          if (d.produto_similar_existente) {
+            setProdutoSimilarSugerido(d.produto_similar_existente);
+          }
           if (d.nome) setCadNome(d.nome);
           if (d.foto_url) setCadFotoUrl(d.foto_url);
           if (d.preco_custo) setCadCusto(Number(d.preco_custo).toFixed(2));
@@ -321,7 +338,11 @@ export const GerenteLogistica: React.FC = () => {
     } else {
       // Origem Catálogo (Escanear / Repor Gôndola)
       const produtoLocal = produtos.find(
-        (p) => p.codigo_barras === codigoLimpo || p.qr_code_tag === codigoLimpo || String(p.id) === codigoLimpo
+        (p) =>
+          p.codigo_barras === codigoLimpo ||
+          p.qr_code_tag === codigoLimpo ||
+          (p.codigos_barras_alternativos || []).includes(codigoLimpo) ||
+          String(p.id) === codigoLimpo
       );
       if (produtoLocal) {
         handleAbrirDetalhes(produtoLocal);
@@ -442,6 +463,53 @@ export const GerenteLogistica: React.FC = () => {
     if (!produtoEmGestao) return;
     const atuais = produtoEmGestao.codigos_barras_alternativos || [];
     await handleAtualizarCodigosAlternativos(atuais.filter((c) => c !== codigoRemover));
+  };
+
+  const handleBuscarSugestoesInternet = async () => {
+    if (!produtoEmGestao) return;
+    try {
+      setBuscandoSugestoesEan(true);
+      const res = await api.get(`/produtos/${produtoEmGestao.id}/buscar-codigos-alternativos`);
+      const lista = res.data?.sugestoes || [];
+      setSugestoesEanInternet(lista);
+      if (lista.length === 0) {
+        alert('Nenhum código de barras alternativo encontrado na internet para este produto.');
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao buscar códigos alternativos na internet.');
+    } finally {
+      setBuscandoSugestoesEan(false);
+    }
+  };
+
+  const handleVincularSugestaoInternet = async (codigo: string) => {
+    if (!produtoEmGestao) return;
+    const atuais = produtoEmGestao.codigos_barras_alternativos || [];
+    if (!atuais.includes(codigo)) {
+      await handleAtualizarCodigosAlternativos([...atuais, codigo]);
+    }
+    setSugestoesEanInternet((prev) => prev.filter((s) => s.codigo !== codigo));
+  };
+
+  const handleVincularCodigoAoSimilar = async () => {
+    if (!produtoSimilarSugerido || !cadCodigo.trim()) return;
+    const codigoNovo = cadCodigo.trim();
+    const atuais = produtoSimilarSugerido.codigos_barras_alternativos || [];
+    const atualizados = atuais.includes(codigoNovo) ? atuais : [...atuais, codigoNovo];
+    try {
+      setSalvandoCodigoAlternativo(true);
+      const res = await api.put(`/produtos/${produtoSimilarSugerido.id}`, {
+        codigos_barras_alternativos: atualizados
+      });
+      await carregarProdutos();
+      setProdutoSimilarSugerido(null);
+      alert(`Código "${codigoNovo}" vinculado com sucesso ao produto "${produtoSimilarSugerido.nome}"!`);
+      handleAbrirDetalhes(res.data);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao vincular código ao produto existente.');
+    } finally {
+      setSalvandoCodigoAlternativo(false);
+    }
   };
 
   return (
@@ -815,10 +883,21 @@ export const GerenteLogistica: React.FC = () => {
 
               {/* Códigos de Barras Alternativos (Híbrido JSON) */}
               <div className="mt-3 pt-2.5 border-t border-white/10 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Códigos de Barras Alternativos
-                  </span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Códigos de Barras Alternativos
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleBuscarSugestoesInternet}
+                      disabled={buscandoSugestoesEan}
+                      className="px-2 py-0.5 rounded-md bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/40 text-indigo-300 text-[10px] font-semibold transition disabled:opacity-40"
+                      title="Procurar na internet outros códigos de barras para este produto"
+                    >
+                      {buscandoSugestoesEan ? 'Buscando...' : 'Buscar na Internet'}
+                    </button>
+                  </div>
                   <div className="flex items-center gap-1.5">
                     <input
                       type="text"
@@ -863,6 +942,29 @@ export const GerenteLogistica: React.FC = () => {
                         </button>
                       </span>
                     ))}
+                  </div>
+                )}
+
+                {sugestoesEanInternet.length > 0 && (
+                  <div className="pt-1.5 space-y-1">
+                    <span className="text-[10px] font-semibold text-indigo-300 block">
+                      Sugestões encontradas na internet (clique para vincular):
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {sugestoesEanInternet.map((sug) => (
+                        <button
+                          key={sug.codigo}
+                          type="button"
+                          onClick={() => handleVincularSugestaoInternet(sug.codigo)}
+                          disabled={salvandoCodigoAlternativo}
+                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-400/30 text-[10px] text-indigo-200 transition"
+                          title={sug.nome}
+                        >
+                          <span className="font-mono font-bold">+ {sug.codigo}</span>
+                          <span className="text-slate-300 truncate max-w-[140px]">{sug.nome}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1089,6 +1191,55 @@ export const GerenteLogistica: React.FC = () => {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             </button>
           </nav>
+
+          {/* Sugestão de Referenciamento (Evita Duplicação de Produto) */}
+          {produtoSimilarSugerido && (
+            <div className="relative z-10 rounded-2xl bg-amber-500/15 border border-amber-400/40 p-3 space-y-2 shadow-lg">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">
+                    Produto semelhante encontrado no catálogo
+                  </span>
+                  <p className="text-xs text-white font-semibold mt-0.5">
+                    {produtoSimilarSugerido.nome}
+                    {produtoSimilarSugerido.codigo_barras && (
+                      <span className="text-[10px] text-slate-300 font-mono ml-2">
+                        (EAN atual: {produtoSimilarSugerido.codigo_barras})
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[11px] text-amber-200/80 mt-0.5">
+                    Deseja vincular o código <span className="font-mono font-bold">{cadCodigo}</span> a este produto em vez de criar um duplicado?
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setProdutoSimilarSugerido(null)}
+                  className="text-slate-400 hover:text-white text-xs font-bold px-1.5"
+                  title="Ignorar sugestão"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleVincularCodigoAoSimilar}
+                  disabled={salvandoCodigoAlternativo}
+                  className="px-3 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs hover:bg-amber-300 transition disabled:opacity-50"
+                >
+                  {salvandoCodigoAlternativo ? 'Vinculando...' : 'Vincular ao Produto Existente'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProdutoSimilarSugerido(null)}
+                  className="px-3 py-1.5 rounded-xl bg-white/10 text-slate-200 text-xs font-semibold hover:bg-white/15 transition"
+                >
+                  Cadastrar como Novo
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Área de Scanner QR Code (Visor Interativo com Varredura Laser) */}
           {metodoEntradaCadastro === 'qr' && (

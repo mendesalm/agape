@@ -470,29 +470,69 @@ class ProdutoService:
             return SubcategoriaProduto.ALCOOLICAS
         return SubcategoriaProduto.OUTROS
 
+    MARCAS_CONHECIDAS = ['heineken', 'stella', 'corona', 'coca', 'guarana', 'crystal', 'red bull', 'amstel', 'spaten', 'brahma', 'skol', 'antarctica', 'schweppes', 'sukita', 'fanta', 'sprite']
+
+    @staticmethod
+    def extrair_tokens_nome(texto: str) -> set:
+        import re
+        if not texto:
+            return set()
+        texto = texto.lower()
+        for c, r in [('á','a'),('à','a'),('ã','a'),('â','a'),('é','e'),('ê','e'),('í','i'),('ó','o'),('ô','o'),('õ','o'),('ú','u'),('ç','c')]:
+            texto = texto.replace(c, r)
+        tokens = re.findall(r'[a-z0-9]+', texto)
+        stop = {'de', 'com', 'sem', 'em', 'para', 'e', 'do', 'da', 'dos', 'das', 'ml', 'g', 'l'}
+        return set(t for t in tokens if t not in stop)
+
+    @classmethod
+    def calcular_score_similaridade_produto(cls, nome_a: str, nome_b: str) -> int:
+        tokens_a = cls.extrair_tokens_nome(nome_a)
+        tokens_b = cls.extrair_tokens_nome(nome_b)
+        inter = tokens_a.intersection(tokens_b)
+        if not inter:
+            return -100
+
+        a_lower = (nome_a or "").lower()
+        b_lower = (nome_b or "").lower()
+
+        score = len(inter) * 2
+        for marca in cls.MARCAS_CONHECIDAS:
+            if marca in tokens_a and marca in tokens_b:
+                score += 10
+            elif (marca in tokens_a) != (marca in tokens_b):
+                score -= 15
+
+        conflitos_tipo = ('refrigerante', 'suco', 'agua', 'energetico', 'vinho', 'tonica')
+        if ('cerveja' in a_lower) and any(w in b_lower for w in conflitos_tipo):
+            score -= 30
+        if ('cerveja' in b_lower) and any(w in a_lower for w in conflitos_tipo):
+            score -= 30
+        if ('tonica' in a_lower) != ('tonica' in b_lower):
+            score -= 25
+
+        is_zero_a = ('sem' in a_lower or 'zero' in a_lower)
+        is_zero_b = ('sem' in b_lower or 'zero' in b_lower)
+        score += 4 if is_zero_a == is_zero_b else -20
+
+        is_lata_a = ('lata' in a_lower)
+        is_lata_b = ('lata' in b_lower)
+        score += 3 if is_lata_a == is_lata_b else -3
+
+        for vol in ['350', '330', '473', '600', '250', '500', '2l']:
+            if vol in a_lower and vol in b_lower:
+                score += 5
+            elif vol in a_lower and vol not in b_lower:
+                score -= 4
+
+        return score
+
     def _parear_e_atualizar_produto(self, p_loja: Produto, mestres: list) -> tuple:
         """
         Localiza a melhor correspondência no catálogo mestre para um produto da loja
         e atualiza foto_url, codigo_barras, marca, tipo, categoria e subcategoria.
         Retorna (melhor_mestre, mudou).
         """
-        import re
-
-        def extrair_tokens(texto):
-            if not texto:
-                return set()
-            texto = texto.lower()
-            for c, r in [('á','a'),('à','a'),('ã','a'),('â','a'),('é','e'),('ê','e'),('í','i'),('ó','o'),('ô','o'),('õ','o'),('ú','u'),('ç','c')]:
-                texto = texto.replace(c, r)
-            tokens = re.findall(r'[a-z0-9]+', texto)
-            stop = {'de', 'com', 'sem', 'em', 'para', 'e', 'do', 'da', 'dos', 'das', 'ml', 'g', 'l'}
-            return set(t for t in tokens if t not in stop)
-
-        MARCAS_CONHECIDAS = ['heineken', 'stella', 'corona', 'coca', 'guarana', 'crystal', 'red bull', 'amstel', 'spaten', 'brahma', 'skol', 'antarctica', 'schweppes', 'sukita', 'fanta', 'sprite']
-
-        tokens_loja = extrair_tokens(p_loja.nome)
-        is_zero_loja = ('sem' in p_loja.nome.lower() or 'zero' in p_loja.nome.lower())
-        is_lata_loja = ('lata' in p_loja.nome.lower())
+        tokens_loja = self.extrair_tokens_nome(p_loja.nome)
 
         melhor_m = None
         melhor_score = -100
@@ -501,8 +541,8 @@ class ProdutoService:
         if p_loja.codigo_barras:
             for m in mestres:
                 if m.codigo_barras == p_loja.codigo_barras:
-                    tokens_m = extrair_tokens(m.nome)
-                    conflito = any((marca in tokens_loja) != (marca in tokens_m) for marca in MARCAS_CONHECIDAS)
+                    tokens_m = self.extrair_tokens_nome(m.nome)
+                    conflito = any((marca in tokens_loja) != (marca in tokens_m) for marca in self.MARCAS_CONHECIDAS)
                     if not conflito:
                         melhor_m = m
                         break
@@ -510,38 +550,7 @@ class ProdutoService:
         # 2. Casamento por similaridade de tokens
         if not melhor_m:
             for m in mestres:
-                tokens_m = extrair_tokens(m.nome)
-                inter = tokens_loja.intersection(tokens_m)
-                if not inter:
-                    continue
-
-                score = len(inter) * 2
-
-                for marca in MARCAS_CONHECIDAS:
-                    if marca in tokens_loja and marca in tokens_m:
-                        score += 10
-                    elif (marca in tokens_loja) != (marca in tokens_m):
-                        score -= 15
-
-                if ('cerveja' in p_loja.nome.lower()) != ('cerveja' in m.nome.lower()):
-                    score -= 25
-                if ('tonica' in p_loja.nome.lower()) != ('tonica' in m.nome.lower()):
-                    score -= 25
-                if ('refrigerante' in p_loja.nome.lower()) and ('cerveja' in m.nome.lower()):
-                    score -= 30
-
-                is_zero_m = ('sem' in m.nome.lower() or 'zero' in m.nome.lower())
-                score += 4 if is_zero_loja == is_zero_m else -8
-
-                is_lata_m = ('lata' in m.nome.lower())
-                score += 3 if is_lata_loja == is_lata_m else -3
-
-                for vol in ['350', '330', '473', '600', '250', '500', '2l']:
-                    if vol in p_loja.nome.lower() and vol in m.nome.lower():
-                        score += 5
-                    elif vol in p_loja.nome.lower() and vol not in m.nome.lower():
-                        score -= 4
-
+                score = self.calcular_score_similaridade_produto(p_loja.nome, m.nome)
                 if score > melhor_score and score >= 8:
                     melhor_score = score
                     melhor_m = m

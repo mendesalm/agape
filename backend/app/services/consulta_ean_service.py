@@ -118,12 +118,156 @@ class ConsultaEanService:
             "tipo": tipo
         }
 
-    async def consultar(self, codigo_bruto: str) -> Dict[str, Any]:
+    async def _buscar_produto_interno_por_codigo(self, gtin: str, codigo_bruto: str) -> Optional[Produto]:
+        query = select(Produto).where(
+            (Produto.codigo_barras == gtin) | (Produto.qr_code_tag == codigo_bruto)
+        ).limit(1)
+        res = await self.db.execute(query)
+        prod = res.scalars().first()
+        if prod:
+            return prod
+
+        res_todos = await self.db.execute(select(Produto).where(Produto.ativo == True))
+        for p in res_todos.scalars().all():
+            if gtin in (p.codigos_barras_alternativos or []):
+                return p
+        return None
+
+    async def _anexar_referencia_loja(
+        self,
+        resultado: Dict[str, Any],
+        gtin: str,
+        tenant_id: Optional[int]
+    ) -> Dict[str, Any]:
+        """
+        Verifica se o código já pertence a um produto do bar ou se existe um produto
+        semelhante no bar para sugerir referenciamento (evitando duplicação).
+        """
+        if not tenant_id:
+            return resultado
+
+        from app.services.produto_service import ProdutoService
+
+        res = await self.db.execute(
+            select(Produto).where(Produto.tenant_id == tenant_id, Produto.ativo == True)
+        )
+        produtos_loja = res.scalars().all()
+
+        # 1. Verifica se o código já está cadastrado na própria loja
+        for p in produtos_loja:
+            codigos_p = {p.codigo_barras} if p.codigo_barras else set()
+            codigos_p.update(p.codigos_barras_alternativos or [])
+            if gtin in codigos_p:
+                resultado["produto_existente_loja"] = {
+                    "id": p.id,
+                    "nome": p.nome,
+                    "codigo_barras": p.codigo_barras,
+                    "codigos_barras_alternativos": p.codigos_barras_alternativos or [],
+                    "foto_url": p.foto_url,
+                }
+                return resultado
+
+        # 2. Se encontrou dados do produto (internet/catálogo mestre/outra loja), busca similar na loja
+        nome_ref = resultado.get("nome") or ""
+        if not resultado.get("encontrado") or not nome_ref:
+            return resultado
+
+        melhor_p = None
+        melhor_score = -100
+        for p in produtos_loja:
+            score = ProdutoService.calcular_score_similaridade_produto(p.nome, nome_ref)
+            if score > melhor_score and score >= 8:
+                melhor_score = score
+                melhor_p = p
+
+        if melhor_p:
+            resultado["produto_similar_existente"] = {
+                "id": melhor_p.id,
+                "nome": melhor_p.nome,
+                "codigo_barras": melhor_p.codigo_barras,
+                "codigos_barras_alternativos": melhor_p.codigos_barras_alternativos or [],
+                "foto_url": melhor_p.foto_url,
+                "score": melhor_score,
+            }
+
+        return resultado
+
+    async def buscar_codigos_alternativos_internet(self, produto: Produto) -> list:
+        """
+        Pesquisa no Open Food Facts por produtos semelhantes ao cadastrado
+        para sugerir códigos de barras alternativos (sem gravar automaticamente).
+        """
+        from app.services.produto_service import ProdutoService
+
+        termo = (produto.nome or "").strip()
+        if not termo:
+            return []
+
+        codigos_existentes = {produto.codigo_barras} if produto.codigo_barras else set()
+        codigos_existentes.update(produto.codigos_barras_alternativos or [])
+
+        url = "https://world.openfoodfacts.org/cgi/search.pl"
+        params = {
+            "search_terms": termo,
+            "search_simple": 1,
+            "action": "process",
+            "json": 1,
+            "page_size": 15,
+        }
+        headers = {"User-Agent": "AgapeSaaS/1.0 (contato@e-sigma.app)"}
+        sugestoes = []
+
+        try:
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                resposta = await client.get(url, params=params, headers=headers)
+                if resposta.status_code != 200:
+                    return []
+                data = resposta.json()
+                for item in data.get("products", []):
+                    code = str(item.get("code") or "").strip()
+                    if not code.isdigit() or not (8 <= len(code) <= 14):
+                        continue
+                    if code in codigos_existentes:
+                        continue
+
+                    nome_off = (
+                        item.get("product_name_pt")
+                        or item.get("product_name")
+                        or item.get("generic_name_pt")
+                        or ""
+                    ).strip()
+                    if not nome_off:
+                        continue
+
+                    qtd = (item.get("quantity") or "").strip()
+                    if qtd and qtd.lower() not in nome_off.lower():
+                        nome_off = f"{nome_off} {qtd}".strip()
+
+                    score = ProdutoService.calcular_score_similaridade_produto(produto.nome, nome_off)
+                    if score < 6:
+                        continue
+
+                    codigos_existentes.add(code)
+                    sugestoes.append({
+                        "codigo": code,
+                        "nome": nome_off,
+                        "marca": (item.get("brands") or "").split(",")[0].strip(),
+                        "foto_url": item.get("image_front_url") or item.get("image_url") or "",
+                        "score": score,
+                    })
+        except Exception:
+            return []
+
+        sugestoes.sort(key=lambda s: s["score"], reverse=True)
+        return sugestoes[:8]
+
+    async def consultar(self, codigo_bruto: str, tenant_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Consulta dados pelo código de barras ou GS1 Digital Link.
         1. Parse de GS1 para extrair GTIN, lote e validade se presentes.
         2. Busca no catálogo interno Ágape (qualquer loja que já tenha cadastrado).
         3. Se não encontrar, busca no Open Food Facts API v2.
+        4. Se tenant_id for informado, verifica se já existe produto na loja ou similar para referenciamento.
         """
         parsed = self.parse_gs1_digital_link(codigo_bruto)
         gtin = parsed["gtin"]
@@ -140,7 +284,7 @@ class ConsultaEanService:
         produto_mestre = res_mestre.scalars().first()
 
         if produto_mestre:
-            return {
+            return await self._anexar_referencia_loja({
                 "encontrado": True,
                 "origem": "catalogo_mestre_local",
                 "codigo_barras": gtin,
@@ -156,17 +300,13 @@ class ConsultaEanService:
                 "preco_venda_sugerido": float(produto_mestre.preco_venda_sugerido or 0.0),
                 "lote_sugerido": lote_gs1,
                 "data_validade_sugerida": validade_gs1
-            }
+            }, gtin, tenant_id)
 
-        # 2. Busca no Banco Interno Ágape das Lojas
-        query = select(Produto).where(
-            (Produto.codigo_barras == gtin) | (Produto.qr_code_tag == codigo_bruto)
-        ).limit(1)
-        res = await self.db.execute(query)
-        produto_existente = res.scalars().first()
+        # 2. Busca no Banco Interno Ágape das Lojas (principal, QR ou alternativos)
+        produto_existente = await self._buscar_produto_interno_por_codigo(gtin, codigo_bruto)
 
         if produto_existente:
-            return {
+            return await self._anexar_referencia_loja({
                 "encontrado": True,
                 "origem": "catalogo_agape",
                 "codigo_barras": gtin,
@@ -182,9 +322,9 @@ class ConsultaEanService:
                 "preco_venda_sugerido": float(produto_existente.preco_venda or 0.0),
                 "lote_sugerido": lote_gs1,
                 "data_validade_sugerida": validade_gs1 or (produto_existente.data_validade.strftime("%Y-%m-%d") if produto_existente.data_validade else None)
-            }
+            }, gtin, tenant_id)
 
-        # 2. Busca na base aberta Open Food Facts
+        # 3. Busca na base aberta Open Food Facts
         url = f"https://world.openfoodfacts.org/api/v2/product/{gtin}.json"
         headers = {"User-Agent": "AgapeSaaS/1.0 (contato@e-sigma.app)"}
 
@@ -214,7 +354,7 @@ class ConsultaEanService:
                         categorias_texto = prod.get("categories") or ""
                         taxonomia = self.inferir_taxonomia(nome_formatado, marcas, categorias_texto)
 
-                        return {
+                        return await self._anexar_referencia_loja({
                             "encontrado": True,
                             "origem": "open_food_facts",
                             "codigo_barras": gtin,
@@ -230,7 +370,7 @@ class ConsultaEanService:
                             "preco_venda_sugerido": 0.0,
                             "lote_sugerido": lote_gs1,
                             "data_validade_sugerida": validade_gs1
-                        }
+                        }, gtin, tenant_id)
         except Exception:
             pass
 
