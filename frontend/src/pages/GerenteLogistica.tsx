@@ -17,7 +17,8 @@ import {
   Save, 
   Camera, 
   Layers,
-  RefreshCw
+  RefreshCw,
+  GitMerge
 } from 'lucide-react';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
 import { ProdutoGlassThumb } from '../components/ProdutoGlassThumb';
@@ -61,6 +62,11 @@ interface Produto {
 export const GerenteLogistica: React.FC = () => {
   const navigate = useNavigate();
 
+  const userStr = localStorage.getItem('bipfy_user') || localStorage.getItem('barix_user') || localStorage.getItem('@Barix:user');
+  const userObj = userStr ? JSON.parse(userStr) : null;
+  const cargoUpper = String(userObj?.cargo || userObj?.role || '').toUpperCase();
+  const isSuperAdmin = Boolean(userObj?.is_superadmin || cargoUpper === 'SUPERADMIN' || cargoUpper === 'WEBMASTER');
+
   // Estados principais de dados
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +94,10 @@ export const GerenteLogistica: React.FC = () => {
   const [buscandoSugestoesEan, setBuscandoSugestoesEan] = useState(false);
   const [sugestoesEanInternet, setSugestoesEanInternet] = useState<Array<{ codigo: string; nome: string; marca?: string; foto_url?: string; score: number }>>([]);
   const [produtoSimilarSugerido, setProdutoSimilarSugerido] = useState<{ id: number; nome: string; codigo_barras?: string; codigos_barras_alternativos?: string[]; foto_url?: string } | null>(null);
+  const [isModalMesclar, setIsModalMesclar] = useState(false);
+  const [produtoAbsorverId, setProdutoAbsorverId] = useState<string>('');
+  const [buscaMesclar, setBuscaMesclar] = useState('');
+  const [mesclandoProdutos, setMesclandoProdutos] = useState(false);
   const [isModalTransferir, setIsModalTransferir] = useState(false);
   const [qtdTransferir, setQtdTransferir] = useState('6');
   
@@ -512,6 +522,50 @@ export const GerenteLogistica: React.FC = () => {
     }
   };
 
+  const handleConfirmarMesclagem = async () => {
+    if (!produtoEmGestao || !produtoAbsorverId) return;
+    const origemId = parseInt(produtoAbsorverId, 10);
+    const prodOrigem = produtos.find((p) => p.id === origemId);
+    if (!prodOrigem) return;
+
+    if (
+      !confirm(
+        `Confirmar unificação?\n\n` +
+        `• Produto MANTIDO: ${produtoEmGestao.nome}\n` +
+        `• Produto ABSORVIDO: ${prodOrigem.nome}\n\n` +
+        `Todos os lotes, movimentações, itens de comanda e códigos de barras de "${prodOrigem.nome}" serão transferidos para "${produtoEmGestao.nome}".`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setMesclandoProdutos(true);
+      const res = await api.post('/produtos/mesclar', {
+        produto_origem_id: origemId,
+        produto_destino_id: produtoEmGestao.id
+      });
+      await carregarProdutos();
+      const prodAtualizado = await api.get(`/produtos/${produtoEmGestao.id}`);
+      setProdutoEmGestao(prodAtualizado.data);
+      setIsModalMesclar(false);
+      setProdutoAbsorverId('');
+      setBuscaMesclar('');
+      alert(
+        `Mercadorias unificadas com sucesso!\n\n` +
+        `• Mantido: ${res.data.produto_mantido_nome}\n` +
+        `• Absorvido: ${res.data.produto_absorvido_nome}\n` +
+        `• Lotes transferidos: ${res.data.lotes_transferidos}\n` +
+        `• Movimentações transferidas: ${res.data.movimentacoes_transferidas}\n` +
+        `• Itens de comanda transferidos: ${res.data.itens_comanda_transferidos}`
+      );
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao unificar mercadorias.');
+    } finally {
+      setMesclandoProdutos(false);
+    }
+  };
+
   return (
     <div className="relative min-h-[calc(100vh-3.5rem)] flex flex-col justify-between p-4 sm:p-6 lg:p-8 max-w-lg lg:max-w-4xl mx-auto overflow-hidden animate-fadeIn select-none text-slate-100">
       
@@ -831,6 +885,20 @@ export const GerenteLogistica: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-1.5">
+              {isSuperAdmin && (
+                <button
+                  onClick={() => {
+                    setProdutoAbsorverId('');
+                    setBuscaMesclar('');
+                    setIsModalMesclar(true);
+                  }}
+                  className="h-9 px-2.5 rounded-xl bg-amber-500/20 backdrop-blur-md border border-amber-400/40 flex items-center gap-1.5 text-amber-300 hover:bg-amber-500/30 hover:text-white transition active:scale-95 shadow-inner text-xs font-bold"
+                  title="Unificar este produto com outro duplicado (SuperAdmin)"
+                >
+                  <GitMerge size={15} />
+                  <span className="hidden sm:inline">Unificar</span>
+                </button>
+              )}
               <button 
                 onClick={() => handleSincronizarProduto(produtoEmGestao)}
                 disabled={sincronizandoProdutoId === produtoEmGestao.id}
@@ -1698,6 +1766,95 @@ export const GerenteLogistica: React.FC = () => {
             <div className="flex gap-2 pt-2">
               <button onClick={() => setIsModalNovoLote(false)} className="flex-1 py-2 rounded-xl bg-white/10 text-xs font-semibold">Cancelar</button>
               <button onClick={handleCriarLote} className="flex-1 py-2 rounded-xl bg-amber-400 text-stone-950 text-xs font-bold hover:bg-amber-300 transition">Salvar Lote de Compra</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Unificar Mercadorias Duplicadas (SuperAdmin) */}
+      {isModalMesclar && produtoEmGestao && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-[#0B1324] border border-amber-400/30 p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-300">
+                <GitMerge size={18} />
+                <h3 className="text-sm font-black">Unificar Mercadorias (SuperAdmin)</h3>
+              </div>
+              <button
+                onClick={() => setIsModalMesclar(false)}
+                className="text-slate-400 hover:text-white text-sm font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="rounded-2xl bg-emerald-500/10 border border-emerald-400/30 p-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 block">
+                Produto Principal (será mantido)
+              </span>
+              <p className="text-xs font-bold text-white mt-0.5">{produtoEmGestao.nome}</p>
+              <span className="text-[10px] text-slate-400 font-mono">
+                EAN: {produtoEmGestao.codigo_barras || 'Sem EAN'} • Estoque: {produtoEmGestao.quantidade_estoque} un
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Selecionar Produto Duplicado (será absorvido)
+              </label>
+              <input
+                type="text"
+                value={buscaMesclar}
+                onChange={(e) => setBuscaMesclar(e.target.value)}
+                placeholder="Filtrar por nome ou EAN..."
+                className="w-full px-3 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/50"
+              />
+              <select
+                value={produtoAbsorverId}
+                onChange={(e) => setProdutoAbsorverId(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-[#070C18] border border-white/15 text-xs text-white focus:outline-none focus:border-amber-400/50"
+              >
+                <option value="">Escolha o produto duplicado...</option>
+                {produtos
+                  .filter((p) => {
+                    if (p.id === produtoEmGestao.id) return false;
+                    if (!buscaMesclar.trim()) return true;
+                    const q = buscaMesclar.toLowerCase();
+                    return (
+                      p.nome.toLowerCase().includes(q) ||
+                      (p.codigo_barras || '').toLowerCase().includes(q) ||
+                      (p.codigos_barras_alternativos || []).some((c) => c.toLowerCase().includes(q))
+                    );
+                  })
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nome} ({p.codigo_barras || 'Sem EAN'} • Estoque: {p.quantidade_estoque})
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Todos os lotes, movimentações, vendas em comandas e códigos de barras do produto absorvido serão transferidos para{' '}
+              <strong className="text-white">{produtoEmGestao.nome}</strong>.
+            </p>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsModalMesclar(false)}
+                className="flex-1 py-2 rounded-xl bg-white/10 text-xs font-semibold hover:bg-white/15 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmarMesclagem}
+                disabled={!produtoAbsorverId || mesclandoProdutos}
+                className="flex-1 py-2 rounded-xl bg-amber-400 text-stone-950 text-xs font-bold hover:bg-amber-300 transition disabled:opacity-40"
+              >
+                {mesclandoProdutos ? 'Unificando...' : 'Confirmar Unificação'}
+              </button>
             </div>
           </div>
         </div>

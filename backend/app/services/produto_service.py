@@ -729,3 +729,86 @@ class ProdutoService:
             "atualizados": atualizados,
             "importados": importados
         }
+
+    async def mesclar_produtos(self, produto_origem_id: int, produto_destino_id: int) -> dict:
+        """
+        Unifica dois produtos duplicados do mesmo estabelecimento em uma única mercadoria:
+        - Transfere LoteEstoque, MovimentacaoEstoque e ItemComanda de origem -> destino.
+        - Consolida codigo_barras e codigos_barras_alternativos em destino.
+        - Remove o registro duplicado (origem) de forma atômica.
+        """
+        from sqlalchemy import update, delete
+        from app.models.estoque import LoteEstoque
+        from app.models.movimentacao_estoque import MovimentacaoEstoque
+        from app.models.comanda import ItemComanda
+
+        if produto_origem_id == produto_destino_id:
+            raise RegraNegocioException("Selecione dois produtos diferentes para unificar.")
+
+        origem = await self.repo.buscar_por_id(produto_origem_id)
+        if not origem:
+            raise NaoEncontradoException(f"Produto de origem (ID: {produto_origem_id})")
+
+        destino = await self.repo.buscar_por_id(produto_destino_id)
+        if not destino:
+            raise NaoEncontradoException(f"Produto de destino (ID: {produto_destino_id})")
+
+        # 1. Consolidar códigos de barras
+        candidatos_alt = list(destino.codigos_barras_alternativos or [])
+        if origem.codigo_barras:
+            candidatos_alt.append(origem.codigo_barras)
+        candidatos_alt.extend(origem.codigos_barras_alternativos or [])
+        if origem.qr_code_tag and not origem.qr_code_tag.startswith("BIPFY-T"):
+            candidatos_alt.append(origem.qr_code_tag)
+
+        if not destino.codigo_barras and origem.codigo_barras:
+            destino.codigo_barras = origem.codigo_barras
+
+        destino.codigos_barras_alternativos = self.repo._normalizar_codigos_alternativos(
+            candidatos_alt,
+            destino.codigo_barras
+        )
+        if not destino.foto_url and origem.foto_url:
+            destino.foto_url = origem.foto_url
+
+        self.db.add(destino)
+
+        # 2. Transferir lotes, movimentações e itens de comanda em massa
+        res_lotes = await self.db.execute(
+            update(LoteEstoque)
+            .where(LoteEstoque.produto_id == origem.id, LoteEstoque.tenant_id == self.tenant_id)
+            .values(produto_id=destino.id)
+        )
+        res_movs = await self.db.execute(
+            update(MovimentacaoEstoque)
+            .where(MovimentacaoEstoque.produto_id == origem.id)
+            .values(produto_id=destino.id)
+        )
+        res_itens = await self.db.execute(
+            update(ItemComanda)
+            .where(ItemComanda.produto_id == origem.id)
+            .values(produto_id=destino.id)
+        )
+
+        origem_nome = origem.nome
+        await self.db.flush()
+
+        # 3. Remover o produto duplicado via Core delete (evita cascade ORM nos lotes já movidos)
+        await self.db.execute(
+            delete(Produto).where(Produto.id == origem.id, Produto.tenant_id == self.tenant_id)
+        )
+
+        await self.db.commit()
+        logger.info(
+            f"Produtos mesclados no tenant {self.tenant_id}: '{origem_nome}' (ID {produto_origem_id}) -> '{destino.nome}' (ID {destino.id})."
+        )
+        return {
+            "status": "sucesso",
+            "produto_mantido_id": destino.id,
+            "produto_mantido_nome": destino.nome,
+            "produto_absorvido_nome": origem_nome,
+            "lotes_transferidos": int(res_lotes.rowcount or 0),
+            "movimentacoes_transferidas": int(res_movs.rowcount or 0),
+            "itens_comanda_transferidos": int(res_itens.rowcount or 0),
+            "codigos_barras_alternativos": destino.codigos_barras_alternativos,
+        }

@@ -107,3 +107,7 @@ class AlertaEstoqueGeral(BaseModel):
     compras_necessarias: List[ProdutoResponse] = []
     lotes_vencendo: List[LoteEstoqueResponse] = []
     lotes_vencidos: List[LoteEstoqueResponse] = []
+
+class ProdutoMesclarRequest(BaseModel):
+    produto_origem_id: int = Field(..., gt=0, description="ID do produto duplicado que será absorvido")
+    produto_destino_id: int = Field(..., gt=0, description="ID do produto principal que será mantido")

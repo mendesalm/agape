@@ -10,7 +10,8 @@ from app.schemas.produto_schema import (
     LoteEntradaCreate,
     TransferenciaEstoqueRequest,
     PerdaLoteRequest,
-    AlertaEstoqueGeral
+    AlertaEstoqueGeral,
+    ProdutoMesclarRequest
 )
 from app.services.produto_service import ProdutoService
 from app.api.dependencias import obter_usuario_logado
@@ -39,6 +40,27 @@ async def sincronizar_catalogo_loja(
 
     servico = ProdutoService(db, alvo_tenant)
     return await servico.sincronizar_com_catalogo_mestre(auto_importar_novos=auto_importar)
+
+@router.post("/mesclar")
+async def mesclar_produtos_duplicados(
+    dados: ProdutoMesclarRequest,
+    tenant_id: Optional[int] = Query(None, description="ID do estabelecimento (SuperAdmin)"),
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Permite ao SuperAdmin unificar dois produtos duplicados do mesmo estabelecimento
+    em uma única mercadoria, transferindo lotes, movimentações, itens de comanda
+    e consolidando os códigos de barras em codigos_barras_alternativos.
+    """
+    cargo_upper = (usuario.cargo or "").upper()
+    is_superadmin = bool(getattr(usuario, "is_superadmin", False) or cargo_upper in ("SUPERADMIN", "WEBMASTER"))
+    if not is_superadmin:
+        raise HTTPException(status_code=403, detail="Apenas SuperAdmin pode unificar mercadorias.")
+
+    alvo_tenant = usuario.tenant_id or tenant_id or 1
+    servico = ProdutoService(db, alvo_tenant)
+    return await servico.mesclar_produtos(dados.produto_origem_id, dados.produto_destino_id)
 
 @router.post("/{produto_id}/sincronizar-catalogo")
 async def sincronizar_produto_catalogo(
