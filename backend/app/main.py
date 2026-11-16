@@ -34,6 +34,22 @@ async def lifespan(app: FastAPI):
     # Criando as tabelas no banco de dados automaticamente para o ambiente de desenvolvimento
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        def _migrar_colunas_pendentes(sync_conn):
+            from sqlalchemy import inspect, text
+            insp = inspect(sync_conn)
+            colunas_produtos = {c["name"] for c in insp.get_columns("produtos")}
+            if "codigos_barras_alternativos" not in colunas_produtos:
+                if sync_conn.dialect.name == "postgresql":
+                    sync_conn.execute(text(
+                        "ALTER TABLE produtos ADD COLUMN codigos_barras_alternativos JSONB NOT NULL DEFAULT '[]'::jsonb"
+                    ))
+                else:
+                    sync_conn.execute(text(
+                        "ALTER TABLE produtos ADD COLUMN codigos_barras_alternativos JSON NOT NULL DEFAULT '[]'"
+                    ))
+
+        await conn.run_sync(_migrar_colunas_pendentes)
         logger.info("Tabelas do banco de dados sincronizadas.")
 
     logger.info("API do BipFy iniciada com sucesso.")

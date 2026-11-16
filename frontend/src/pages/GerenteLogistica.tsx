@@ -39,6 +39,7 @@ interface Produto {
   descricao?: string;
   foto_url?: string;
   codigo_barras?: string;
+  codigos_barras_alternativos?: string[];
   qr_code_tag?: string;
   categoria: string;
   subcategoria?: string;
@@ -82,6 +83,8 @@ export const GerenteLogistica: React.FC = () => {
   const [isEditandoPreco, setIsEditandoPreco] = useState(false);
   const [novoPrecoVenda, setNovoPrecoVenda] = useState('');
   const [novoPrecoCusto, setNovoPrecoCusto] = useState('');
+  const [novoCodigoAlternativo, setNovoCodigoAlternativo] = useState('');
+  const [salvandoCodigoAlternativo, setSalvandoCodigoAlternativo] = useState(false);
   const [isModalTransferir, setIsModalTransferir] = useState(false);
   const [qtdTransferir, setQtdTransferir] = useState('6');
   
@@ -160,6 +163,7 @@ export const GerenteLogistica: React.FC = () => {
     const buscaMatch =
       p.nome.toLowerCase().includes(termoBusca.toLowerCase()) ||
       (p.codigo_barras && p.codigo_barras.includes(termoBusca)) ||
+      (p.codigos_barras_alternativos && p.codigos_barras_alternativos.some((c) => c.includes(termoBusca))) ||
       (p.marca && p.marca.toLowerCase().includes(termoBusca.toLowerCase()));
     if (!buscaMatch) return false;
 
@@ -399,6 +403,45 @@ export const GerenteLogistica: React.FC = () => {
     } finally {
       setSincronizandoProdutoId(null);
     }
+  };
+
+  const handleAtualizarCodigosAlternativos = async (novosCodigos: string[]) => {
+    if (!produtoEmGestao) return;
+    try {
+      setSalvandoCodigoAlternativo(true);
+      const res = await api.put(`/produtos/${produtoEmGestao.id}`, {
+        codigos_barras_alternativos: novosCodigos
+      });
+      setProdutoEmGestao(res.data);
+      setNovoCodigoAlternativo('');
+      await carregarProdutos();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao atualizar códigos de barras alternativos.');
+    } finally {
+      setSalvandoCodigoAlternativo(false);
+    }
+  };
+
+  const handleAdicionarCodigoAlternativo = async () => {
+    if (!produtoEmGestao) return;
+    const limpo = novoCodigoAlternativo.trim();
+    if (!limpo) return;
+    if (limpo === (produtoEmGestao.codigo_barras || '').trim()) {
+      alert('Este código já é o código de barras principal do produto.');
+      return;
+    }
+    const atuais = produtoEmGestao.codigos_barras_alternativos || [];
+    if (atuais.includes(limpo)) {
+      alert('Este código de barras alternativo já está cadastrado.');
+      return;
+    }
+    await handleAtualizarCodigosAlternativos([...atuais, limpo]);
+  };
+
+  const handleRemoverCodigoAlternativo = async (codigoRemover: string) => {
+    if (!produtoEmGestao) return;
+    const atuais = produtoEmGestao.codigos_barras_alternativos || [];
+    await handleAtualizarCodigosAlternativos(atuais.filter((c) => c !== codigoRemover));
   };
 
   return (
@@ -768,6 +811,60 @@ export const GerenteLogistica: React.FC = () => {
                     {produtoEmGestao.descricao || 'Item integrado ao Salão de Ágapes'}
                   </p>
                 </div>
+              </div>
+
+              {/* Códigos de Barras Alternativos (Híbrido JSON) */}
+              <div className="mt-3 pt-2.5 border-t border-white/10 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Códigos de Barras Alternativos
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={novoCodigoAlternativo}
+                      onChange={(e) => setNovoCodigoAlternativo(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAdicionarCodigoAlternativo();
+                        }
+                      }}
+                      placeholder="Adicionar EAN/GTIN..."
+                      className="w-36 sm:w-44 px-2.5 py-1 rounded-lg bg-black/30 border border-white/15 text-[11px] text-white placeholder-slate-500 font-mono focus:outline-none focus:border-cyan-400/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAdicionarCodigoAlternativo}
+                      disabled={salvandoCodigoAlternativo || !novoCodigoAlternativo.trim()}
+                      className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 text-[10px] font-bold transition disabled:opacity-40"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                </div>
+
+                {(produtoEmGestao.codigos_barras_alternativos || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {(produtoEmGestao.codigos_barras_alternativos || []).map((cod) => (
+                      <span
+                        key={cod}
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-[10px] font-mono text-slate-200"
+                      >
+                        {cod}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoverCodigoAlternativo(cod)}
+                          disabled={salvandoCodigoAlternativo}
+                          className="text-slate-400 hover:text-rose-400 font-bold transition"
+                          title="Remover código alternativo"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </section>

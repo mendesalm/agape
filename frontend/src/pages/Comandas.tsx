@@ -53,6 +53,7 @@ interface Produto {
   quantidade_gondola?: number;
   quantidade_estoque: number;
   codigo_barras?: string;
+  codigos_barras_alternativos?: string[];
   qr_code_tag?: string;
   marca?: string;
   categoria?: string;
@@ -241,7 +242,9 @@ export function Comandas() {
       const q = buscaMenuProduto.toLowerCase();
       const matchNome = (p.nome || '').toLowerCase().includes(q);
       const matchMarca = (p.marca || '').toLowerCase().includes(q);
-      const matchEan = (p.codigo_barras || '').toLowerCase().includes(q);
+      const matchEan =
+        (p.codigo_barras || '').toLowerCase().includes(q) ||
+        (p.codigos_barras_alternativos || []).some((c) => c.toLowerCase().includes(q));
       if (!matchNome && !matchMarca && !matchEan) return false;
     }
 

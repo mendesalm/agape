@@ -79,6 +79,18 @@ class ProdutoRepository:
         if produto:
             return produto
 
+        # 1b. Busca em códigos de barras alternativos (JSON)
+        query_alt = (
+            select(Produto)
+            .options(selectinload(Produto.lotes))
+            .where(Produto.tenant_id == self.tenant_id)
+        )
+        res_alt = await self.db.execute(query_alt)
+        for p in res_alt.scalars().all():
+            alternativos = p.codigos_barras_alternativos or []
+            if any(c in candidatos for c in alternativos):
+                return p
+
         # 2. Se for numérico ou formato ID simples
         if codigo_limpo.isdigit():
             return await self.buscar_por_id(int(codigo_limpo))
@@ -150,6 +162,20 @@ class ProdutoRepository:
         gondola, armazem = resultado.first() or (0, 0)
         return int(gondola), int(armazem)
 
+    @staticmethod
+    def _normalizar_codigos_alternativos(codigos: Optional[List[str]], principal: Optional[str] = None) -> List[str]:
+        if not codigos:
+            return []
+        principal_limpo = (principal or "").strip()
+        vistos = set()
+        resultado = []
+        for c in codigos:
+            limpo = (c or "").strip()
+            if limpo and limpo != principal_limpo and limpo not in vistos:
+                vistos.add(limpo)
+                resultado.append(limpo)
+        return resultado
+
     async def criar(self, dados: ProdutoCreate) -> Produto:
         novo_produto = Produto(
             tenant_id=self.tenant_id,
@@ -157,6 +183,10 @@ class ProdutoRepository:
             descricao=dados.descricao,
             foto_url=dados.foto_url,
             codigo_barras=dados.codigo_barras,
+            codigos_barras_alternativos=self._normalizar_codigos_alternativos(
+                dados.codigos_barras_alternativos,
+                dados.codigo_barras
+            ),
             data_validade=dados.data_validade,
             preco_custo=dados.preco_custo,
             preco_venda=dados.preco_venda,
@@ -223,6 +253,11 @@ class ProdutoRepository:
             return None
         
         atualizacao = dados.model_dump(exclude_unset=True)
+        if "codigos_barras_alternativos" in atualizacao or "codigo_barras" in atualizacao:
+            principal = atualizacao.get("codigo_barras", produto.codigo_barras)
+            alternativos = atualizacao.get("codigos_barras_alternativos", produto.codigos_barras_alternativos)
+            atualizacao["codigos_barras_alternativos"] = self._normalizar_codigos_alternativos(alternativos, principal)
+
         for campo, valor in atualizacao.items():
             setattr(produto, campo, valor)
             

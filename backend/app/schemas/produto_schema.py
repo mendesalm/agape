@@ -43,7 +43,8 @@ class ProdutoBase(BaseModel):
     nome: str = Field(..., max_length=100)
     descricao: Optional[str] = Field(None, max_length=255)
     foto_url: Optional[str] = Field(None, max_length=255)
-    codigo_barras: Optional[str] = Field(None, max_length=50, description="EAN-13 / GTIN de fábrica")
+    codigo_barras: Optional[str] = Field(None, max_length=50, description="EAN-13 / GTIN principal de fábrica")
+    codigos_barras_alternativos: List[str] = Field(default_factory=list, description="Códigos de barras adicionais (EAN/GTIN/DUN-14)")
     qr_code_tag: Optional[str] = Field(None, max_length=500, description="QR Code de fábrica impresso na lata/garrafa/embalagem ou tag de identificação")
     data_validade: Optional[datetime] = None
     preco_custo: float = Field(default=0.0, ge=0)
@@ -69,6 +70,7 @@ class ProdutoUpdate(BaseModel):
     descricao: Optional[str] = None
     foto_url: Optional[str] = None
     codigo_barras: Optional[str] = None
+    codigos_barras_alternativos: Optional[List[str]] = None
     qr_code_tag: Optional[str] = None
     data_validade: Optional[datetime] = None
     preco_custo: Optional[float] = None
