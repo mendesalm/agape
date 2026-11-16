@@ -76,7 +76,7 @@ export const GerenteLogistica: React.FC = () => {
   const [categoriaPrincipal, setCategoriaPrincipal] = useState<'BEBIDAS' | 'ALIMENTOS'>('BEBIDAS');
   const [subcategoriaBebidas, setSubcategoriaBebidas] = useState<'TODAS' | 'ALCOOLICAS' | 'NAO_ALCOOLICAS'>('TODAS');
   const [filtroPill, setFiltroPill] = useState<'todos' | 'repor_bar' | 'baixo_estoque'>('todos');
-  const [sincronizandoCatalogo, setSincronizandoCatalogo] = useState(false);
+  const [sincronizandoProdutoId, setSincronizandoProdutoId] = useState<number | null>(null);
 
   // Estados para a Tela 8 (Detalhe do Produto & Lotes)
   const [isEditandoPreco, setIsEditandoPreco] = useState(false);
@@ -376,19 +376,28 @@ export const GerenteLogistica: React.FC = () => {
     }
   };
 
-  const handleSincronizarCatalogo = async () => {
-    if (!confirm('Deseja sincronizar o catálogo deste Bar com o Catálogo Global Mestre?\n\n• Atualiza fotos padronizadas em alta resolução (WebP)\n• Atualiza códigos de barras de fábrica (EAN-13)\n• Importa novos produtos com lotes iniciais prontos para venda')) {
-      return;
-    }
+  const handleSincronizarProduto = async (prod: Produto, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     try {
-      setSincronizandoCatalogo(true);
-      const res = await api.post('/produtos/sincronizar-catalogo');
+      setSincronizandoProdutoId(prod.id);
+      const res = await api.post(`/produtos/${prod.id}/sincronizar-catalogo`);
       await carregarProdutos();
-      alert(`Sincronização concluída com sucesso!\n\n• ${res.data.atualizados_count} produtos atualizados com fotos HD e EANs oficiais\n• ${res.data.importados_count} novos produtos importados do catálogo mestre\n• Total de produtos ativos no bar: ${res.data.total_loja}`);
+      if (produtoEmGestao?.id === prod.id) {
+        const prodAtualizado = await api.get(`/produtos/${prod.id}`);
+        setProdutoEmGestao(prodAtualizado.data);
+      }
+
+      if (res.data.status === 'nao_encontrado') {
+        alert(res.data.mensagem || `Nenhuma correspondência encontrada no Catálogo Global Mestre para "${prod.nome}".`);
+      } else if (res.data.atualizado) {
+        alert(`Produto "${prod.nome}" sincronizado com sucesso!\n\n• Referência mestre: ${res.data.mestre_nome}\n• Foto HD e EAN oficial atualizados.`);
+      } else {
+        alert(`Produto "${prod.nome}" já está atualizado com o Catálogo Global Mestre (${res.data.mestre_nome}).`);
+      }
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Erro ao sincronizar com o catálogo mestre.');
+      alert(err.response?.data?.detail || 'Erro ao sincronizar produto com o catálogo mestre.');
     } finally {
-      setSincronizandoCatalogo(false);
+      setSincronizandoProdutoId(null);
     }
   };
 
@@ -429,16 +438,6 @@ export const GerenteLogistica: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button 
-                onClick={handleSincronizarCatalogo}
-                disabled={sincronizandoCatalogo}
-                className="h-10 px-3 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 flex items-center gap-1.5 transition active:scale-95 shadow-inner hover:bg-indigo-500/30 text-xs font-semibold disabled:opacity-50"
-                title="Sincronizar produtos e fotos com o Catálogo Global Mestre"
-              >
-                <RefreshCw size={16} className={sincronizandoCatalogo ? 'animate-spin' : ''} />
-                <span className="hidden sm:inline">Sincronizar Catálogo</span>
-              </button>
-
               <button 
                 onClick={() => setModoView('cadastro')}
                 className="w-10 h-10 rounded-2xl bg-cyan-400/20 border border-cyan-400/40 text-cyan-300 flex items-center justify-center transition active:scale-95 shadow-inner hover:bg-cyan-400/30"
@@ -622,6 +621,17 @@ export const GerenteLogistica: React.FC = () => {
                         aspectRatio="auto"
                         containerClassName="h-28 w-full rounded-t-3xl rounded-b-none border-b border-white/5"
                       >
+                        {/* Botão Individual de Sincronismo com Catálogo Mestre */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleSincronizarProduto(prod, e)}
+                          disabled={sincronizandoProdutoId === prod.id}
+                          className="absolute top-2 left-2 w-7 h-7 rounded-xl bg-slate-950/70 backdrop-blur-md border border-indigo-400/40 text-indigo-300 flex items-center justify-center hover:bg-indigo-500/30 hover:text-white transition active:scale-90 shadow-md z-20 disabled:opacity-50"
+                          title="Sincronizar este produto com o Catálogo Global Mestre"
+                        >
+                          <RefreshCw size={13} className={sincronizandoProdutoId === prod.id ? 'animate-spin' : ''} />
+                        </button>
+
                         {/* Badge de Estoque no Bar */}
                         <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-lg text-[9px] font-extrabold shadow-md z-20 ${
                           isCritico
@@ -710,6 +720,14 @@ export const GerenteLogistica: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-1.5">
+              <button 
+                onClick={() => handleSincronizarProduto(produtoEmGestao)}
+                disabled={sincronizandoProdutoId === produtoEmGestao.id}
+                className="w-9 h-9 rounded-xl bg-indigo-500/20 backdrop-blur-md border border-indigo-400/40 flex items-center justify-center text-indigo-300 hover:bg-indigo-500/30 hover:text-white transition active:scale-95 shadow-inner disabled:opacity-50" 
+                title="Sincronizar este produto com o Catálogo Global Mestre"
+              >
+                <RefreshCw size={17} className={sincronizandoProdutoId === produtoEmGestao.id ? 'animate-spin' : ''} />
+              </button>
               <button 
                 onClick={() => setIsEditandoPreco(!isEditandoPreco)}
                 className="w-9 h-9 rounded-xl bg-white/[0.06] backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-300 hover:text-amber-300 transition active:scale-95 shadow-inner" 

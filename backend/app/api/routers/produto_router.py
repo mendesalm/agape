@@ -40,6 +40,27 @@ async def sincronizar_catalogo_loja(
     servico = ProdutoService(db, alvo_tenant)
     return await servico.sincronizar_com_catalogo_mestre(auto_importar_novos=auto_importar)
 
+@router.post("/{produto_id}/sincronizar-catalogo")
+async def sincronizar_produto_catalogo(
+    produto_id: int,
+    tenant_id: Optional[int] = Query(None, description="ID do estabelecimento para sincronização"),
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Sincroniza um único produto da loja com o Catálogo Global Mestre:
+    atualiza foto HD/WebP padronizada, código EAN oficial, marca, tipo e categorias.
+    """
+    alvo_tenant = usuario.tenant_id
+    if not alvo_tenant:
+        if (usuario.cargo or '').upper() == 'SUPERADMIN':
+            alvo_tenant = tenant_id or 1
+        else:
+            raise HTTPException(status_code=400, detail="Usuário sem loja vinculada.")
+
+    servico = ProdutoService(db, alvo_tenant)
+    return await servico.sincronizar_produto_com_catalogo_mestre(produto_id)
+
 @router.get("/alertas", response_model=AlertaEstoqueGeral)
 async def obter_alertas_estoque(
     db: AsyncSession = Depends(obter_sessao),

@@ -435,6 +435,181 @@ class ProdutoService:
             lotes_vencidos=lotes_vencidos
         )
 
+    @staticmethod
+    def _converter_categoria_mestre(cat_str: str):
+        from app.models.produto import CategoriaProduto
+        c = (cat_str or "").lower().strip()
+        if "alim" in c or "snack" in c or "comida" in c:
+            return CategoriaProduto.ALIMENTOS
+        elif "tabac" in c:
+            return CategoriaProduto.TABACOS_CONVENIENCIA
+        return CategoriaProduto.BEBIDAS
+
+    @staticmethod
+    def _converter_subcategoria_mestre(sub_str: str):
+        from app.models.produto import SubcategoriaProduto
+        s = (sub_str or "").lower().strip()
+        if "nao" in s or "sem" in s:
+            return SubcategoriaProduto.NAO_ALCOOLICAS
+        elif "snack" in s or "petisco" in s:
+            return SubcategoriaProduto.SNACKS_PETISCOS
+        elif "refeic" in s:
+            return SubcategoriaProduto.REFEICOES
+        elif "sobrem" in s:
+            return SubcategoriaProduto.SOBREMESAS
+        elif "alcool" in s or "cerveja" in s or "vinho" in s or "destil" in s:
+            return SubcategoriaProduto.ALCOOLICAS
+        return SubcategoriaProduto.OUTROS
+
+    def _parear_e_atualizar_produto(self, p_loja: Produto, mestres: list) -> tuple:
+        """
+        Localiza a melhor correspondência no catálogo mestre para um produto da loja
+        e atualiza foto_url, codigo_barras, marca, tipo, categoria e subcategoria.
+        Retorna (melhor_mestre, mudou).
+        """
+        import re
+
+        def extrair_tokens(texto):
+            if not texto:
+                return set()
+            texto = texto.lower()
+            for c, r in [('á','a'),('à','a'),('ã','a'),('â','a'),('é','e'),('ê','e'),('í','i'),('ó','o'),('ô','o'),('õ','o'),('ú','u'),('ç','c')]:
+                texto = texto.replace(c, r)
+            tokens = re.findall(r'[a-z0-9]+', texto)
+            stop = {'de', 'com', 'sem', 'em', 'para', 'e', 'do', 'da', 'dos', 'das', 'ml', 'g', 'l'}
+            return set(t for t in tokens if t not in stop)
+
+        MARCAS_CONHECIDAS = ['heineken', 'stella', 'corona', 'coca', 'guarana', 'crystal', 'red bull', 'amstel', 'spaten', 'brahma', 'skol', 'antarctica', 'schweppes', 'sukita', 'fanta', 'sprite']
+
+        tokens_loja = extrair_tokens(p_loja.nome)
+        is_zero_loja = ('sem' in p_loja.nome.lower() or 'zero' in p_loja.nome.lower())
+        is_lata_loja = ('lata' in p_loja.nome.lower())
+
+        melhor_m = None
+        melhor_score = -100
+
+        # 1. Casamento por EAN com verificação de coerência de marca
+        if p_loja.codigo_barras:
+            for m in mestres:
+                if m.codigo_barras == p_loja.codigo_barras:
+                    tokens_m = extrair_tokens(m.nome)
+                    conflito = any((marca in tokens_loja) != (marca in tokens_m) for marca in MARCAS_CONHECIDAS)
+                    if not conflito:
+                        melhor_m = m
+                        break
+
+        # 2. Casamento por similaridade de tokens
+        if not melhor_m:
+            for m in mestres:
+                tokens_m = extrair_tokens(m.nome)
+                inter = tokens_loja.intersection(tokens_m)
+                if not inter:
+                    continue
+
+                score = len(inter) * 2
+
+                for marca in MARCAS_CONHECIDAS:
+                    if marca in tokens_loja and marca in tokens_m:
+                        score += 10
+                    elif (marca in tokens_loja) != (marca in tokens_m):
+                        score -= 15
+
+                if ('cerveja' in p_loja.nome.lower()) != ('cerveja' in m.nome.lower()):
+                    score -= 25
+                if ('tonica' in p_loja.nome.lower()) != ('tonica' in m.nome.lower()):
+                    score -= 25
+                if ('refrigerante' in p_loja.nome.lower()) and ('cerveja' in m.nome.lower()):
+                    score -= 30
+
+                is_zero_m = ('sem' in m.nome.lower() or 'zero' in m.nome.lower())
+                score += 4 if is_zero_loja == is_zero_m else -8
+
+                is_lata_m = ('lata' in m.nome.lower())
+                score += 3 if is_lata_loja == is_lata_m else -3
+
+                for vol in ['350', '330', '473', '600', '250', '500', '2l']:
+                    if vol in p_loja.nome.lower() and vol in m.nome.lower():
+                        score += 5
+                    elif vol in p_loja.nome.lower() and vol not in m.nome.lower():
+                        score -= 4
+
+                if score > melhor_score and score >= 8:
+                    melhor_score = score
+                    melhor_m = m
+
+        if not melhor_m:
+            return None, False
+
+        mudou = False
+        if melhor_m.foto_url and p_loja.foto_url != melhor_m.foto_url:
+            p_loja.foto_url = melhor_m.foto_url
+            mudou = True
+        if melhor_m.codigo_barras and p_loja.codigo_barras != melhor_m.codigo_barras:
+            p_loja.codigo_barras = melhor_m.codigo_barras
+            mudou = True
+        if melhor_m.marca and p_loja.marca != melhor_m.marca:
+            p_loja.marca = melhor_m.marca
+            mudou = True
+        if melhor_m.tipo and p_loja.tipo != melhor_m.tipo:
+            p_loja.tipo = melhor_m.tipo
+            mudou = True
+        if melhor_m.categoria:
+            nova_cat = self._converter_categoria_mestre(melhor_m.categoria)
+            if p_loja.categoria != nova_cat:
+                p_loja.categoria = nova_cat
+                mudou = True
+        if melhor_m.subcategoria:
+            nova_sub = self._converter_subcategoria_mestre(melhor_m.subcategoria)
+            if p_loja.subcategoria != nova_sub:
+                p_loja.subcategoria = nova_sub
+                mudou = True
+
+        if mudou:
+            self.db.add(p_loja)
+
+        return melhor_m, mudou
+
+    async def sincronizar_produto_com_catalogo_mestre(self, produto_id: int) -> dict:
+        """
+        Sincroniza um único produto da loja com o Catálogo Global Mestre.
+        """
+        from sqlalchemy.future import select
+        from app.models.catalogo_mestre import CatalogoMestreProduto
+
+        p_loja = await self.repo.buscar_por_id(produto_id)
+        if not p_loja:
+            raise NaoEncontradoException(f"Produto (ID: {produto_id})")
+
+        res_mestre = await self.db.execute(
+            select(CatalogoMestreProduto).where(CatalogoMestreProduto.ativo == True)
+        )
+        mestres = res_mestre.scalars().all()
+
+        melhor_m, mudou = self._parear_e_atualizar_produto(p_loja, mestres)
+        if not melhor_m:
+            return {
+                "status": "nao_encontrado",
+                "atualizado": False,
+                "id": p_loja.id,
+                "nome": p_loja.nome,
+                "mestre_nome": None,
+                "mensagem": "Nenhuma correspondência encontrada no Catálogo Global Mestre para este produto."
+            }
+
+        if mudou:
+            await self.db.commit()
+            await self.db.refresh(p_loja)
+
+        return {
+            "status": "sucesso",
+            "atualizado": mudou,
+            "id": p_loja.id,
+            "nome": p_loja.nome,
+            "mestre_nome": melhor_m.nome,
+            "codigo_barras": p_loja.codigo_barras,
+            "foto_url": p_loja.foto_url
+        }
+
     async def sincronizar_com_catalogo_mestre(self, auto_importar_novos: bool = True) -> dict:
         """
         Sincroniza os produtos da loja com o Catálogo Global Mestre de Produtos:
@@ -446,43 +621,8 @@ class ProdutoService:
         """
         from sqlalchemy.future import select
         from app.models.catalogo_mestre import CatalogoMestreProduto
-        from app.models.produto import CategoriaProduto, SubcategoriaProduto
         from app.models.estoque import LoteEstoque
         from datetime import datetime, timedelta
-        import re
-
-        def extrair_tokens(texto):
-            if not texto: return set()
-            texto = texto.lower()
-            for c, r in [('á','a'),('à','a'),('ã','a'),('â','a'),('é','e'),('ê','e'),('í','i'),('ó','o'),('ô','o'),('õ','o'),('ú','u'),('ç','c')]:
-                texto = texto.replace(c, r)
-            tokens = re.findall(r'[a-z0-9]+', texto)
-            stop = {'de', 'com', 'sem', 'em', 'para', 'e', 'do', 'da', 'dos', 'das', 'ml', 'g', 'l'}
-            return set(t for t in tokens if t not in stop)
-
-        MARCAS_CONHECIDAS = ['heineken', 'stella', 'corona', 'coca', 'guarana', 'crystal', 'red bull', 'amstel', 'spaten', 'brahma', 'skol', 'antarctica', 'schweppes', 'sukita', 'fanta', 'sprite']
-
-        def converter_categoria(cat_str: str) -> CategoriaProduto:
-            c = (cat_str or "").lower().strip()
-            if "alim" in c or "snack" in c or "comida" in c:
-                return CategoriaProduto.ALIMENTOS
-            elif "tabac" in c:
-                return CategoriaProduto.TABACOS_CONVENIENCIA
-            return CategoriaProduto.BEBIDAS
-
-        def converter_subcategoria(sub_str: str) -> SubcategoriaProduto:
-            s = (sub_str or "").lower().strip()
-            if "nao" in s or "sem" in s:
-                return SubcategoriaProduto.NAO_ALCOOLICAS
-            elif "snack" in s or "petisco" in s:
-                return SubcategoriaProduto.SNACKS_PETISCOS
-            elif "refeic" in s:
-                return SubcategoriaProduto.REFEICOES
-            elif "sobrem" in s:
-                return SubcategoriaProduto.SOBREMESAS
-            elif "alcool" in s or "cerveja" in s or "vinho" in s or "destil" in s:
-                return SubcategoriaProduto.ALCOOLICAS
-            return SubcategoriaProduto.OUTROS
 
         # 1. Carregar produtos ativos do catálogo mestre
         res_mestre = await self.db.execute(
@@ -497,101 +637,10 @@ class ProdutoService:
         mestres_pareados_ids = set()
 
         for p_loja in produtos_loja:
-            tokens_loja = extrair_tokens(p_loja.nome)
-            is_zero_loja = ('sem' in p_loja.nome.lower() or 'zero' in p_loja.nome.lower())
-            is_lata_loja = ('lata' in p_loja.nome.lower())
-            
-            melhor_m = None
-            melhor_score = -100
-
-            # 1. Casamento por EAN com verificação de coerência de marca
-            if p_loja.codigo_barras:
-                for m in mestres:
-                    if m.codigo_barras == p_loja.codigo_barras:
-                        tokens_m = extrair_tokens(m.nome)
-                        conflito = any((marca in tokens_loja) != (marca in tokens_m) for marca in MARCAS_CONHECIDAS)
-                        if not conflito:
-                            melhor_m = m
-                            break
-
-            # 2. Casamento por similaridade de tokens
-            if not melhor_m:
-                for m in mestres:
-                    tokens_m = extrair_tokens(m.nome)
-                    inter = tokens_loja.intersection(tokens_m)
-                    if not inter:
-                        continue
-                    
-                    score = len(inter) * 2
-
-                    # Penalidade/Bônus de marca
-                    for marca in MARCAS_CONHECIDAS:
-                        if marca in tokens_loja and marca in tokens_m:
-                            score += 10
-                        elif (marca in tokens_loja) != (marca in tokens_m):
-                            score -= 15
-
-                    # Penalidade estrita de tipo de bebida
-                    if ('cerveja' in p_loja.nome.lower()) != ('cerveja' in m.nome.lower()):
-                        score -= 25
-                    if ('tonica' in p_loja.nome.lower()) != ('tonica' in m.nome.lower()):
-                        score -= 25
-                    if ('refrigerante' in p_loja.nome.lower()) and ('cerveja' in m.nome.lower()):
-                        score -= 30
-
-                    # Zero vs normal
-                    is_zero_m = ('sem' in m.nome.lower() or 'zero' in m.nome.lower())
-                    if is_zero_loja == is_zero_m:
-                        score += 4
-                    else:
-                        score -= 8
-
-                    # Lata vs Long Neck / Garrafa
-                    is_lata_m = ('lata' in m.nome.lower())
-                    if is_lata_loja == is_lata_m:
-                        score += 3
-                    else:
-                        score -= 3
-
-                    # Volume
-                    for vol in ['350', '330', '473', '600', '250', '500', '2l']:
-                        if vol in p_loja.nome.lower() and vol in m.nome.lower():
-                            score += 5
-                        elif vol in p_loja.nome.lower() and vol not in m.nome.lower():
-                            score -= 4
-
-                    if score > melhor_score and score >= 8:
-                        melhor_score = score
-                        melhor_m = m
-
+            melhor_m, mudou = self._parear_e_atualizar_produto(p_loja, mestres)
             if melhor_m:
                 mestres_pareados_ids.add(melhor_m.id)
-                mudou = False
-                if melhor_m.foto_url and p_loja.foto_url != melhor_m.foto_url:
-                    p_loja.foto_url = melhor_m.foto_url
-                    mudou = True
-                if melhor_m.codigo_barras and p_loja.codigo_barras != melhor_m.codigo_barras:
-                    p_loja.codigo_barras = melhor_m.codigo_barras
-                    mudou = True
-                if melhor_m.marca and p_loja.marca != melhor_m.marca:
-                    p_loja.marca = melhor_m.marca
-                    mudou = True
-                if melhor_m.tipo and p_loja.tipo != melhor_m.tipo:
-                    p_loja.tipo = melhor_m.tipo
-                    mudou = True
-                if melhor_m.categoria:
-                    nova_cat = converter_categoria(melhor_m.categoria)
-                    if p_loja.categoria != nova_cat:
-                        p_loja.categoria = nova_cat
-                        mudou = True
-                if melhor_m.subcategoria:
-                    nova_sub = converter_subcategoria(melhor_m.subcategoria)
-                    if p_loja.subcategoria != nova_sub:
-                        p_loja.subcategoria = nova_sub
-                        mudou = True
-
                 if mudou:
-                    self.db.add(p_loja)
                     atualizados.append({
                         "id": p_loja.id,
                         "nome": p_loja.nome,
@@ -619,8 +668,8 @@ class ProdutoService:
                     nome=m.nome,
                     codigo_barras=m.codigo_barras,
                     marca=m.marca,
-                    categoria=converter_categoria(m.categoria),
-                    subcategoria=converter_subcategoria(m.subcategoria),
+                    categoria=self._converter_categoria_mestre(m.categoria),
+                    subcategoria=self._converter_subcategoria_mestre(m.subcategoria),
                     tipo=m.tipo,
                     foto_url=m.foto_url,
                     descricao=m.descricao,
