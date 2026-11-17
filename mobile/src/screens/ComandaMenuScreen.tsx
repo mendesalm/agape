@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Image, ScrollView, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
@@ -16,6 +16,8 @@ interface Produto {
   subcategoria?: string;
   tipo?: string;
   marca?: string;
+  codigo_barras?: string;
+  codigos_barras_alternativos?: string[];
   preco_venda: number;
   quantidade_gondola: number;
   foto_url?: string;
@@ -28,6 +30,7 @@ export function ComandaMenuScreen({ route, navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todos');
+  const [busca, setBusca] = useState<string>('');
 
   useEffect(() => {
     carregarCardapio();
@@ -96,9 +99,25 @@ export function ComandaMenuScreen({ route, navigation }: Props) {
     }
   };
 
-  const produtosFiltrados = filtroCategoria === 'todos' 
-    ? produtos 
-    : produtos.filter(p => p.categoria.toLowerCase() === filtroCategoria.toLowerCase());
+  const produtosFiltrados = produtos.filter((p) => {
+    if (busca.trim()) {
+      const q = busca.trim().toLowerCase();
+      const matchNome = (p.nome || '').toLowerCase().includes(q);
+      const matchMarca = (p.marca || '').toLowerCase().includes(q);
+      const matchEan =
+        (p.codigo_barras || '').toLowerCase().includes(q) ||
+        (p.codigos_barras_alternativos || []).some((c) => c.toLowerCase().includes(q));
+      if (!matchNome && !matchMarca && !matchEan) return false;
+    }
+
+    if (filtroCategoria === 'todos') return true;
+    const cat = (p.categoria || '').toLowerCase();
+    const sub = (p.subcategoria || '').toLowerCase();
+    if (filtroCategoria === 'alcoolicas') return cat === 'bebidas' && sub === 'alcoolicas';
+    if (filtroCategoria === 'nao_alcoolicas') return cat === 'bebidas' && sub !== 'alcoolicas';
+    if (filtroCategoria === 'alimentos') return cat === 'alimentos';
+    return cat === filtroCategoria.toLowerCase();
+  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -108,7 +127,7 @@ export function ComandaMenuScreen({ route, navigation }: Props) {
           <ArrowLeft color="#fff" size={24} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.title}>Cardápio Digital</Text>
+          <Text style={styles.title}>E-Sigma ∴ Ágape • Cardápio</Text>
           <Text style={styles.subtitle}>Comanda: {identificador}</Text>
         </View>
         <View style={styles.badgeMesa}>
@@ -116,20 +135,41 @@ export function ComandaMenuScreen({ route, navigation }: Props) {
         </View>
       </View>
 
-      {/* Filtros Rápidos */}
-      <View style={styles.filtros}>
-        {['todos', 'bebidas', 'alimentos'].map(cat => (
+      {/* Busca por nome, marca ou EAN */}
+      <View style={styles.searchBox}>
+        <TextInput
+          value={busca}
+          onChangeText={setBusca}
+          placeholder="Buscar produto, marca ou EAN..."
+          placeholderTextColor="#64748b"
+          style={styles.searchInput}
+        />
+      </View>
+
+      {/* Carrossel Horizontal de Categorias */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filtros}
+        style={styles.filtrosScroll}
+      >
+        {[
+          { id: 'todos', label: 'Todos' },
+          { id: 'alcoolicas', label: 'Alcoólicas' },
+          { id: 'nao_alcoolicas', label: 'Não Alcoólicas' },
+          { id: 'alimentos', label: 'Alimentos' },
+        ].map(cat => (
           <TouchableOpacity 
-            key={cat} 
-            onPress={() => setFiltroCategoria(cat)}
-            style={[styles.chip, filtroCategoria === cat && styles.chipAtivo]}
+            key={cat.id} 
+            onPress={() => setFiltroCategoria(cat.id)}
+            style={[styles.chip, filtroCategoria === cat.id && styles.chipAtivo]}
           >
-            <Text style={[styles.chipText, filtroCategoria === cat && styles.chipTextAtivo]}>
-              {cat === 'todos' ? 'Todos' : cat.charAt(0).toUpperCase() + cat.slice(1)}
+            <Text style={[styles.chipText, filtroCategoria === cat.id && styles.chipTextAtivo]}>
+              {cat.label}
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       {/* Lista de Produtos */}
       {loading ? (
@@ -222,7 +262,10 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 12, color: '#888', marginTop: 2 },
   badgeMesa: { backgroundColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#334155' },
   badgeMesaText: { color: '#38bdf8', fontSize: 12, fontWeight: 'bold' },
-  filtros: { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
+  searchBox: { paddingHorizontal: 20, paddingTop: 10 },
+  searchInput: { backgroundColor: '#14141e', borderWidth: 1, borderColor: '#222', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, color: '#fff', fontSize: 13 },
+  filtrosScroll: { flexGrow: 0 },
+  filtros: { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 12, gap: 8, alignItems: 'center' },
   chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#161622' },
   chipAtivo: { backgroundColor: '#3b82f6' },
   chipText: { color: '#888', fontSize: 12, fontWeight: '600' },

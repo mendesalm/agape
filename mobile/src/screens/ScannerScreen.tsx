@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Text, View, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { Text, View, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native';
 import { Camera, CameraView } from 'expo-camera';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -15,6 +15,7 @@ export function ScannerScreen({ navigation }: Props) {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [codigoManual, setCodigoManual] = useState('');
 
   useEffect(() => {
     const getCameraPermissions = async () => {
@@ -83,7 +84,7 @@ export function ScannerScreen({ navigation }: Props) {
           <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
             <X color="#fff" size={24} />
           </TouchableOpacity>
-          <Text style={styles.title}>QR Code da Mesa ou Comanda</Text>
+          <Text style={styles.title}>E-Sigma ∴ Ágape • QR / Comanda</Text>
         </View>
         <View style={styles.middleOverlay}>
           <View style={styles.sideOverlay} />
@@ -96,10 +97,30 @@ export function ScannerScreen({ navigation }: Props) {
           <View style={styles.sideOverlay} />
         </View>
         <View style={styles.bottomOverlay}>
-          {processing && (
+          {processing ? (
             <View style={styles.processingBox}>
-              <ActivityIndicator color="#3b82f6" size="large" />
+              <ActivityIndicator color="#10b981" size="large" />
               <Text style={styles.processingText}>Acessando comanda eletrônica...</Text>
+            </View>
+          ) : (
+            <View style={styles.manualBox}>
+              <TextInput
+                value={codigoManual}
+                onChangeText={setCodigoManual}
+                placeholder="Ou digite CIM, CPF ou Cartão..."
+                placeholderTextColor="#94a3b8"
+                style={styles.manualInput}
+              />
+              <TouchableOpacity
+                style={styles.manualBtn}
+                onPress={() => {
+                  if (codigoManual.trim()) {
+                    handleBarCodeScanned({ type: 'manual', data: codigoManual.trim() });
+                  }
+                }}
+              >
+                <Text style={styles.manualBtnText}>Buscar</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -120,11 +141,15 @@ const styles = StyleSheet.create({
   focusedArea: { width: 250, height: 250, backgroundColor: 'transparent' },
   closeBtn: { position: 'absolute', top: 20, right: 20, padding: 10 },
   title: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginTop: 40 },
-  corner: { position: 'absolute', width: 30, height: 30, borderColor: '#3b82f6', borderWidth: 4 },
+  corner: { position: 'absolute', width: 30, height: 30, borderColor: '#10b981', borderWidth: 4 },
   cornerTL: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 16 },
   cornerTR: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 16 },
   cornerBL: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 16 },
   cornerBR: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 16 },
   processingBox: { backgroundColor: 'rgba(255,255,255,0.9)', padding: 20, borderRadius: 16, alignItems: 'center' },
-  processingText: { color: '#333', fontWeight: 'bold', marginTop: 10 }
+  processingText: { color: '#333', fontWeight: 'bold', marginTop: 10 },
+  manualBox: { flexDirection: 'row', alignItems: 'center', width: '88%', gap: 8, backgroundColor: 'rgba(15,23,42,0.9)', padding: 10, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
+  manualInput: { flex: 1, color: '#fff', fontSize: 13, paddingHorizontal: 10, paddingVertical: 6 },
+  manualBtn: { backgroundColor: '#10b981', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+  manualBtnText: { color: '#022c22', fontWeight: 'bold', fontSize: 12 }
 });
