@@ -16,3 +16,4 @@ description: Regras de negócio e UX para identificação de clientes, cadastro 
   - O cadastro avulso permite apenas **`Novo Irmão`** ou **`Convidado`** (não maçom / não dependente).
   - Dependentes (esposa/filhos) são cadastrados exclusivamente a partir da ficha do titular (`1C`).
   - **E-mail obrigatório** em todos os cadastros (titulares, convidados e dependentes), além de Nome Completo e WhatsApp/Telefone.
+  - Permitir **vincular cartão genérico de comanda ou documento com QR Code** diretamente no cadastro (`+ Ler Cartão Genérico` e `+ Ler Doc. c/ QR Code`).
