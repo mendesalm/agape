@@ -6,7 +6,9 @@ from typing import List, Optional
 from datetime import datetime
 import time
 from sqlalchemy.orm.attributes import flag_modified
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+import uuid
+import re
 
 from app.core.database import obter_sessao
 from app.schemas.comanda_schema import (
@@ -99,6 +101,163 @@ async def buscar_clientes(
             "nome_loja_origem": c.nome_loja_origem
         })
     return resultado
+
+class DocumentoVinculoItem(BaseModel):
+    tipo: str = "DOCUMENTO_QR"
+    rotulo: str = "Documento QR"
+    codigo: str
+
+class ClienteCadastroAgapeRequest(BaseModel):
+    nome: str = Field(..., min_length=2, max_length=100)
+    email: str = Field(..., min_length=5, max_length=100)
+    telefone: Optional[str] = Field(None, max_length=20)
+    cpf_ou_cim: Optional[str] = Field(None, max_length=30)
+    tipo_consumidor: str = Field(default="IRMAO_QUADRO") # IRMAO_QUADRO ou CONVIDADO_NAO_MACOM
+    documentos_qr: List[DocumentoVinculoItem] = Field(default_factory=list)
+    codigo_cartao_coringa: Optional[str] = Field(None, max_length=100)
+
+class DependenteCadastroRequest(BaseModel):
+    nome: str = Field(..., min_length=2, max_length=100)
+    email: str = Field(..., min_length=5, max_length=100)
+    telefone: Optional[str] = Field(None, max_length=20)
+    parentesco: str = Field(default="Esposa", max_length=40)
+
+@router.post("/clientes", status_code=status.HTTP_201_CREATED)
+async def cadastrar_cliente_agape(
+    dados: ClienteCadastroAgapeRequest,
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Cadastra um novo Irmão ou Convidado no Ágape com e-mail obrigatório,
+    vínculo opcional de documentos com QR Code e/ou cartão genérico de comanda.
+    """
+    email_limpo = dados.email.strip().lower()
+    if "@" not in email_limpo or "." not in email_limpo.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="Informe um e-mail válido.")
+
+    tipo = dados.tipo_consumidor.upper().strip()
+    if tipo not in ("IRMAO_QUADRO", "IRMAO_VISITANTE", "CONVIDADO_NAO_MACOM"):
+        raise HTTPException(status_code=400, detail="Tipo de consumidor inválido. Use Novo Irmão ou Convidado.")
+
+    digitos = re.sub(r"\D", "", dados.cpf_ou_cim or "")
+    cpf_val = None
+    cim_val = None
+    if len(digitos) == 11:
+        cpf_val = digitos
+    elif 4 <= len(digitos) <= 8:
+        cim_val = digitos
+        cpf_val = f"CIM:{digitos}"
+    else:
+        cpf_val = f"CAD:{uuid.uuid4().hex[:10].upper()}"
+
+    # Verifica se já existe por CPF ou CIM
+    cond = (Cliente.cpf == cpf_val)
+    if cim_val:
+        cond = cond | (Cliente.cim == cim_val)
+    res_ex = await db.execute(select(Cliente).where(cond))
+    existente = res_ex.scalars().first()
+    if existente:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Já existe um cadastro com este documento para {existente.nome}."
+        )
+
+    docs_json = []
+    for idx, doc in enumerate(dados.documentos_qr):
+        cod = doc.codigo.strip()
+        if not cod:
+            continue
+        docs_json.append({
+            "id": f"{doc.tipo.lower()}_{int(time.time())}_{idx}",
+            "tipo": doc.tipo.upper(),
+            "rotulo": doc.rotulo.strip() or doc.tipo.upper(),
+            "codigo": cod,
+            "cadastrado_em": datetime.utcnow().isoformat() + "Z",
+            "ativo": True
+        })
+
+    novo = Cliente(
+        nome=dados.nome.strip(),
+        email=email_limpo,
+        telefone=(dados.telefone or "").strip() or None,
+        cpf=cpf_val,
+        cim=cim_val,
+        tipo_consumidor=tipo,
+        identificadores_qr=docs_json,
+        ativo=True
+    )
+    db.add(novo)
+    await db.flush()
+
+    await CarteiraService.obter_ou_criar_carteira(db, novo.id, usuario.tenant_id)
+
+    # Se informou cartão genérico de comanda, associa ao cliente
+    if dados.codigo_cartao_coringa and dados.codigo_cartao_coringa.strip():
+        cod_cartao = dados.codigo_cartao_coringa.strip()
+        res_cartao = await db.execute(
+            select(CartaoFisico).where(
+                CartaoFisico.tenant_id == usuario.tenant_id,
+                CartaoFisico.codigo_identificador == cod_cartao
+            )
+        )
+        cartao = res_cartao.scalars().first()
+        if not cartao:
+            cartao = CartaoFisico(
+                tenant_id=usuario.tenant_id,
+                codigo_identificador=cod_cartao,
+                status=StatusCartaoFisico.EM_USO
+            )
+            db.add(cartao)
+            await db.flush()
+        else:
+            cartao.status = StatusCartaoFisico.EM_USO
+
+        db.add(VinculoCartaoCliente(
+            tenant_id=usuario.tenant_id,
+            cartao_id=cartao.id,
+            cliente_id=novo.id,
+            ativo=True
+        ))
+
+    await db.commit()
+    await db.refresh(novo)
+    return await _montar_detalhes_cliente(db, novo, usuario.tenant_id)
+
+@router.post("/cliente/{cliente_id}/dependentes", status_code=status.HTTP_201_CREATED)
+async def cadastrar_dependente_cliente(
+    cliente_id: int,
+    dados: DependenteCadastroRequest,
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Cadastra um dependente (Esposa, Filho, etc.) já referenciado ao Irmão titular,
+    com e-mail obrigatório, autorizado a retirar itens em nome do titular.
+    """
+    email_limpo = dados.email.strip().lower()
+    if "@" not in email_limpo or "." not in email_limpo.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="Informe um e-mail válido para o dependente.")
+
+    res_titular = await db.execute(select(Cliente).where(Cliente.id == cliente_id))
+    titular = res_titular.scalars().first()
+    if not titular:
+        raise HTTPException(status_code=404, detail="Cliente titular não encontrado.")
+
+    dep = Cliente(
+        nome=dados.nome.strip(),
+        email=email_limpo,
+        telefone=(dados.telefone or "").strip() or None,
+        cpf=f"DEP-{titular.id}-{uuid.uuid4().hex[:8].upper()}",
+        tipo_consumidor="FAMILIAR",
+        obreiro_responsavel_id=titular.id,
+        observacao=dados.parentesco.strip() or "Dependente",
+        ativo=True
+    )
+    db.add(dep)
+    await db.commit()
+    await db.refresh(dep)
+    return await _montar_detalhes_cliente(db, titular, usuario.tenant_id)
 
 @router.get("/cliente/meu-perfil")
 async def obter_meu_perfil_cliente(
@@ -205,6 +364,25 @@ async def _montar_detalhes_cliente(db: AsyncSession, cliente: Cliente, tenant_id
             ]
         }
 
+    # Dependentes autorizados vinculados a este titular
+    res_deps = await db.execute(
+        select(Cliente).where(
+            Cliente.obreiro_responsavel_id == cliente.id,
+            Cliente.ativo == True
+        ).order_by(Cliente.nome.asc())
+    )
+    dependentes = [
+        {
+            "id": d.id,
+            "nome": d.nome,
+            "parentesco": d.observacao or "Dependente",
+            "email": d.email,
+            "telefone": d.telefone,
+            "tipo_consumidor": d.tipo_consumidor,
+        }
+        for d in res_deps.scalars().all()
+    ]
+
     return {
         "cliente": {
             "id": cliente.id,
@@ -226,7 +404,8 @@ async def _montar_detalhes_cliente(db: AsyncSession, cliente: Cliente, tenant_id
             "limite_fiado": getattr(carteira, "limite_fiado", 100.0)
         },
         "cartao_ativo": cartao_codigo,
-        "comanda_aberta": comanda_info
+        "comanda_aberta": comanda_info,
+        "dependentes": dependentes
     }
 
 class QuitarComandaClienteRequest(BaseModel):

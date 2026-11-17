@@ -21,7 +21,10 @@ import {
   RefreshCw,
   BookOpen,
   Search,
-  Wine
+  Wine,
+  Users,
+  Wallet,
+  Keyboard
 } from 'lucide-react';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
 import { ProdutoGlassThumb } from '../components/ProdutoGlassThumb';
@@ -34,10 +37,12 @@ interface ItemComanda {
   quantidade: number;
   valor_unitario: number;
   status?: string;
+  observacao?: string;
 }
 
 interface Comanda {
   id: number;
+  cliente_id?: number;
   nome_cliente?: string;
   identificador_cartao?: string;
   status: 'ABERTA' | 'FECHADA' | 'CANCELADA';
@@ -80,7 +85,37 @@ export function Comandas() {
 
   // Leitor de Câmera Móvel
   const [isCameraAberta, setIsCameraAberta] = useState(false);
-  const [cameraContexto, setCameraContexto] = useState<'cartao' | 'produto'>('cartao');
+  const [cameraContexto, setCameraContexto] = useState<'cartao' | 'produto' | 'cad_cartao' | 'cad_doc'>('cartao');
+
+  // Identificação Avançada (1B / 1C / 1D Ágape)
+  const [clienteDetalhesAtivo, setClienteDetalhesAtivo] = useState<{
+    cliente: { id: number; nome: string; cpf?: string; cim?: string; email?: string; telefone?: string; tipo_consumidor?: string };
+    carteira: { saldo: number; limite_fiado: number };
+    cartao_ativo?: string | null;
+    dependentes: Array<{ id: number; nome: string; parentesco: string; email?: string; telefone?: string }>;
+  } | null>(null);
+  const [retiranteSelecionado, setRetiranteSelecionado] = useState<{ id: number; nome: string; parentesco: string } | null>(null);
+  const [isNumpadAberto, setIsNumpadAberto] = useState(false);
+  const [resultadosBuscaCliente, setResultadosBuscaCliente] = useState<Array<{ id: number; nome: string; cpf?: string; cim?: string; tipo_consumidor?: string }>>([]);
+
+  // Modal 1D: Cadastro Rápido (Novo Irmão ou Convidado + E-mail + Vínculo Cartão/Doc QR)
+  const [isModalCadastroClienteOpen, setIsModalCadastroClienteOpen] = useState(false);
+  const [cadClienteCpfCim, setCadClienteCpfCim] = useState('');
+  const [cadClienteNome, setCadClienteNome] = useState('');
+  const [cadClienteEmail, setCadClienteEmail] = useState('');
+  const [cadClienteTelefone, setCadClienteTelefone] = useState('');
+  const [cadClienteTipo, setCadClienteTipo] = useState<'IRMAO_QUADRO' | 'CONVIDADO_NAO_MACOM'>('IRMAO_QUADRO');
+  const [cadCartaoGenerico, setCadCartaoGenerico] = useState('');
+  const [cadDocumentosQr, setCadDocumentosQr] = useState<Array<{ tipo: string; rotulo: string; codigo: string }>>([]);
+  const [salvandoCadastroCliente, setSalvandoCadastroCliente] = useState(false);
+
+  // Modal Cadastro Rápido de Dependente (a partir da 1C)
+  const [isModalCadastroDependenteOpen, setIsModalCadastroDependenteOpen] = useState(false);
+  const [depNome, setDepNome] = useState('');
+  const [depEmail, setDepEmail] = useState('');
+  const [depTelefone, setDepTelefone] = useState('');
+  const [depParentesco, setDepParentesco] = useState('Esposa');
+  const [salvandoDependente, setSalvandoDependente] = useState(false);
 
   // Refs para focar automaticamente nos inputs de leitor de código
   const inputCartaoRef = useRef<HTMLInputElement>(null);
@@ -182,6 +217,114 @@ export function Comandas() {
     }
   };
 
+  const carregarDetalhesClienteAtivo = async (clienteId?: number | null) => {
+    if (!clienteId) {
+      setClienteDetalhesAtivo(null);
+      return;
+    }
+    try {
+      const res = await api.get(`/comandas/cliente/${clienteId}/detalhes`);
+      setClienteDetalhesAtivo(res.data);
+    } catch {
+      setClienteDetalhesAtivo(null);
+    }
+  };
+
+  const abrirModalCadastroCliente = (docInicial = '') => {
+    setCadClienteCpfCim(docInicial);
+    setCadClienteNome('');
+    setCadClienteEmail('');
+    setCadClienteTelefone('');
+    setCadClienteTipo('IRMAO_QUADRO');
+    setCadCartaoGenerico('');
+    setCadDocumentosQr([]);
+    setIsModalCadastroClienteOpen(true);
+  };
+
+  const handleBuscarClientesPorNome = async (termo: string) => {
+    if (!termo.trim()) {
+      setResultadosBuscaCliente([]);
+      return;
+    }
+    try {
+      const res = await api.get(`/comandas/clientes/busca?q=${encodeURIComponent(termo.trim())}`);
+      setResultadosBuscaCliente(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setResultadosBuscaCliente([]);
+    }
+  };
+
+  const handleNumpadPress = (tecla: string) => {
+    if (tecla === 'LIMPAR') {
+      setCartaoClienteInput('');
+      return;
+    }
+    if (tecla === 'BACK') {
+      setCartaoClienteInput((prev) => prev.slice(0, -1));
+      return;
+    }
+    setCartaoClienteInput((prev) => prev + tecla);
+  };
+
+  const handleSalvarCadastroCliente = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!cadClienteNome.trim() || !cadClienteEmail.trim()) {
+      alert('Nome completo e e-mail são obrigatórios.');
+      return;
+    }
+    try {
+      setSalvandoCadastroCliente(true);
+      const res = await api.post('/comandas/clientes', {
+        nome: cadClienteNome.trim(),
+        email: cadClienteEmail.trim(),
+        telefone: cadClienteTelefone.trim() || null,
+        cpf_ou_cim: cadClienteCpfCim.trim() || null,
+        tipo_consumidor: cadClienteTipo,
+        documentos_qr: cadDocumentosQr,
+        codigo_cartao_coringa: cadCartaoGenerico.trim() || null,
+      });
+      const novoCliente = res.data?.cliente;
+      setIsModalCadastroClienteOpen(false);
+      if (novoCliente) {
+        const identificador = res.data.cartao_ativo || novoCliente.cim || novoCliente.cpf;
+        await handleIdentificarClienteBalcao(undefined, identificador);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao cadastrar novo cliente.');
+    } finally {
+      setSalvandoCadastroCliente(false);
+    }
+  };
+
+  const handleSalvarDependente = async (e: FormEvent) => {
+    e.preventDefault();
+    const titularId = clienteDetalhesAtivo?.cliente?.id;
+    if (!titularId) return;
+    if (!depNome.trim() || !depEmail.trim()) {
+      alert('Nome e e-mail do dependente são obrigatórios.');
+      return;
+    }
+    try {
+      setSalvandoDependente(true);
+      const res = await api.post(`/comandas/cliente/${titularId}/dependentes`, {
+        nome: depNome.trim(),
+        email: depEmail.trim(),
+        telefone: depTelefone.trim() || null,
+        parentesco: depParentesco,
+      });
+      setClienteDetalhesAtivo(res.data);
+      setDepNome('');
+      setDepEmail('');
+      setDepTelefone('');
+      setDepParentesco('Esposa');
+      setIsModalCadastroDependenteOpen(false);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao cadastrar dependente.');
+    } finally {
+      setSalvandoDependente(false);
+    }
+  };
+
   // 1. Identificação do Cliente no Balcão
   const handleIdentificarClienteBalcao = async (e?: FormEvent, codigoForcado?: string) => {
     if (e) e.preventDefault();
@@ -193,13 +336,20 @@ export function Comandas() {
         identificador_cartao: termo
       });
       setComandaBalcaoAtiva(res.data);
+      setRetiranteSelecionado(null);
+      setResultadosBuscaCliente([]);
+      setIsNumpadAberto(false);
+      await carregarDetalhesClienteAtivo(res.data.cliente_id);
       setSucessoFeedback(`Cliente ativo: ${res.data.nome_cliente || res.data.identificador_cartao}`);
       setTimeout(() => setSucessoFeedback(null), 3000);
       
       setTimeout(() => inputProdutoRef.current?.focus(), 150);
       carregarDados();
     } catch (err: any) {
-      alert(err.response?.data?.detail || "Erro ao identificar cliente.");
+      const msg = err.response?.data?.detail || 'Cliente não identificado.';
+      if (confirm(`${msg}\n\nDeseja cadastrar "${termo}" como Novo Irmão ou Convidado agora?`)) {
+        abrirModalCadastroCliente(termo);
+      }
     }
   };
 
@@ -276,7 +426,10 @@ export function Comandas() {
     try {
       await api.post(`/comandas/${comandaBalcaoAtiva.id}/itens`, {
         produto_id: produtoConferencia.id,
-        quantidade: qtdConferencia
+        quantidade: qtdConferencia,
+        observacao: retiranteSelecionado
+          ? `Retirado por: ${retiranteSelecionado.nome} (${retiranteSelecionado.parentesco})`
+          : undefined
       });
 
       const res = await api.get(`/comandas/${comandaBalcaoAtiva.id}`);
@@ -304,6 +457,8 @@ export function Comandas() {
 
   const finalizarAtendimentoBalcao = () => {
     setComandaBalcaoAtiva(null);
+    setClienteDetalhesAtivo(null);
+    setRetiranteSelecionado(null);
     setCartaoClienteInput('');
     setProdutoConferencia(null);
     setQtdConferencia(1);
@@ -375,6 +530,17 @@ export function Comandas() {
     if (cameraContexto === 'cartao') {
       setCartaoClienteInput(codigo);
       handleIdentificarClienteBalcao(undefined, codigo);
+    } else if (cameraContexto === 'cad_cartao') {
+      setCadCartaoGenerico(codigo.trim());
+    } else if (cameraContexto === 'cad_doc') {
+      const limpo = codigo.trim();
+      if (limpo) {
+        setCadDocumentosQr((prev) =>
+          prev.some((d) => d.codigo === limpo)
+            ? prev
+            : [...prev, { tipo: 'DOCUMENTO_QR', rotulo: `Doc QR (${limpo.slice(0, 10)})`, codigo: limpo }]
+        );
+      }
     } else {
       setCodigoProdutoInput(codigo);
       handleBiparProdutoBalcao(undefined, codigo);
@@ -511,62 +677,231 @@ export function Comandas() {
               </div>
 
               {!comandaBalcaoAtiva ? (
-                <form onSubmit={e => handleIdentificarClienteBalcao(e)} className="flex gap-2">
-                  <div className="relative flex-1">
-                    <QrCode className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input 
-                      ref={inputCartaoRef}
-                      type="text" 
-                      value={cartaoClienteInput} 
-                      onChange={e => setCartaoClienteInput(e.target.value)}
-                      placeholder="Bipe o Cartão QR Code ou digite o CPF..."
-                      className="w-full pl-10 pr-3 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-xs sm:text-sm text-white placeholder-slate-500 font-medium focus:outline-none focus:border-cyan-400/50"
-                      autoFocus
-                    />
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      setCameraContexto('cartao');
-                      setIsCameraAberta(true);
-                    }}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 border border-white/10"
-                    title="Ler com a Câmera"
-                  >
-                    <Camera size={18} />
-                  </button>
-                  <button 
-                    type="submit" 
-                    className="px-4 py-2 bg-gradient-to-r from-cyan-500/30 to-blue-600/30 hover:from-cyan-500/40 hover:to-blue-600/40 border border-cyan-400/40 text-cyan-300 rounded-xl font-bold text-xs flex items-center gap-1 shadow-sm transition"
-                  >
-                    <span>Identificar</span>
-                    <ArrowRight size={14} />
-                  </button>
-                </form>
-              ) : (
-                <div className="flex justify-between items-center bg-white/[0.04] p-3 rounded-2xl border border-white/10">
-                  <div>
-                    <h3 className="font-extrabold text-sm sm:text-base text-white">
-                      {comandaBalcaoAtiva.nome_cliente || 'Cliente Identificado'}
-                    </h3>
-                    <p className="text-[10px] text-slate-400">
-                      Cartão/Tag: <span className="font-mono text-cyan-300 font-semibold">{comandaBalcaoAtiva.identificador_cartao || `#${comandaBalcaoAtiva.id}`}</span> • Comanda #{comandaBalcaoAtiva.id}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right">
-                      <div className="text-[9px] text-slate-400 uppercase font-bold">Acumulado</div>
-                      <div className="font-black text-sm sm:text-base text-amber-400 tabular-nums">
-                        R$ {(comandaBalcaoAtiva.total || 0).toFixed(2).replace('.', ',')}
-                      </div>
+                <div className="space-y-2.5">
+                  <form onSubmit={e => handleIdentificarClienteBalcao(e)} className="flex flex-wrap sm:flex-nowrap gap-2">
+                    <div className="relative flex-1 min-w-[180px]">
+                      <QrCode className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <input 
+                        ref={inputCartaoRef}
+                        type="text" 
+                        value={cartaoClienteInput} 
+                        onChange={e => {
+                          const v = e.target.value;
+                          setCartaoClienteInput(v);
+                          if (/[a-zA-Z]/.test(v) && v.trim().length >= 2) {
+                            handleBuscarClientesPorNome(v);
+                          } else {
+                            setResultadosBuscaCliente([]);
+                          }
+                        }}
+                        placeholder="Bipe QR/Cartão ou digite CIM, CPF ou Nome..."
+                        className="w-full pl-10 pr-3 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-xs sm:text-sm text-white placeholder-slate-500 font-medium focus:outline-none focus:border-cyan-400/50"
+                        autoFocus
+                      />
                     </div>
                     <button 
-                      onClick={finalizarAtendimentoBalcao}
-                      className="px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-slate-300 rounded-xl text-[10px] font-semibold transition"
+                      type="button"
+                      onClick={() => {
+                        setCameraContexto('cartao');
+                        setIsCameraAberta(true);
+                      }}
+                      className="p-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 border border-white/10"
+                      title="Ler QR/Cartão com a Câmera"
                     >
-                      Trocar
+                      <Camera size={18} />
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsNumpadAberto(!isNumpadAberto)}
+                      className={`p-2 rounded-xl border transition ${
+                        isNumpadAberto
+                          ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                          : 'bg-white/10 hover:bg-white/15 text-slate-300 border-white/10'
+                      }`}
+                      title="Teclado Numérico (CIM / CPF)"
+                    >
+                      <Keyboard size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => abrirModalCadastroCliente(cartaoClienteInput.trim())}
+                      className="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 text-amber-300 text-xs font-bold flex items-center gap-1 transition"
+                      title="Cadastrar Novo Irmão ou Convidado"
+                    >
+                      <UserPlus size={15} />
+                      <span className="hidden sm:inline">Novo</span>
+                    </button>
+                    <button 
+                      type="submit" 
+                      className="px-4 py-2 bg-gradient-to-r from-cyan-500/30 to-blue-600/30 hover:from-cyan-500/40 hover:to-blue-600/40 border border-cyan-400/40 text-cyan-300 rounded-xl font-bold text-xs flex items-center gap-1 shadow-sm transition"
+                    >
+                      <span>Identificar</span>
+                      <ArrowRight size={14} />
+                    </button>
+                  </form>
+
+                  {/* Resultados da busca por nome */}
+                  {resultadosBuscaCliente.length > 0 && (
+                    <div className="rounded-xl bg-[#070C18] border border-white/10 divide-y divide-white/5 max-h-36 overflow-y-auto">
+                      {resultadosBuscaCliente.map((cli) => (
+                        <button
+                          key={cli.id}
+                          type="button"
+                          onClick={() => handleIdentificarClienteBalcao(undefined, cli.cim || cli.cpf || String(cli.id))}
+                          className="w-full px-3 py-2 text-left hover:bg-white/[0.06] flex items-center justify-between text-xs transition"
+                        >
+                          <span className="font-bold text-white">{cli.nome}</span>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            {cli.cim ? `CIM ${cli.cim}` : cli.cpf}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Numpad In-Place (1B) */}
+                  {isNumpadAberto && (
+                    <div className="p-2.5 rounded-2xl bg-[#070C18] border border-white/10 space-y-2">
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 px-1">
+                        <span>Digite o CIM (5–7 dígitos) ou CPF (11 dígitos)</span>
+                        <span className="font-mono text-emerald-400">
+                          {cartaoClienteInput.replace(/\D/g, '').length <= 7 ? 'CIM' : 'CPF'} ({cartaoClienteInput.replace(/\D/g, '').length} dígitos)
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {['1','2','3','4','5','6','7','8','9','LIMPAR','0','BACK'].map((k) => (
+                          <button
+                            key={k}
+                            type="button"
+                            onClick={() => handleNumpadPress(k)}
+                            className={`py-2.5 rounded-xl font-bold text-xs transition active:scale-95 ${
+                              k === 'LIMPAR'
+                                ? 'bg-rose-500/15 text-rose-300 border border-rose-400/20'
+                                : k === 'BACK'
+                                ? 'bg-white/10 text-slate-300 border border-white/10'
+                                : 'bg-white/[0.06] hover:bg-white/10 text-white border border-white/10 text-sm'
+                            }`}
+                          >
+                            {k === 'BACK' ? '⌫' : k}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  <div className="flex flex-wrap justify-between items-center gap-3 bg-white/[0.04] p-3 rounded-2xl border border-emerald-400/20">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border-2 border-emerald-400/60 flex items-center justify-center text-emerald-300 font-black text-base shrink-0">
+                        {(comandaBalcaoAtiva.nome_cliente || 'CL')
+                          .split(' ')
+                          .slice(0, 2)
+                          .map((n) => n[0])
+                          .join('')
+                          .toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-extrabold text-sm sm:text-base text-white">
+                            {comandaBalcaoAtiva.nome_cliente || 'Cliente Identificado'}
+                          </h3>
+                          {clienteDetalhesAtivo?.cliente?.tipo_consumidor && (
+                            <span className="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-400/30 text-[9px] font-bold uppercase text-amber-300">
+                              {clienteDetalhesAtivo.cliente.tipo_consumidor.includes('IRMAO')
+                                ? 'Irmão'
+                                : clienteDetalhesAtivo.cliente.tipo_consumidor === 'FAMILIAR'
+                                ? 'Dependente'
+                                : 'Convidado'}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-400">
+                          Cartão: <span className="font-mono text-cyan-300 font-semibold">{comandaBalcaoAtiva.identificador_cartao || `#${comandaBalcaoAtiva.id}`}</span>
+                          {clienteDetalhesAtivo?.cliente?.cim && ` • CIM ${clienteDetalhesAtivo.cliente.cim}`}
+                          {` • Comanda #${comandaBalcaoAtiva.id}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      {clienteDetalhesAtivo && (
+                        <div className="text-right">
+                          <div className="text-[9px] text-slate-400 uppercase font-bold flex items-center justify-end gap-1">
+                            <Wallet size={10} className="text-emerald-400" />
+                            Saldo Carteira
+                          </div>
+                          <div className="font-black text-sm text-emerald-400 tabular-nums">
+                            R$ {Number(clienteDetalhesAtivo.carteira?.saldo || 0).toFixed(2).replace('.', ',')}
+                          </div>
+                        </div>
+                      )}
+                      <div className="text-right">
+                        <div className="text-[9px] text-slate-400 uppercase font-bold">Acumulado</div>
+                        <div className="font-black text-sm sm:text-base text-amber-400 tabular-nums">
+                          R$ {(comandaBalcaoAtiva.total || 0).toFixed(2).replace('.', ',')}
+                        </div>
+                      </div>
+                      <button 
+                        onClick={finalizarAtendimentoBalcao}
+                        className="px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-slate-300 rounded-xl text-[10px] font-semibold transition"
+                      >
+                        Trocar
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Dependentes Autorizados (1C) */}
+                  {clienteDetalhesAtivo && (
+                    <div className="px-3 py-2 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1 mr-1">
+                          <Users size={12} className="text-cyan-400" />
+                          Retirando:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setRetiranteSelecionado(null)}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                            !retiranteSelecionado
+                              ? 'bg-emerald-500/20 border border-emerald-400/50 text-emerald-300'
+                              : 'bg-white/[0.05] border border-white/10 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          Titular
+                        </button>
+                        {(clienteDetalhesAtivo.dependentes || []).map((dep) => (
+                          <button
+                            key={dep.id}
+                            type="button"
+                            onClick={() =>
+                              setRetiranteSelecionado(
+                                retiranteSelecionado?.id === dep.id
+                                  ? null
+                                  : { id: dep.id, nome: dep.nome, parentesco: dep.parentesco }
+                              )
+                            }
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                              retiranteSelecionado?.id === dep.id
+                                ? 'bg-cyan-500/25 border border-cyan-400/60 text-cyan-200'
+                                : 'bg-white/[0.05] border border-white/10 text-slate-300 hover:border-cyan-400/30'
+                            }`}
+                          >
+                            {dep.nome} ({dep.parentesco})
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsModalCadastroDependenteOpen(true)}
+                        className="px-2 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-300 text-[10px] font-bold flex items-center gap-1 transition"
+                        title="Cadastrar novo dependente autorizado para este titular"
+                      >
+                        <Plus size={11} />
+                        Dependente
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -766,33 +1101,65 @@ export function Comandas() {
                     <p className="text-[10px] text-slate-600">Bipe produtos para registrar os consumos.</p>
                   </div>
                 ) : (
-                  comandaBalcaoAtiva.itens.map((item, idx) => {
-                    const foto = item.produto_foto_url || getProdutoFoto(item.produto_id);
-                    return (
-                      <div key={idx} className="flex justify-between items-center p-2 rounded-xl bg-white/[0.04] border border-white/5">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <ProdutoGlassThumb
-                            fotoUrl={foto}
-                            nome={item.produto_nome || getProdutoNome(item.produto_id)}
-                            tamanho="sm"
-                            aspectRatio="square"
-                            containerClassName="w-9 h-9 p-0.5 shrink-0 rounded-lg"
-                          />
-                          <div className="min-w-0">
-                            <div className="font-bold text-white text-xs truncate">
-                              {item.quantidade}x {item.produto_nome || getProdutoNome(item.produto_id)}
-                            </div>
-                            <div className="text-[10px] text-slate-400">
-                              R$ {item.valor_unitario.toFixed(2).replace('.', ',')} cada
+                  <>
+                    <div className="flex flex-wrap items-center gap-2.5 text-[9px] text-slate-400 px-1 pb-1">
+                      <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-amber-400" /> Solicitado</span>
+                      <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-blue-500" /> Balcão</span>
+                      <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-cyan-400" /> Mesa</span>
+                      <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-emerald-400" /> Pago</span>
+                    </div>
+                    {comandaBalcaoAtiva.itens.map((item, idx) => {
+                      const foto = item.produto_foto_url || getProdutoFoto(item.produto_id);
+                      const statusCor =
+                        comandaBalcaoAtiva.status === 'FECHADA'
+                          ? 'bg-emerald-400'
+                          : (item.observacao || '').toLowerCase().includes('mesa')
+                          ? 'bg-cyan-400'
+                          : (item.observacao || '').toLowerCase().includes('solicitado')
+                          ? 'bg-amber-400'
+                          : 'bg-blue-500';
+                      const statusTitulo =
+                        comandaBalcaoAtiva.status === 'FECHADA'
+                          ? 'Finalizado (Entregue e Pago)'
+                          : (item.observacao || '').toLowerCase().includes('mesa')
+                          ? 'Entregue na Mesa'
+                          : (item.observacao || '').toLowerCase().includes('solicitado')
+                          ? 'Solicitado'
+                          : 'Entregue no Balcão';
+
+                      return (
+                        <div key={idx} className="flex justify-between items-center p-2 rounded-xl bg-white/[0.04] border border-white/5">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <ProdutoGlassThumb
+                              fotoUrl={foto}
+                              nome={item.produto_nome || getProdutoNome(item.produto_id)}
+                              tamanho="sm"
+                              aspectRatio="square"
+                              containerClassName="w-9 h-9 p-0.5 shrink-0 rounded-lg"
+                            />
+                            <div className="min-w-0">
+                              <div className="font-bold text-white text-xs truncate">
+                                {item.quantidade}x {item.produto_nome || getProdutoNome(item.produto_id)}
+                              </div>
+                              <div className="text-[10px] text-slate-400 truncate">
+                                R$ {item.valor_unitario.toFixed(2).replace('.', ',')} cada
+                                {item.observacao ? ` • ${item.observacao}` : ''}
+                              </div>
                             </div>
                           </div>
+                          <div className="flex items-center gap-2 shrink-0 ml-2">
+                            <span
+                              className={`w-2.5 h-2.5 rounded-[3px] ${statusCor}`}
+                              title={statusTitulo}
+                            />
+                            <span className="font-black text-amber-400 text-xs tabular-nums">
+                              R$ {(item.quantidade * item.valor_unitario).toFixed(2).replace('.', ',')}
+                            </span>
+                          </div>
                         </div>
-                        <div className="font-black text-amber-400 text-xs tabular-nums shrink-0 ml-2">
-                          R$ {(item.quantidade * item.valor_unitario).toFixed(2).replace('.', ',')}
-                        </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })}
+                  </>
                 )}
               </div>
             </div>
@@ -1259,7 +1626,11 @@ export function Comandas() {
                           tamanho="full"
                           aspectRatio="square"
                           containerClassName="mb-2"
-                        />
+                        >
+                          <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-slate-950/80 border border-white/15 text-[9px] font-bold text-emerald-300 z-10">
+                            {prod.quantidade_gondola ?? prod.quantidade_estoque} un
+                          </span>
+                        </ProdutoGlassThumb>
                         <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 line-clamp-1">
                           {prod.marca || prod.categoria || 'Bar'}
                         </span>
@@ -1293,6 +1664,316 @@ export function Comandas() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Modal 1D: Cadastro Rápido (Novo Irmão ou Convidado + E-mail + Vínculo Cartão/Doc QR) */}
+      {isModalCadastroClienteOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <form
+            onSubmit={handleSalvarCadastroCliente}
+            className="w-full max-w-md rounded-3xl bg-[#0B1324] border border-emerald-400/30 p-5 space-y-3.5 shadow-2xl"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-white flex items-center gap-2">
+                  <UserPlus size={17} className="text-emerald-400" />
+                  Novo Cliente (E-Sigma ∴ Ágape)
+                </h3>
+                <p className="text-[11px] text-slate-400">Cadastro rápido de Novo Irmão ou Convidado</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsModalCadastroClienteOpen(false)}
+                className="text-slate-400 hover:text-white font-bold"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                  CPF ou CIM
+                </label>
+                <input
+                  type="text"
+                  value={cadClienteCpfCim}
+                  onChange={(e) => setCadClienteCpfCim(e.target.value)}
+                  placeholder="Digite o CIM (5–7 dígitos) ou CPF"
+                  className="w-full px-3 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-white font-mono focus:outline-none focus:border-emerald-400/50"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                  Nome Completo *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={cadClienteNome}
+                  onChange={(e) => setCadClienteNome(e.target.value)}
+                  placeholder="Ex: Marcos Vinicius de Oliveira"
+                  className="w-full px-3 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-white focus:outline-none focus:border-emerald-400/50"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                    E-mail * (Obrigatório)
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={cadClienteEmail}
+                    onChange={(e) => setCadClienteEmail(e.target.value)}
+                    placeholder="email@exemplo.com"
+                    className="w-full px-3 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-white focus:outline-none focus:border-emerald-400/50"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                    WhatsApp / Telefone
+                  </label>
+                  <input
+                    type="text"
+                    value={cadClienteTelefone}
+                    onChange={(e) => setCadClienteTelefone(e.target.value)}
+                    placeholder="(11) 99999-9999"
+                    className="w-full px-3 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-white focus:outline-none focus:border-emerald-400/50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                  Vínculo do Cliente / Obreiro
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCadClienteTipo('IRMAO_QUADRO')}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
+                      cadClienteTipo === 'IRMAO_QUADRO'
+                        ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300'
+                        : 'bg-white/[0.04] border-white/10 text-slate-400'
+                    }`}
+                  >
+                    Novo Irmão
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCadClienteTipo('CONVIDADO_NAO_MACOM')}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
+                      cadClienteTipo === 'CONVIDADO_NAO_MACOM'
+                        ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300'
+                        : 'bg-white/[0.04] border-white/10 text-slate-400'
+                    }`}
+                  >
+                    Convidado
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Dependentes (esposa e filhos) são cadastrados diretamente na ficha do Irmão titular.
+                </p>
+              </div>
+
+              {/* Vincular Cartão Genérico / Documento com QR Code */}
+              <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 block">
+                  Vincular Cartão / Documento QR Code
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCameraContexto('cad_cartao');
+                      setIsCameraAberta(true);
+                    }}
+                    className="py-1.5 px-2.5 rounded-xl bg-white/[0.06] hover:bg-white/10 border border-white/10 text-[11px] font-semibold text-slate-200 flex items-center justify-center gap-1"
+                  >
+                    <CreditCard size={13} className="text-emerald-400" />
+                    + Ler Cartão Genérico
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCameraContexto('cad_doc');
+                      setIsCameraAberta(true);
+                    }}
+                    className="py-1.5 px-2.5 rounded-xl bg-white/[0.06] hover:bg-white/10 border border-white/10 text-[11px] font-semibold text-slate-200 flex items-center justify-center gap-1"
+                  >
+                    <QrCode size={13} className="text-cyan-400" />
+                    + Ler Doc. c/ QR Code
+                  </button>
+                </div>
+
+                <input
+                  type="text"
+                  value={cadCartaoGenerico}
+                  onChange={(e) => setCadCartaoGenerico(e.target.value)}
+                  placeholder="Ou digite o código do cartão genérico (opcional)"
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-black/30 border border-white/10 text-[11px] text-white font-mono focus:outline-none"
+                />
+
+                {(cadCartaoGenerico || cadDocumentosQr.length > 0) && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {cadCartaoGenerico && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-400/30 text-[10px] text-emerald-300 font-mono">
+                        Cartão: {cadCartaoGenerico}
+                        <button type="button" onClick={() => setCadCartaoGenerico('')} className="hover:text-white">×</button>
+                      </span>
+                    )}
+                    {cadDocumentosQr.map((d) => (
+                      <span
+                        key={d.codigo}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-400/30 text-[10px] text-cyan-200 font-mono"
+                      >
+                        {d.rotulo}
+                        <button
+                          type="button"
+                          onClick={() => setCadDocumentosQr((prev) => prev.filter((x) => x.codigo !== d.codigo))}
+                          className="hover:text-white"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsModalCadastroClienteOpen(false)}
+                className="flex-1 py-2 rounded-xl bg-white/10 text-xs font-semibold hover:bg-white/15 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={salvandoCadastroCliente}
+                className="flex-1 py-2 rounded-xl bg-emerald-400 text-slate-950 text-xs font-black hover:bg-emerald-300 transition disabled:opacity-50"
+              >
+                {salvandoCadastroCliente ? 'Salvando...' : 'Cadastrar e Abrir Comanda →'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal Cadastro Rápido de Dependente (a partir da 1C) */}
+      {isModalCadastroDependenteOpen && clienteDetalhesAtivo && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSalvarDependente}
+            className="w-full max-w-sm rounded-3xl bg-[#0B1324] border border-cyan-400/30 p-5 space-y-3.5 shadow-2xl"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-white flex items-center gap-2">
+                  <Users size={16} className="text-cyan-400" />
+                  Cadastrar Dependente
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Vinculado a <strong className="text-white">{clienteDetalhesAtivo.cliente.nome}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsModalCadastroDependenteOpen(false)}
+                className="text-slate-400 hover:text-white font-bold"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                  Nome Completo *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={depNome}
+                  onChange={(e) => setDepNome(e.target.value)}
+                  placeholder="Ex: Mariana Silveira"
+                  className="w-full px-3 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-white focus:outline-none focus:border-cyan-400/50"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                  Parentesco
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {['Esposa', 'Filho', 'Filha'].map((par) => (
+                    <button
+                      key={par}
+                      type="button"
+                      onClick={() => setDepParentesco(par)}
+                      className={`py-1.5 rounded-xl text-xs font-bold border transition ${
+                        depParentesco === par
+                          ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
+                          : 'bg-white/[0.04] border-white/10 text-slate-400'
+                      }`}
+                    >
+                      {par}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                  E-mail * (Obrigatório)
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={depEmail}
+                  onChange={(e) => setDepEmail(e.target.value)}
+                  placeholder="dependente@exemplo.com"
+                  className="w-full px-3 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-white focus:outline-none focus:border-cyan-400/50"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                  WhatsApp / Telefone
+                </label>
+                <input
+                  type="text"
+                  value={depTelefone}
+                  onChange={(e) => setDepTelefone(e.target.value)}
+                  placeholder="(11) 99999-9999"
+                  className="w-full px-3 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-white focus:outline-none focus:border-cyan-400/50"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsModalCadastroDependenteOpen(false)}
+                className="flex-1 py-2 rounded-xl bg-white/10 text-xs font-semibold hover:bg-white/15 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={salvandoDependente}
+                className="flex-1 py-2 rounded-xl bg-cyan-400 text-slate-950 text-xs font-black hover:bg-cyan-300 transition disabled:opacity-50"
+              >
+                {salvandoDependente ? 'Salvando...' : 'Salvar Dependente'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
