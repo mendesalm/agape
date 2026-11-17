@@ -37,16 +37,18 @@ async def lifespan(app: FastAPI):
 
         def _migrar_colunas_pendentes(sync_conn):
             from sqlalchemy import inspect, text
+            from app.models.produto import Produto
+            tabela_prod = Produto.__tablename__
             insp = inspect(sync_conn)
-            colunas_produtos = {c["name"] for c in insp.get_columns("produtos")}
+            colunas_produtos = {c["name"] for c in insp.get_columns(tabela_prod)}
             if "codigos_barras_alternativos" not in colunas_produtos:
                 if sync_conn.dialect.name == "postgresql":
                     sync_conn.execute(text(
-                        "ALTER TABLE produtos ADD COLUMN codigos_barras_alternativos JSONB NOT NULL DEFAULT '[]'::jsonb"
+                        f"ALTER TABLE {tabela_prod} ADD COLUMN codigos_barras_alternativos JSONB NOT NULL DEFAULT '[]'::jsonb"
                     ))
                 else:
                     sync_conn.execute(text(
-                        "ALTER TABLE produtos ADD COLUMN codigos_barras_alternativos JSON NOT NULL DEFAULT '[]'"
+                        f"ALTER TABLE {tabela_prod} ADD COLUMN codigos_barras_alternativos JSON NOT NULL DEFAULT '[]'"
                     ))
 
         await conn.run_sync(_migrar_colunas_pendentes)
