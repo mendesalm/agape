@@ -712,15 +712,25 @@ export const GerenteLogistica: React.FC = () => {
 
           {/* Campo de Busca & Filtros Rápidos */}
           <div className="relative z-10 space-y-2">
-            <div className="relative flex items-center">
-              <Search className="absolute left-3.5 text-slate-400" size={16} />
-              <input 
-                type="text"
-                value={termoBusca}
-                onChange={(e) => setTermoBusca(e.target.value)}
-                placeholder="Buscar produto por nome, marca ou EAN..."
-                className="w-full pl-10 pr-4 py-2 rounded-2xl bg-white/[0.06] backdrop-blur-md border border-white/10 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400/50 shadow-inner"
-              />
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 flex items-center">
+                <Search className="absolute left-3.5 text-slate-400" size={16} />
+                <input 
+                  type="text"
+                  value={termoBusca}
+                  onChange={(e) => setTermoBusca(e.target.value)}
+                  placeholder="Buscar por nome, marca ou EAN (principal/alternativo)..."
+                  className="w-full pl-10 pr-4 py-2 rounded-2xl bg-white/[0.06] backdrop-blur-md border border-white/10 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400/50 shadow-inner"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => handleAbrirCamera('catalogo')}
+                className="w-9 h-9 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/35 text-emerald-300 flex items-center justify-center shrink-0 transition active:scale-95"
+                title="Escanear código de barras ou QR"
+              >
+                <QrCode size={16} />
+              </button>
             </div>
 
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
@@ -1141,6 +1151,11 @@ export const GerenteLogistica: React.FC = () => {
                 <span className="text-[9px] text-slate-400 mt-0.5">Reserva p/ reposição</span>
               </div>
             </div>
+
+            <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between text-[10px] text-slate-400">
+              <span>Movimentações auditadas por Lote, FEFO e Avaria/Perda</span>
+              <span className="text-emerald-400 font-semibold">FEFO Ativo</span>
+            </div>
           </section>
 
           {/* Linha 3: Lotes & FEFO (Validades) */}
@@ -1164,10 +1179,15 @@ export const GerenteLogistica: React.FC = () => {
                 Nenhum lote específico registrado. Operando no estoque geral.
               </div>
             ) : (
-              (produtoEmGestao.lotes || []).map((lote) => (
+              (produtoEmGestao.lotes || []).map((lote, idx) => (
                 <article key={lote.id} className="p-2.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-white/[0.04] to-transparent border border-amber-400/30 flex items-center justify-between shadow-xl">
                   <div>
                     <div className="flex items-center gap-2">
+                      {idx === 0 && (
+                        <span className="text-[8px] font-black uppercase tracking-wider text-emerald-300 bg-emerald-500/15 border border-emerald-400/30 px-1.5 py-0.5 rounded">
+                          Lote Prioritário
+                        </span>
+                      )}
                       <span className="text-xs font-bold text-white">{lote.numero_lote}</span>
                       <span className="text-[9px] font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full">
                         {lote.dias_para_vencer || 90} dias
