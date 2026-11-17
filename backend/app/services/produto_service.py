@@ -9,8 +9,7 @@ from app.schemas.produto_schema import (
     ProdutoUpdate, 
     LoteEntradaCreate, 
     TransferenciaEstoqueRequest,
-    AlertaEstoqueGeral,
-    AjusteEstoqueRequest
+    AlertaEstoqueGeral
 )
 from app.models.produto import Produto
 from app.models.estoque import LoteEstoque
@@ -813,77 +812,3 @@ class ProdutoService:
             "itens_comanda_transferidos": int(res_itens.rowcount or 0),
             "codigos_barras_alternativos": destino.codigos_barras_alternativos,
         }
-
-    async def ajustar_estoque_manual(self, produto_id: int, dados: AjusteEstoqueRequest) -> Produto:
-        """
-        Ajusta manualmente as quantidades em estoque (Gôndola e/ou Almoxarifado)
-        para o valor exato informado, distribuindo nos lotes existentes (ou criando
-        um lote de ajuste caso não haja nenhum) e registrando movimentação de inventário.
-        """
-        from datetime import timedelta
-
-        if dados.quantidade_gondola is None and dados.quantidade_armazem is None:
-            raise RegraNegocioException("Informe a quantidade da gôndola e/ou do almoxarifado.")
-
-        produto = await self.repo.buscar_por_id(produto_id)
-        if not produto:
-            raise NaoEncontradoException(f"Produto (ID: {produto_id})")
-
-        lotes_ativos = [l for l in (produto.lotes or []) if l.ativo]
-
-        async def _ajustar_local(local: str, nova_qtd: int):
-            nonlocal lotes_ativos
-            campo = "quantidade_gondola" if local == "gondola" else "quantidade_armazem"
-            atual = sum(getattr(l, campo, 0) for l in lotes_ativos)
-            diff = nova_qtd - atual
-            if diff == 0:
-                return
-
-            if not lotes_ativos:
-                lote_novo = LoteEstoque(
-                    tenant_id=self.tenant_id,
-                    produto_id=produto.id,
-                    numero_lote=f"L-AJUSTE-{produto.id}",
-                    data_validade=datetime.utcnow() + timedelta(days=180),
-                    quantidade_gondola=0,
-                    quantidade_armazem=0,
-                    preco_custo_unitario=produto.preco_custo or 0.0,
-                    ativo=True
-                )
-                self.db.add(lote_novo)
-                await self.db.flush()
-                lotes_ativos = [lote_novo]
-
-            lote_ref = lotes_ativos[-1]
-            if diff > 0:
-                setattr(lote_ref, campo, getattr(lote_ref, campo, 0) + diff)
-            else:
-                restante = abs(diff)
-                for l in lotes_ativos:
-                    if restante <= 0:
-                        break
-                    saldo_lote = getattr(l, campo, 0)
-                    abater = min(saldo_lote, restante)
-                    if abater > 0:
-                        setattr(l, campo, saldo_lote - abater)
-                        restante -= abater
-                        lote_ref = l
-
-            await self.repo.registrar_movimentacao(
-                produto_id=produto.id,
-                lote_id=lote_ref.id,
-                tipo=TipoMovimentacao.AJUSTE_INVENTARIO,
-                quantidade=diff,
-                local_origem=local if diff < 0 else "inventario",
-                local_destino=local if diff > 0 else "inventario",
-                motivo=dados.motivo or "Ajuste manual de inventário"
-            )
-
-        if dados.quantidade_gondola is not None:
-            await _ajustar_local("gondola", dados.quantidade_gondola)
-        if dados.quantidade_armazem is not None:
-            await _ajustar_local("armazem", dados.quantidade_armazem)
-
-        await self.db.commit()
-        logger.info(f"Ajuste manual de estoque no produto {produto.nome} (ID: {produto.id}).")
-        return await self.obter_produto(produto.id)
