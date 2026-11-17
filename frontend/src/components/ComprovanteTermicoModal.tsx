@@ -7,7 +7,9 @@ import {
   Calendar, 
   Receipt, 
   FileText, 
-  ShieldCheck 
+  ShieldCheck,
+  Mail,
+  MessageCircle
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -48,6 +50,32 @@ export function ComprovanteTermicoModal({
   clienteId
 }: ComprovanteTermicoModalProps) {
   const [copiado, setCopiado] = useState(false);
+  const [enviandoComprovante, setEnviandoComprovante] = useState<'whatsapp' | 'email' | null>(null);
+
+  const handleEnviarComprovante = async (canal: 'whatsapp' | 'email') => {
+    if (!comprovante) return;
+    try {
+      setEnviandoComprovante(canal);
+      const res = await api.post(`/comandas/${comprovante.comanda_id}/enviar-comprovante`, {
+        canal
+      });
+      if (canal === 'whatsapp' && res.data.whatsapp_url) {
+        window.open(res.data.whatsapp_url, '_blank', 'noopener,noreferrer');
+      } else if (canal === 'email') {
+        if (res.data.enviado_email) {
+          alert(`Comprovante enviado com sucesso para ${res.data.email_destino}!`);
+        } else if (res.data.mailto_url) {
+          window.location.href = res.data.mailto_url;
+        } else {
+          alert(res.data.aviso_email || 'Cliente sem e-mail cadastrado.');
+        }
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao preparar envio do comprovante.');
+    } finally {
+      setEnviandoComprovante(null);
+    }
+  };
   const [abaAtiva, setAbaAtiva] = useState<'comprovante' | 'extrato'>('comprovante');
 
   // Filtros de Extrato por Período
@@ -401,6 +429,28 @@ export function ComprovanteTermicoModal({
                 <span>Copiar ESC/POS</span>
               </>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleEnviarComprovante('whatsapp')}
+            disabled={enviandoComprovante !== null}
+            className="w-full sm:w-auto min-h-[48px] px-3.5 py-3 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-98 transition-all disabled:opacity-50"
+            title="Enviar resumo da comanda e saldo atualizado pelo WhatsApp"
+          >
+            <MessageCircle className="w-4 h-4" />
+            <span>{enviandoComprovante === 'whatsapp' ? 'Abrindo...' : 'WhatsApp'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleEnviarComprovante('email')}
+            disabled={enviandoComprovante !== null}
+            className="w-full sm:w-auto min-h-[48px] px-3.5 py-3 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/40 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-98 transition-all disabled:opacity-50"
+            title="Enviar comprovante para o e-mail cadastrado do cliente"
+          >
+            <Mail className="w-4 h-4" />
+            <span>{enviandoComprovante === 'email' ? 'Enviando...' : 'E-mail'}</span>
           </button>
 
           <button

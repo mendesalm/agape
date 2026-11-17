@@ -98,6 +98,24 @@ export const GerenteLogistica: React.FC = () => {
   const [produtoAbsorverId, setProdutoAbsorverId] = useState<string>('');
   const [buscaMesclar, setBuscaMesclar] = useState('');
   const [mesclandoProdutos, setMesclandoProdutos] = useState(false);
+  const [isModalListaCompras, setIsModalListaCompras] = useState(false);
+  const [carregandoListaCompras, setCarregandoListaCompras] = useState(false);
+  const [listaCompras, setListaCompras] = useState<{
+    num_sessoes_analisadas: number;
+    total_itens_repor: number;
+    custo_estimado_total: number;
+    itens: Array<{
+      produto_id: number;
+      nome: string;
+      estoque_atual: number;
+      estoque_minimo: number;
+      consumo_medio_sessao: number;
+      sugestao_compra: number;
+      custo_estimado: number;
+      prioridade: string;
+    }>;
+    texto_whatsapp: string;
+  } | null>(null);
   const [isModalTransferir, setIsModalTransferir] = useState(false);
   const [qtdTransferir, setQtdTransferir] = useState('6');
   
@@ -575,6 +593,19 @@ export const GerenteLogistica: React.FC = () => {
     setIsModalNovoLote(true);
   };
 
+  const abrirListaCompras = async () => {
+    setIsModalListaCompras(true);
+    try {
+      setCarregandoListaCompras(true);
+      const res = await api.get('/financeiro/lista-compras');
+      setListaCompras(res.data);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao gerar lista de compras inteligente.');
+    } finally {
+      setCarregandoListaCompras(false);
+    }
+  };
+
   return (
     <div className="relative min-h-[calc(100vh-3.5rem)] flex flex-col justify-between p-4 sm:p-6 lg:p-8 max-w-lg lg:max-w-4xl mx-auto overflow-hidden animate-fadeIn select-none text-slate-100">
       
@@ -765,6 +796,14 @@ export const GerenteLogistica: React.FC = () => {
                 }`}
               >
                 🟡 Baixo Estoque
+              </button>
+
+              <button
+                type="button"
+                onClick={abrirListaCompras}
+                className="px-3 py-1 rounded-xl text-[10px] font-bold shrink-0 transition-all bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/35 text-emerald-300"
+              >
+                Lista de Compras (Ecônomo)
               </button>
             </div>
           </div>
@@ -1819,6 +1858,103 @@ export const GerenteLogistica: React.FC = () => {
             <div className="flex gap-2 pt-2">
               <button onClick={() => setIsModalNovoLote(false)} className="flex-1 py-2 rounded-xl bg-white/10 text-xs font-semibold">Cancelar</button>
               <button onClick={handleCriarLote} className="flex-1 py-2 rounded-xl bg-amber-400 text-stone-950 text-xs font-bold hover:bg-amber-300 transition">Salvar Lote de Compra</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Lista de Compras Inteligente (Ecônomo) */}
+      {isModalListaCompras && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-3xl bg-[#0B1324] border border-emerald-400/30 p-5 space-y-4 shadow-2xl max-h-[88vh] flex flex-col">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-emerald-300">Lista de Compras Inteligente (Ecônomo)</h3>
+                <p className="text-[11px] text-slate-400">
+                  {listaCompras
+                    ? `Baseado nas últimas ${listaCompras.num_sessoes_analisadas} sessões • Custo estimado: R$ ${listaCompras.custo_estimado_total.toFixed(2).replace('.', ',')}`
+                    : 'Calculando média de consumo e estoque mínimo...'}
+                </p>
+              </div>
+              <button
+                onClick={() => setIsModalListaCompras(false)}
+                className="text-slate-400 hover:text-white text-sm font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {carregandoListaCompras ? (
+                <div className="py-10 text-center text-xs text-slate-400 animate-pulse">
+                  Analisando estoque e histórico das sessões...
+                </div>
+              ) : !listaCompras || listaCompras.itens.length === 0 ? (
+                <div className="py-10 text-center text-xs text-emerald-300">
+                  Estoque abastecido! Nenhum item abaixo do ponto de reposição.
+                </div>
+              ) : (
+                listaCompras.itens.map((item) => (
+                  <div
+                    key={item.produto_id}
+                    className={`p-3 rounded-2xl border flex items-center justify-between gap-2 ${
+                      item.prioridade === 'critico'
+                        ? 'bg-rose-500/10 border-rose-400/30'
+                        : 'bg-white/[0.04] border-white/10'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                          item.prioridade === 'critico' ? 'bg-rose-500 text-white' : 'bg-amber-400/20 text-amber-300'
+                        }`}>
+                          {item.prioridade === 'critico' ? 'Crítico' : 'Repor'}
+                        </span>
+                        <span className="text-xs font-bold text-white truncate">{item.nome}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Atual: {item.estoque_atual} un (mín: {item.estoque_minimo}) • Média/sessão: {item.consumo_medio_sessao} un
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-xs font-black text-emerald-400 block">
+                        +{item.sugestao_compra} un
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        ~R$ {item.custo_estimado.toFixed(2).replace('.', ',')}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  if (listaCompras?.texto_whatsapp) {
+                    navigator.clipboard.writeText(listaCompras.texto_whatsapp);
+                    alert('Lista copiada para enviar ao Ecônomo!');
+                  }
+                }}
+                disabled={!listaCompras}
+                className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-semibold text-white transition disabled:opacity-40"
+              >
+                Copiar Lista
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (listaCompras?.texto_whatsapp) {
+                    window.open(`https://wa.me/?text=${encodeURIComponent(listaCompras.texto_whatsapp)}`, '_blank', 'noopener,noreferrer');
+                  }
+                }}
+                disabled={!listaCompras}
+                className="flex-1 py-2 rounded-xl bg-emerald-400 text-slate-950 text-xs font-black hover:bg-emerald-300 transition disabled:opacity-40"
+              >
+                Enviar WhatsApp
+              </button>
             </div>
           </div>
         </div>

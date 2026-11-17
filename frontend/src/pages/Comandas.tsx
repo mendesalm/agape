@@ -92,7 +92,7 @@ export function Comandas() {
     cliente: { id: number; nome: string; cpf?: string; cim?: string; email?: string; telefone?: string; tipo_consumidor?: string };
     carteira: { saldo: number; limite_fiado: number };
     cartao_ativo?: string | null;
-    dependentes: Array<{ id: number; nome: string; parentesco: string; email?: string; telefone?: string }>;
+    dependentes: Array<{ id: number; nome: string; parentesco: string; email?: string; telefone?: string; autorizacao_pausada?: boolean; limite_sessao?: number | null }>;
   } | null>(null);
   const [retiranteSelecionado, setRetiranteSelecionado] = useState<{ id: number; nome: string; parentesco: string } | null>(null);
   const [isNumpadAberto, setIsNumpadAberto] = useState(false);
@@ -874,6 +874,7 @@ export function Comandas() {
                           <button
                             key={dep.id}
                             type="button"
+                            disabled={Boolean(dep.autorizacao_pausada)}
                             onClick={() =>
                               setRetiranteSelecionado(
                                 retiranteSelecionado?.id === dep.id
@@ -882,12 +883,15 @@ export function Comandas() {
                               )
                             }
                             className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
-                              retiranteSelecionado?.id === dep.id
+                              dep.autorizacao_pausada
+                                ? 'bg-rose-500/10 border border-rose-400/20 text-rose-400/70 line-through cursor-not-allowed'
+                                : retiranteSelecionado?.id === dep.id
                                 ? 'bg-cyan-500/25 border border-cyan-400/60 text-cyan-200'
                                 : 'bg-white/[0.05] border border-white/10 text-slate-300 hover:border-cyan-400/30'
                             }`}
+                            title={dep.autorizacao_pausada ? 'Autorização pausada pelo titular' : dep.limite_sessao ? `Limite por sessão: R$ ${dep.limite_sessao.toFixed(2)}` : undefined}
                           >
-                            {dep.nome} ({dep.parentesco})
+                            {dep.nome} ({dep.parentesco}){dep.autorizacao_pausada ? ' • Pausado' : ''}
                           </button>
                         ))}
                       </div>

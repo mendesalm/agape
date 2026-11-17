@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
@@ -200,3 +201,232 @@ async def relatorio_auditoria_estoque(
             "valor_total": m.valor_total or 0.0
         })
     return itens
+
+@router.get("/fechamento-sessao")
+async def obter_fechamento_sessao(
+    data_inicio: Optional[str] = Query(None, description="Data inicial YYYY-MM-DD"),
+    data_fim: Optional[str] = Query(None, description="Data final YYYY-MM-DD"),
+    nome_sessao: str = Query("Sessão Ordinária", description="Nome da Sessão / Evento de Ágape"),
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Consolida o Fechamento por Sessão / Evento de Ágape para Tesouraria/Hospitalaria:
+    comandas fechadas, receita, CMV real dos lotes consumidos, perdas/avarias e lucro líquido.
+    """
+    from datetime import datetime, timedelta
+    from sqlalchemy.future import select
+    from sqlalchemy.orm import selectinload
+    from app.models.comanda import Comanda, ItemComanda, StatusComanda
+    from app.models.produto import Produto
+    from app.models.movimentacao_estoque import MovimentacaoEstoque, TipoMovimentacao
+
+    hoje = datetime.utcnow().date()
+    d_ini = datetime.strptime(data_inicio, "%Y-%m-%d").date() if data_inicio else hoje
+    d_fim = datetime.strptime(data_fim, "%Y-%m-%d").date() if data_fim else d_ini
+
+    dt_ini = datetime.combine(d_ini, datetime.min.time())
+    dt_fim = datetime.combine(d_fim, datetime.max.time())
+
+    res_comandas = await db.execute(
+        select(Comanda)
+        .options(selectinload(Comanda.itens).selectinload(ItemComanda.produto))
+        .where(
+            Comanda.tenant_id == usuario.tenant_id,
+            Comanda.status == StatusComanda.FECHADA,
+            Comanda.data_fechamento >= dt_ini,
+            Comanda.data_fechamento <= dt_fim
+        )
+    )
+    comandas = res_comandas.scalars().all()
+
+    receita_total = 0.0
+    qtd_itens = 0
+    por_forma: dict = {}
+    cmv_fallback = 0.0
+
+    for c in comandas:
+        val = float(c.valor_total or 0.0)
+        if val <= 0 and c.itens:
+            val = sum(i.quantidade * i.valor_unitario for i in c.itens)
+        receita_total += val
+        fp = (c.forma_pagamento or "outros").lower()
+        por_forma[fp] = round(por_forma.get(fp, 0.0) + val, 2)
+        for it in (c.itens or []):
+            qtd_itens += int(it.quantidade or 0)
+            custo_u = float(it.produto.preco_custo or 0.0) if it.produto else 0.0
+            cmv_fallback += int(it.quantidade or 0) * custo_u
+
+    # Busca movimentações reais dos lotes no período (SAIDA_VENDA e PERDA_QUEBRA)
+    res_movs = await db.execute(
+        select(MovimentacaoEstoque)
+        .join(Produto, MovimentacaoEstoque.produto_id == Produto.id)
+        .options(selectinload(MovimentacaoEstoque.lote), selectinload(MovimentacaoEstoque.produto))
+        .where(
+            Produto.tenant_id == usuario.tenant_id,
+            MovimentacaoEstoque.data_movimentacao >= dt_ini,
+            MovimentacaoEstoque.data_movimentacao <= dt_fim,
+            MovimentacaoEstoque.tipo.in_([TipoMovimentacao.SAIDA_VENDA, TipoMovimentacao.PERDA_QUEBRA])
+        )
+    )
+    movs = res_movs.scalars().all()
+
+    cmv_lotes = 0.0
+    perdas_valor = 0.0
+    perdas_qtd = 0
+    for m in movs:
+        custo_unit = (
+            float(m.lote.preco_custo_unitario)
+            if (m.lote and m.lote.preco_custo_unitario is not None)
+            else float(m.produto.preco_custo or 0.0) if m.produto else 0.0
+        )
+        qtd_abs = abs(int(m.quantidade or 0))
+        if m.tipo == TipoMovimentacao.SAIDA_VENDA:
+            cmv_lotes += qtd_abs * custo_unit
+        elif m.tipo == TipoMovimentacao.PERDA_QUEBRA:
+            perdas_qtd += qtd_abs
+            perdas_valor += qtd_abs * custo_unit
+
+    cmv_real = round(cmv_lotes if cmv_lotes > 0 else cmv_fallback, 2)
+    perdas_valor = round(perdas_valor, 2)
+    receita_total = round(receita_total, 2)
+    lucro_liquido = round(receita_total - cmv_real - perdas_valor, 2)
+    qtd_comandas = len(comandas)
+    ticket_medio = round(receita_total / qtd_comandas, 2) if qtd_comandas > 0 else 0.0
+
+    linhas_fp = "\n".join(f"• {k.upper()}: R$ {v:.2f}" for k, v in por_forma.items()) or "• Sem movimentação"
+    texto_tesouraria = (
+        f"FECHAMENTO DE SESSÃO — E-SIGMA ∴ ÁGAPE\n"
+        f"Sessão: {nome_sessao}\n"
+        f"Período: {d_ini.strftime('%d/%m/%Y')} a {d_fim.strftime('%d/%m/%Y')}\n\n"
+        f"Comandas Fechadas: {qtd_comandas} ({qtd_itens} itens)\n"
+        f"Ticket Médio: R$ {ticket_medio:.2f}\n\n"
+        f"Receita Bruta: R$ {receita_total:.2f}\n"
+        f"CMV Real (Lotes): - R$ {cmv_real:.2f}\n"
+        f"Perdas / Avarias ({perdas_qtd} un): - R$ {perdas_valor:.2f}\n"
+        f"LUCRO LÍQUIDO DA SESSÃO: R$ {lucro_liquido:.2f}\n\n"
+        f"Por Forma de Pagamento:\n{linhas_fp}"
+    )
+
+    return {
+        "nome_sessao": nome_sessao,
+        "data_inicio": d_ini.isoformat(),
+        "data_fim": d_fim.isoformat(),
+        "qtd_comandas": qtd_comandas,
+        "qtd_itens": qtd_itens,
+        "ticket_medio": ticket_medio,
+        "receita_total": receita_total,
+        "cmv_real": cmv_real,
+        "perdas_qtd": perdas_qtd,
+        "perdas_valor": perdas_valor,
+        "lucro_liquido": lucro_liquido,
+        "por_forma_pagamento": por_forma,
+        "texto_tesouraria": texto_tesouraria,
+    }
+
+@router.get("/lista-compras")
+async def gerar_lista_compras_economo(
+    dias_historico: int = Query(30, ge=7, le=180, description="Janela de dias para média de consumo"),
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Lista de Compras Inteligente para o Ecônomo:
+    cruza estoque atual (gôndola + armazém), estoque mínimo configurado e
+    média de consumo das últimas sessões para sugerir a reposição ideal.
+    """
+    import math
+    from datetime import datetime, timedelta
+    from sqlalchemy.future import select
+    from sqlalchemy.orm import selectinload
+    from app.models.produto import Produto
+    from app.models.comanda import Comanda, ItemComanda, StatusComanda
+
+    dt_corte = datetime.utcnow() - timedelta(days=dias_historico)
+
+    res_prods = await db.execute(
+        select(Produto)
+        .options(selectinload(Produto.lotes))
+        .where(Produto.tenant_id == usuario.tenant_id, Produto.ativo == True)
+        .order_by(Produto.nome.asc())
+    )
+    produtos = res_prods.scalars().all()
+
+    res_com = await db.execute(
+        select(Comanda)
+        .options(selectinload(Comanda.itens))
+        .where(
+            Comanda.tenant_id == usuario.tenant_id,
+            Comanda.status != StatusComanda.CANCELADA,
+            Comanda.data_abertura >= dt_corte
+        )
+    )
+    comandas = res_com.scalars().all()
+
+    dias_sessoes = {c.data_abertura.date() for c in comandas if c.data_abertura}
+    num_sessoes = max(len(dias_sessoes), 1)
+
+    vendido_por_produto: dict = {}
+    for c in comandas:
+        for it in (c.itens or []):
+            vendido_por_produto[it.produto_id] = vendido_por_produto.get(it.produto_id, 0) + int(it.quantidade or 0)
+
+    itens_compra = []
+    custo_estimado_total = 0.0
+
+    for p in produtos:
+        lotes_ativos = [l for l in (p.lotes or []) if l.ativo]
+        qtd_gondola = sum(int(l.quantidade_gondola or 0) for l in lotes_ativos)
+        qtd_armazem = sum(int(l.quantidade_armazem or 0) for l in lotes_ativos)
+        estoque_atual = qtd_gondola + qtd_armazem
+        estoque_minimo = int(p.estoque_minimo_gondola or 0) + int(p.estoque_minimo_armazem or 0)
+
+        vendido_periodo = vendido_por_produto.get(p.id, 0)
+        consumo_medio_sessao = round(vendido_periodo / num_sessoes, 1)
+
+        alvo_estoque = max(estoque_minimo * 2, math.ceil(consumo_medio_sessao * 2))
+        sugestao_compra = max(0, alvo_estoque - estoque_atual)
+
+        if sugestao_compra <= 0 and estoque_atual > estoque_minimo:
+            continue
+
+        custo_unit = float(p.preco_custo or 0.0)
+        custo_est = round(sugestao_compra * custo_unit, 2)
+        custo_estimado_total += custo_est
+
+        prioridade = "critico" if estoque_atual <= estoque_minimo else "repor"
+        itens_compra.append({
+            "produto_id": p.id,
+            "nome": p.nome,
+            "marca": p.marca,
+            "estoque_atual": estoque_atual,
+            "estoque_minimo": estoque_minimo,
+            "consumo_medio_sessao": consumo_medio_sessao,
+            "sugestao_compra": sugestao_compra,
+            "preco_custo": custo_unit,
+            "custo_estimado": custo_est,
+            "prioridade": prioridade,
+        })
+
+    itens_compra.sort(key=lambda x: (0 if x["prioridade"] == "critico" else 1, -x["sugestao_compra"]))
+
+    linhas_wpp = "\n".join(
+        f"• {i['nome']}: comprar {i['sugestao_compra']} un (atual: {i['estoque_atual']}, média/sessão: {i['consumo_medio_sessao']})"
+        for i in itens_compra
+    ) or "• Estoque abastecido para as próximas sessões!"
+
+    texto_whatsapp = (
+        f"LISTA DE COMPRAS (ECÔNOMO) — E-SIGMA ∴ ÁGAPE\n"
+        f"Base: últimas {num_sessoes} sessões ({dias_historico} dias)\n\n"
+        f"{linhas_wpp}\n\n"
+        f"Custo Estimado Total: R$ {custo_estimado_total:.2f}"
+    )
+
+    return {
+        "num_sessoes_analisadas": num_sessoes,
+        "dias_historico": dias_historico,
+        "total_itens_repor": len(itens_compra),
+        "custo_estimado_total": round(custo_estimado_total, 2),
+        "itens": itens_compra,
+        "texto_whatsapp": texto_whatsapp,
+    }

@@ -259,6 +259,47 @@ async def cadastrar_dependente_cliente(
     await db.refresh(dep)
     return await _montar_detalhes_cliente(db, titular, usuario.tenant_id)
 
+class DependenteControleRequest(BaseModel):
+    autorizacao_pausada: Optional[bool] = None
+    limite_sessao: Optional[float] = Field(None, ge=0)
+
+@router.patch("/cliente/{cliente_id}/dependentes/{dependente_id}")
+async def atualizar_controle_dependente(
+    cliente_id: int,
+    dependente_id: int,
+    dados: DependenteControleRequest,
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Permite ao titular pausar/reativar a autorização de um dependente
+    ou definir/limpar o limite máximo de consumo por sessão.
+    """
+    res_titular = await db.execute(select(Cliente).where(Cliente.id == cliente_id))
+    titular = res_titular.scalars().first()
+    if not titular:
+        raise HTTPException(status_code=404, detail="Titular não encontrado.")
+
+    res_dep = await db.execute(
+        select(Cliente).where(
+            Cliente.id == dependente_id,
+            Cliente.obreiro_responsavel_id == cliente_id
+        )
+    )
+    dep = res_dep.scalars().first()
+    if not dep:
+        raise HTTPException(status_code=404, detail="Dependente não encontrado para este titular.")
+
+    payload = dados.model_dump(exclude_unset=True)
+    if "autorizacao_pausada" in payload and payload["autorizacao_pausada"] is not None:
+        dep.autorizacao_pausada = payload["autorizacao_pausada"]
+    if "limite_sessao" in payload:
+        dep.limite_sessao = payload["limite_sessao"]
+
+    await db.commit()
+    await db.refresh(dep)
+    return await _montar_detalhes_cliente(db, titular, usuario.tenant_id)
+
 @router.get("/cliente/meu-perfil")
 async def obter_meu_perfil_cliente(
     db: AsyncSession = Depends(obter_sessao),
@@ -371,6 +412,27 @@ async def _montar_detalhes_cliente(db: AsyncSession, cliente: Cliente, tenant_id
             Cliente.ativo == True
         ).order_by(Cliente.nome.asc())
     )
+    deps_lista = res_deps.scalars().all()
+
+    # Calcula consumo acumulado por dependente (itens marcados com observação "Retirado por: Nome" ou comandas próprias)
+    consumo_por_dep = {d.id: 0.0 for d in deps_lista}
+    if deps_lista:
+        res_com_tit = await db.execute(
+            select(Comanda)
+            .options(selectinload(Comanda.itens))
+            .where(
+                Comanda.cliente_id == cliente.id,
+                Comanda.tenant_id == tenant_id,
+                Comanda.status != StatusComanda.CANCELADA
+            )
+        )
+        for com in res_com_tit.scalars().all():
+            for it in (com.itens or []):
+                obs_it = (getattr(it, "observacao", None) or "").lower()
+                for d in deps_lista:
+                    if d.nome.lower() in obs_it:
+                        consumo_por_dep[d.id] += float(it.quantidade * it.valor_unitario)
+
     dependentes = [
         {
             "id": d.id,
@@ -379,8 +441,11 @@ async def _montar_detalhes_cliente(db: AsyncSession, cliente: Cliente, tenant_id
             "email": d.email,
             "telefone": d.telefone,
             "tipo_consumidor": d.tipo_consumidor,
+            "limite_sessao": getattr(d, "limite_sessao", None),
+            "autorizacao_pausada": bool(getattr(d, "autorizacao_pausada", False)),
+            "consumo_total": round(consumo_por_dep.get(d.id, 0.0), 2),
         }
-        for d in res_deps.scalars().all()
+        for d in deps_lista
     ]
 
     return {
@@ -765,4 +830,105 @@ async def desvincular_documento_cliente(
         "sucesso": True,
         "mensagem": "Documento desvinculado com sucesso.",
         "identificadores_qr": cliente.identificadores_qr
+    }
+
+class EnviarComprovanteRequest(BaseModel):
+    canal: str = Field(default="ambos", pattern="^(whatsapp|email|ambos)$")
+    email_destino: Optional[str] = None
+    telefone_destino: Optional[str] = None
+
+@router.post("/{comanda_id}/enviar-comprovante")
+async def enviar_comprovante_comanda(
+    comanda_id: int,
+    dados: EnviarComprovanteRequest,
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Gera o resumo formatado da comanda fechada (itens, total e saldo atualizado)
+    e retorna os links de WhatsApp/e-mail, além de disparar via SMTP quando configurado.
+    """
+    import urllib.parse
+    import smtplib
+    from email.message import EmailMessage
+    from app.core.config import config
+
+    servico = ComandaService(db, usuario.tenant_id)
+    comp = await servico.gerar_comprovante_termico(comanda_id)
+
+    res_com = await db.execute(
+        select(Comanda).options(selectinload(Comanda.cliente)).where(Comanda.id == comanda_id)
+    )
+    comanda_obj = res_com.scalars().first()
+    cli = comanda_obj.cliente if comanda_obj else None
+
+    email_dest = (dados.email_destino or (cli.email if cli else "") or "").strip()
+    tel_dest = (dados.telefone_destino or (cli.telefone if cli else "") or "").strip()
+    tel_digitos = re.sub(r"\D", "", tel_dest)
+    if tel_digitos and not tel_digitos.startswith("55") and len(tel_digitos) in (10, 11):
+        tel_digitos = f"55{tel_digitos}"
+
+    linhas_itens = "\n".join(
+        f"• {it.quantidade}x {it.produto_nome} — R$ {it.subtotal:.2f}"
+        for it in comp.itens
+    )
+    saldo_linha = (
+        f"\nSaldo Atual na Carteira: R$ {comp.saldo_atual:.2f}"
+        if comp.saldo_atual is not None
+        else ""
+    )
+    resumo_texto = (
+        f"E-Sigma ∴ Ágape — Comprovante Comanda #{comp.comanda_id}\n"
+        f"Estabelecimento: {comp.estabelecimento_nome}\n"
+        f"Cliente: {comp.cliente_nome or 'Consumidor'}\n"
+        f"Data: {comp.data_hora}\n\n"
+        f"Itens:\n{linhas_itens}\n\n"
+        f"TOTAL: R$ {comp.total:.2f}\n"
+        f"Pagamento: {comp.forma_pagamento.upper()}"
+        f"{saldo_linha}\n\n"
+        f"Obrigado pela Fraternidade!"
+    )
+
+    whatsapp_url = (
+        f"https://wa.me/{tel_digitos}?text={urllib.parse.quote(resumo_texto)}"
+        if tel_digitos
+        else f"https://wa.me/?text={urllib.parse.quote(resumo_texto)}"
+    )
+    mailto_url = (
+        f"mailto:{urllib.parse.quote(email_dest)}?subject={urllib.parse.quote(f'Comprovante Ágape - Comanda #{comp.comanda_id}')}&body={urllib.parse.quote(resumo_texto)}"
+        if email_dest
+        else None
+    )
+
+    enviado_email = False
+    aviso_email = None
+    if dados.canal in ("email", "ambos") and email_dest:
+        if config.SMTP_HOST and config.SMTP_USER and config.SMTP_PASSWORD:
+            try:
+                msg = EmailMessage()
+                msg["Subject"] = f"Comprovante Ágape — Comanda #{comp.comanda_id}"
+                msg["From"] = config.SMTP_FROM
+                msg["To"] = email_dest
+                msg.set_content(resumo_texto)
+
+                with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=8) as server:
+                    if config.SMTP_TLS:
+                        server.starttls()
+                    server.login(config.SMTP_USER, config.SMTP_PASSWORD)
+                    server.send_message(msg)
+                enviado_email = True
+            except Exception as e:
+                aviso_email = f"Falha ao enviar via SMTP ({e}). Use o fallback mailto."
+        else:
+            aviso_email = "SMTP não configurado no servidor; abrindo rascunho de e-mail."
+
+    return {
+        "sucesso": True,
+        "email_destino": email_dest or None,
+        "telefone_destino": tel_dest or None,
+        "enviado_email": enviado_email,
+        "aviso_email": aviso_email,
+        "whatsapp_url": whatsapp_url,
+        "mailto_url": mailto_url,
+        "resumo_texto": resumo_texto,
     }

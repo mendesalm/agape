@@ -47,6 +47,8 @@ class Cliente(Base):
     identificadores_qr = Column(JSON().with_variant(JSONB, "postgresql"), default=list, nullable=False)
 
     observacao = Column(String(255), nullable=True)
+    limite_sessao = Column(Float, nullable=True) # Limite máximo por sessão (usado para dependentes)
+    autorizacao_pausada = Column(Boolean, default=False, nullable=False) # Titular pode pausar autorização do dependente
     data_cadastro = Column(DateTime, default=datetime.utcnow)
     ativo = Column(Boolean, default=True)
 

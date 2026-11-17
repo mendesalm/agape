@@ -38,7 +38,9 @@ async def lifespan(app: FastAPI):
         def _migrar_colunas_pendentes(sync_conn):
             from sqlalchemy import inspect, text
             from app.models.produto import Produto
+            from app.models.cliente import Cliente
             tabela_prod = Produto.__tablename__
+            tabela_cli = Cliente.__tablename__
             insp = inspect(sync_conn)
             colunas_produtos = {c["name"] for c in insp.get_columns(tabela_prod)}
             if "codigos_barras_alternativos" not in colunas_produtos:
@@ -50,6 +52,15 @@ async def lifespan(app: FastAPI):
                     sync_conn.execute(text(
                         f"ALTER TABLE {tabela_prod} ADD COLUMN codigos_barras_alternativos JSON NOT NULL DEFAULT '[]'"
                     ))
+
+            colunas_clientes = {c["name"] for c in insp.get_columns(tabela_cli)}
+            if "limite_sessao" not in colunas_clientes:
+                sync_conn.execute(text(f"ALTER TABLE {tabela_cli} ADD COLUMN limite_sessao FLOAT NULL"))
+            if "autorizacao_pausada" not in colunas_clientes:
+                default_bool = "FALSE" if sync_conn.dialect.name == "postgresql" else "0"
+                sync_conn.execute(text(
+                    f"ALTER TABLE {tabela_cli} ADD COLUMN autorizacao_pausada BOOLEAN NOT NULL DEFAULT {default_bool}"
+                ))
 
         await conn.run_sync(_migrar_colunas_pendentes)
         logger.info("Tabelas do banco de dados sincronizadas.")

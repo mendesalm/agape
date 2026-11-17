@@ -58,6 +58,43 @@ export const GerenteAdministrativo: React.FC = () => {
   const [fechamentoConcluido, setFechamentoConcluido] = useState<boolean>(false);
   const [buscaDevedor, setBuscaDevedor] = useState<string>('');
 
+  // Fechamento por Sessão / Evento de Ágape
+  const hojeIso = new Date().toISOString().slice(0, 10);
+  const [sessaoNome, setSessaoNome] = useState('Sessão Ordinária');
+  const [sessaoDataInicio, setSessaoDataInicio] = useState(hojeIso);
+  const [sessaoDataFim, setSessaoDataFim] = useState(hojeIso);
+  const [carregandoSessao, setCarregandoSessao] = useState(false);
+  const [fechamentoSessao, setFechamentoSessao] = useState<{
+    nome_sessao: string;
+    qtd_comandas: number;
+    qtd_itens: number;
+    ticket_medio: number;
+    receita_total: number;
+    cmv_real: number;
+    perdas_qtd: number;
+    perdas_valor: number;
+    lucro_liquido: number;
+    texto_tesouraria: string;
+  } | null>(null);
+
+  const carregarFechamentoSessao = async () => {
+    try {
+      setCarregandoSessao(true);
+      const res = await api.get('/financeiro/fechamento-sessao', {
+        params: {
+          data_inicio: sessaoDataInicio,
+          data_fim: sessaoDataFim,
+          nome_sessao: sessaoNome || 'Sessão Ordinária'
+        }
+      });
+      setFechamentoSessao(res.data);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao gerar fechamento da sessão.');
+    } finally {
+      setCarregandoSessao(false);
+    }
+  };
+
   useEffect(() => {
     carregarDados();
   }, []);
@@ -512,6 +549,98 @@ export const GerenteAdministrativo: React.FC = () => {
         {/* ------------------------------------------------------------ */}
         {abaAtiva === 'FECHAMENTO' && (
           <div className="space-y-3">
+
+            {/* Fechamento por Sessão / Evento de Ágape (Tesouraria / Hospitalaria) */}
+            <div className="rounded-3xl bg-gradient-to-br from-cyan-500/10 via-white/[0.05] to-white/[0.02] backdrop-blur-xl border border-cyan-400/25 p-4 space-y-3 shadow-xl">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 block">
+                    Fechamento por Sessão / Evento
+                  </span>
+                  <h3 className="text-xs font-bold text-white">Resumo para Tesouraria & Hospitalaria</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={carregarFechamentoSessao}
+                  disabled={carregandoSessao}
+                  className="px-3 py-1.5 rounded-xl bg-cyan-400 text-slate-950 font-black text-[11px] hover:bg-cyan-300 transition disabled:opacity-50"
+                >
+                  {carregandoSessao ? 'Calculando...' : 'Gerar Resumo'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <input
+                  type="text"
+                  value={sessaoNome}
+                  onChange={(e) => setSessaoNome(e.target.value)}
+                  placeholder="Ex: Sessão Magna"
+                  className="px-3 py-1.5 rounded-xl bg-black/30 border border-white/15 text-xs text-white focus:outline-none focus:border-cyan-400"
+                />
+                <input
+                  type="date"
+                  value={sessaoDataInicio}
+                  onChange={(e) => setSessaoDataInicio(e.target.value)}
+                  className="px-3 py-1.5 rounded-xl bg-black/30 border border-white/15 text-xs text-white focus:outline-none focus:border-cyan-400"
+                />
+                <input
+                  type="date"
+                  value={sessaoDataFim}
+                  onChange={(e) => setSessaoDataFim(e.target.value)}
+                  className="px-3 py-1.5 rounded-xl bg-black/30 border border-white/15 text-xs text-white focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              {fechamentoSessao && (
+                <div className="space-y-2.5 pt-2 border-t border-white/10">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                    <div className="p-2 rounded-xl bg-white/[0.04] border border-white/10">
+                      <span className="text-[9px] text-slate-400 uppercase block">Receita Bruta</span>
+                      <span className="text-xs font-black text-white">{formatBrl(fechamentoSessao.receita_total)}</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white/[0.04] border border-white/10">
+                      <span className="text-[9px] text-slate-400 uppercase block">CMV Real (Lotes)</span>
+                      <span className="text-xs font-black text-amber-300">- {formatBrl(fechamentoSessao.cmv_real)}</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white/[0.04] border border-white/10">
+                      <span className="text-[9px] text-slate-400 uppercase block">Perdas ({fechamentoSessao.perdas_qtd} un)</span>
+                      <span className="text-xs font-black text-rose-300">- {formatBrl(fechamentoSessao.perdas_valor)}</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-emerald-500/15 border border-emerald-400/30">
+                      <span className="text-[9px] text-emerald-300 uppercase block">Lucro Líquido</span>
+                      <span className="text-xs font-black text-emerald-400">{formatBrl(fechamentoSessao.lucro_liquido)}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-300">
+                    <span>
+                      {fechamentoSessao.qtd_comandas} comandas ({fechamentoSessao.qtd_itens} itens) • Ticket médio: {formatBrl(fechamentoSessao.ticket_medio)}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(fechamentoSessao.texto_tesouraria);
+                          alert('Resumo da sessão copiado para a Tesouraria!');
+                        }}
+                        className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-[11px] font-bold text-white"
+                      >
+                        Copiar Tesouraria
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          window.open(`https://wa.me/?text=${encodeURIComponent(fechamentoSessao.texto_tesouraria)}`, '_blank', 'noopener,noreferrer')
+                        }
+                        className="px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 text-[11px] font-bold text-emerald-300"
+                      >
+                        WhatsApp
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
             
             {/* Card Resumo do Fechamento */}
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white/[0.09] to-white/[0.03] backdrop-blur-xl border border-white/15 p-4 shadow-xl">

@@ -61,6 +61,17 @@ interface CarteiraInfo {
   limite_fiado: number;
 }
 
+interface DependenteInfo {
+  id: number;
+  nome: string;
+  parentesco: string;
+  email?: string | null;
+  telefone?: string | null;
+  limite_sessao?: number | null;
+  autorizacao_pausada: boolean;
+  consumo_total: number;
+}
+
 interface ItemComandaAberta {
   id: number;
   produto_id: number;
@@ -121,6 +132,41 @@ export const PortalCliente: React.FC = () => {
   const [emailEdit, setEmailEdit] = useState('');
   const [obsEdit, setObsEdit] = useState('');
   const [salvandoContato, setSalvandoContato] = useState(false);
+  const [dependentes, setDependentes] = useState<DependenteInfo[]>([]);
+  const [limitesDepEdit, setLimitesDepEdit] = useState<Record<number, string>>({});
+  const [salvandoDepId, setSalvandoDepId] = useState<number | null>(null);
+
+  const handleTogglePausaDependente = async (dep: DependenteInfo) => {
+    if (!cliente) return;
+    try {
+      setSalvandoDepId(dep.id);
+      const res = await api.patch(`/comandas/cliente/${cliente.id}/dependentes/${dep.id}`, {
+        autorizacao_pausada: !dep.autorizacao_pausada
+      });
+      setDependentes(res.data.dependentes || []);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao atualizar autorização do dependente.');
+    } finally {
+      setSalvandoDepId(null);
+    }
+  };
+
+  const handleSalvarLimiteDependente = async (dep: DependenteInfo) => {
+    if (!cliente) return;
+    const raw = (limitesDepEdit[dep.id] || '').trim().replace(',', '.');
+    const valor = raw === '' ? null : Math.max(0, parseFloat(raw) || 0);
+    try {
+      setSalvandoDepId(dep.id);
+      const res = await api.patch(`/comandas/cliente/${cliente.id}/dependentes/${dep.id}`, {
+        limite_sessao: valor
+      });
+      setDependentes(res.data.dependentes || []);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao salvar limite do dependente.');
+    } finally {
+      setSalvandoDepId(null);
+    }
+  };
   const [sucessoContato, setSucessoContato] = useState(false);
 
   // Faturas e Histórico
@@ -247,6 +293,12 @@ export const PortalCliente: React.FC = () => {
       setCarteira(dados.carteira);
       setCartaoAtivo(dados.cartao_ativo);
       setComandaAberta(dados.comanda_aberta);
+      setDependentes(dados.dependentes || []);
+      const lims: Record<number, string> = {};
+      for (const d of dados.dependentes || []) {
+        lims[d.id] = d.limite_sessao !== null && d.limite_sessao !== undefined ? String(d.limite_sessao) : '';
+      }
+      setLimitesDepEdit(lims);
 
       setTelefoneEdit(dados.cliente?.telefone || '');
       setEmailEdit(dados.cliente?.email || '');
@@ -2015,6 +2067,88 @@ export const PortalCliente: React.FC = () => {
                 </>
               )}
             </button>
+          </div>
+
+          {/* Controle de Dependentes Autorizados pelo Titular */}
+          <div className="pt-5 border-t border-[#334155] space-y-3">
+            <div>
+              <span className="text-xs uppercase tracking-widest font-mono text-cyan-400 font-bold block">
+                Meus Dependentes Autorizados
+              </span>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Acompanhe o consumo discriminado, defina limite por sessão ou pause a autorização a qualquer momento.
+              </p>
+            </div>
+
+            {dependentes.length === 0 ? (
+              <div className="p-4 rounded-xl bg-[#0B1326] border border-[#334155] text-xs text-slate-400">
+                Nenhum dependente vinculado ao seu cadastro. Dependentes podem ser adicionados pelo operador na confirmação da comanda.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {dependentes.map((dep) => (
+                  <div
+                    key={dep.id}
+                    className={`p-3.5 rounded-xl bg-[#0B1326] border space-y-2.5 ${
+                      dep.autorizacao_pausada ? 'border-rose-500/40 opacity-80' : 'border-[#334155]'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-white">{dep.nome}</span>
+                          <span className="px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-400/30 text-[10px] font-bold text-cyan-300">
+                            {dep.parentesco}
+                          </span>
+                          {dep.autorizacao_pausada && (
+                            <span className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-400/40 text-[10px] font-bold text-rose-300">
+                              Pausado
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-slate-400">
+                          Consumo acumulado: <strong className="text-amber-400">R$ {dep.consumo_total.toFixed(2).replace('.', ',')}</strong>
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePausaDependente(dep)}
+                        disabled={salvandoDepId === dep.id}
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition ${
+                          dep.autorizacao_pausada
+                            ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/30'
+                            : 'bg-rose-500/15 border-rose-400/30 text-rose-300 hover:bg-rose-500/25'
+                        }`}
+                      >
+                        {dep.autorizacao_pausada ? 'Reativar Autorização' : 'Pausar Autorização'}
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-white/5">
+                      <label className="text-[11px] text-slate-400">Limite por sessão (R$):</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="5"
+                        value={limitesDepEdit[dep.id] ?? ''}
+                        onChange={(e) => setLimitesDepEdit((prev) => ({ ...prev, [dep.id]: e.target.value }))}
+                        placeholder="Sem limite"
+                        className="w-28 px-2.5 py-1 rounded-lg bg-[#131B2E] border border-[#334155] text-xs text-white focus:outline-none focus:border-cyan-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSalvarLimiteDependente(dep)}
+                        disabled={salvandoDepId === dep.id}
+                        className="px-3 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 text-[11px] font-bold transition"
+                      >
+                        Salvar Limite
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
