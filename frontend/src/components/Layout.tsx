@@ -18,6 +18,10 @@ import {
   Package
 } from 'lucide-react';
 
+declare const __APP_VERSION__: string;
+declare const __BUILD_HASH__: string;
+declare const __BUILD_TIME__: string;
+
 export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -407,14 +411,23 @@ export function Layout() {
                 Tenant #{user.tenant_id}
               </span>
             )}
+            <span
+              className="px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400 font-mono text-[10px]"
+              title={`Build em ${__BUILD_TIME__} UTC`}
+            >
+              v{__APP_VERSION__} • #{__BUILD_HASH__}
+            </span>
           </div>
         </header>
 
         {/* Conteúdo Injetado via Outlet */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden pt-16 lg:pt-0 bg-[#070F1E]">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden pt-16 lg:pt-0 bg-[#070F1E] flex flex-col justify-between">
           <div className="w-full">
             <Outlet />
           </div>
+          <footer className="w-full py-2.5 px-4 text-center text-[10px] font-mono text-slate-600 border-t border-slate-900/80">
+            E-Sigma ∴ Ágape • v{__APP_VERSION__} (build #{__BUILD_HASH__} • {__BUILD_TIME__} UTC)
+          </footer>
         </main>
       </div>
 
