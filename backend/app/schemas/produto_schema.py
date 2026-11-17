@@ -111,3 +111,8 @@ class AlertaEstoqueGeral(BaseModel):
 class ProdutoMesclarRequest(BaseModel):
     produto_origem_id: int = Field(..., gt=0, description="ID do produto duplicado que será absorvido")
     produto_destino_id: int = Field(..., gt=0, description="ID do produto principal que será mantido")
+
+class AjusteEstoqueRequest(BaseModel):
+    quantidade_gondola: Optional[int] = Field(None, ge=0, description="Nova quantidade total na gôndola/bar")
+    quantidade_armazem: Optional[int] = Field(None, ge=0, description="Nova quantidade total no almoxarifado")
+    motivo: str = Field(default="Ajuste manual de inventário", max_length=255)

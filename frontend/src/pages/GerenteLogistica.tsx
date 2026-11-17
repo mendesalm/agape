@@ -98,6 +98,11 @@ export const GerenteLogistica: React.FC = () => {
   const [produtoAbsorverId, setProdutoAbsorverId] = useState<string>('');
   const [buscaMesclar, setBuscaMesclar] = useState('');
   const [mesclandoProdutos, setMesclandoProdutos] = useState(false);
+  const [isModalAjusteEstoque, setIsModalAjusteEstoque] = useState(false);
+  const [ajusteGondola, setAjusteGondola] = useState('0');
+  const [ajusteArmazem, setAjusteArmazem] = useState('0');
+  const [ajusteMotivo, setAjusteMotivo] = useState('Ajuste manual de inventário');
+  const [salvandoAjusteEstoque, setSalvandoAjusteEstoque] = useState(false);
   const [isModalTransferir, setIsModalTransferir] = useState(false);
   const [qtdTransferir, setQtdTransferir] = useState('6');
   
@@ -563,6 +568,35 @@ export const GerenteLogistica: React.FC = () => {
       alert(err.response?.data?.detail || 'Erro ao unificar mercadorias.');
     } finally {
       setMesclandoProdutos(false);
+    }
+  };
+
+  const abrirModalAjusteEstoque = () => {
+    if (!produtoEmGestao) return;
+    setAjusteGondola(String(produtoEmGestao.quantidade_gondola ?? 0));
+    setAjusteArmazem(String(produtoEmGestao.quantidade_armazem ?? 0));
+    setAjusteMotivo('Ajuste manual de inventário');
+    setIsModalAjusteEstoque(true);
+  };
+
+  const handleSalvarAjusteEstoque = async () => {
+    if (!produtoEmGestao) return;
+    const qtdGondola = Math.max(0, parseInt(ajusteGondola || '0', 10) || 0);
+    const qtdArmazem = Math.max(0, parseInt(ajusteArmazem || '0', 10) || 0);
+    try {
+      setSalvandoAjusteEstoque(true);
+      const res = await api.post(`/produtos/${produtoEmGestao.id}/ajustar-estoque`, {
+        quantidade_gondola: qtdGondola,
+        quantidade_armazem: qtdArmazem,
+        motivo: ajusteMotivo.trim() || 'Ajuste manual de inventário'
+      });
+      setProdutoEmGestao(res.data);
+      await carregarProdutos();
+      setIsModalAjusteEstoque(false);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao ajustar estoque manualmente.');
+    } finally {
+      setSalvandoAjusteEstoque(false);
     }
   };
 
@@ -1097,9 +1131,20 @@ export const GerenteLogistica: React.FC = () => {
                 <Layers size={14} className="text-cyan-400" />
                 Posição de Estoque
               </span>
-              <span className="text-[10px] font-extrabold text-white tabular-nums bg-white/10 px-2.5 py-0.5 rounded-full">
-                Total: {produtoEmGestao.quantidade_estoque} un
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={abrirModalAjusteEstoque}
+                  className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 text-[10px] font-bold flex items-center gap-1 transition active:scale-95"
+                  title="Editar quantidades de estoque manualmente"
+                >
+                  <Edit3 size={11} />
+                  Ajustar
+                </button>
+                <span className="text-[10px] font-extrabold text-white tabular-nums bg-white/10 px-2.5 py-0.5 rounded-full">
+                  Total: {produtoEmGestao.quantidade_estoque} un
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -1766,6 +1811,119 @@ export const GerenteLogistica: React.FC = () => {
             <div className="flex gap-2 pt-2">
               <button onClick={() => setIsModalNovoLote(false)} className="flex-1 py-2 rounded-xl bg-white/10 text-xs font-semibold">Cancelar</button>
               <button onClick={handleCriarLote} className="flex-1 py-2 rounded-xl bg-amber-400 text-stone-950 text-xs font-bold hover:bg-amber-300 transition">Salvar Lote de Compra</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ajuste Manual de Estoque */}
+      {isModalAjusteEstoque && produtoEmGestao && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-[#0B1324] border border-cyan-400/30 p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-cyan-300">
+                <Layers size={18} />
+                <h3 className="text-sm font-black">Ajuste Manual de Estoque</h3>
+              </div>
+              <button
+                onClick={() => setIsModalAjusteEstoque(false)}
+                className="text-slate-400 hover:text-white text-sm font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="text-xs font-semibold text-white truncate">{produtoEmGestao.nome}</p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-400/25 space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
+                  Gôndola (Bar)
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setAjusteGondola(String(Math.max(0, (parseInt(ajusteGondola || '0', 10) || 0) - 1)))}
+                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-sm"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min={0}
+                    value={ajusteGondola}
+                    onChange={(e) => setAjusteGondola(e.target.value)}
+                    className="w-full text-center py-1 rounded-lg bg-black/40 border border-emerald-400/30 text-white font-black text-sm tabular-nums focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAjusteGondola(String((parseInt(ajusteGondola || '0', 10) || 0) + 1))}
+                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-sm"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-white/[0.04] border border-white/15 space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300 block">
+                  Almoxarifado
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setAjusteArmazem(String(Math.max(0, (parseInt(ajusteArmazem || '0', 10) || 0) - 1)))}
+                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-sm"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min={0}
+                    value={ajusteArmazem}
+                    onChange={(e) => setAjusteArmazem(e.target.value)}
+                    className="w-full text-center py-1 rounded-lg bg-black/40 border border-white/20 text-white font-black text-sm tabular-nums focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAjusteArmazem(String((parseInt(ajusteArmazem || '0', 10) || 0) + 1))}
+                    className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-sm"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Motivo do Ajuste
+              </label>
+              <input
+                type="text"
+                value={ajusteMotivo}
+                onChange={(e) => setAjusteMotivo(e.target.value)}
+                placeholder="Ex: Contagem de inventário"
+                className="w-full px-3 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-white focus:outline-none focus:border-cyan-400/50"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsModalAjusteEstoque(false)}
+                className="flex-1 py-2 rounded-xl bg-white/10 text-xs font-semibold hover:bg-white/15 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSalvarAjusteEstoque}
+                disabled={salvandoAjusteEstoque}
+                className="flex-1 py-2 rounded-xl bg-cyan-400 text-stone-950 text-xs font-bold hover:bg-cyan-300 transition disabled:opacity-40"
+              >
+                {salvandoAjusteEstoque ? 'Salvando...' : 'Salvar Estoque'}
+              </button>
             </div>
           </div>
         </div>

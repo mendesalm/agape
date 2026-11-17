@@ -11,7 +11,8 @@ from app.schemas.produto_schema import (
     TransferenciaEstoqueRequest,
     PerdaLoteRequest,
     AlertaEstoqueGeral,
-    ProdutoMesclarRequest
+    ProdutoMesclarRequest,
+    AjusteEstoqueRequest
 )
 from app.services.produto_service import ProdutoService
 from app.api.dependencias import obter_usuario_logado
@@ -248,3 +249,17 @@ async def registrar_perda_estoque(
         justificativa=dados.justificativa or dados.motivo or "Perda registrada",
         operador_id=usuario.id
     )
+
+@router.post("/{produto_id}/ajustar-estoque", response_model=ProdutoResponse)
+async def ajustar_estoque_manual(
+    produto_id: int,
+    dados: AjusteEstoqueRequest,
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Ajusta manualmente as quantidades de estoque na Gôndola (Bar) e/ou Almoxarifado,
+    registrando uma movimentação de ajuste de inventário.
+    """
+    servico = ProdutoService(db, usuario.tenant_id)
+    return await servico.ajustar_estoque_manual(produto_id, dados)
