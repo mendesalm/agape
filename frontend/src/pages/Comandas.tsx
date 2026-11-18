@@ -297,7 +297,6 @@ export function Comandas() {
     setBandeja({});
     setModoCadastro1D(false);
     setAbaAtiva('comanda');
-    setTimeout(() => inputCartaoRef.current?.focus(), 100);
   };
 
   const handleCameraScan = async (codigo: string) => {
@@ -878,7 +877,6 @@ export function Comandas() {
                           onChange={(e) => setCartaoClienteInput(e.target.value)}
                           placeholder="Ou bipe com leitor USB / digite o código..."
                           className="flex-1 px-3 py-2 rounded-xl bg-[#181b25] border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/50"
-                          autoFocus
                         />
                         <button
                           type="submit"
