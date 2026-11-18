@@ -108,8 +108,10 @@ interface FaturaHistorico {
 }
 
 export const PortalCliente: React.FC = () => {
-  // Aba ativa: 'comanda_qr' | 'pagamentos' | 'credito' | 'relatorio' | 'cadastro'
-  const [abaAtiva, setAbaAtiva] = useState<'comanda_qr' | 'pagamentos' | 'credito' | 'relatorio' | 'cadastro'>('comanda_qr');
+  // Cascata: cartões iniciais recolhidos para caber em 100% da tela sem overflow
+  const [cartaoAberto, setCartaoAberto] = useState<'dados' | 'carteira' | null>(null);
+  const [subAbaDados, setSubAbaDados] = useState<'cadastro' | 'dependentes' | 'identificacao'>('cadastro');
+  const [subAbaCarteira, setSubAbaCarteira] = useState<'status' | 'saldo' | 'deposito' | 'pagamento'>('status');
   const [modalQrExpandido, setModalQrExpandido] = useState(false);
 
   // Estado do Perfil e Carteira
@@ -304,9 +306,9 @@ export const PortalCliente: React.FC = () => {
       setEmailEdit(dados.cliente?.email || '');
       setObsEdit(dados.cliente?.observacao || '');
 
-      // Se tiver comanda aberta, foca na aba pagamentos; caso contrário, crédito ou relatório
+      // Se tiver comanda aberta, pré-seleciona a sub-aba de pagamento na Carteira mantendo a visão inicial limpa
       if (dados.comanda_aberta && dados.comanda_aberta.total > 0) {
-        setAbaAtiva('pagamentos');
+        setSubAbaCarteira('pagamento');
       }
 
       if (dados.cliente?.id) {
@@ -540,582 +542,543 @@ export const PortalCliente: React.FC = () => {
   }
 
   return (
-    <div className="relative min-h-[calc(100vh-3.5rem)] flex flex-col justify-between p-4 sm:p-6 lg:p-8 max-w-lg lg:max-w-4xl mx-auto overflow-hidden animate-fadeIn select-none text-slate-100 font-sans pb-24">
-      {/* Esferas de Iluminação Ambiente (Glass Ambient Glow do Stitch) */}
-      <div className="pointer-events-none absolute -top-14 -left-12 w-64 h-64 rounded-full bg-emerald-500/15 blur-3xl" />
-      <div className="pointer-events-none absolute top-1/2 -right-16 w-64 h-64 rounded-full bg-amber-500/15 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-14 left-1/4 w-64 h-64 rounded-full bg-blue-600/15 blur-3xl" />
+    <div className="relative h-[calc(100vh-3.5rem)] flex flex-col p-3 sm:p-4 max-w-lg lg:max-w-2xl mx-auto overflow-hidden animate-fadeIn select-none text-slate-100 font-sans gap-2.5">
+      {/* Esferas de Iluminação Ambiente */}
+      <div className="pointer-events-none absolute -top-14 -left-12 w-64 h-64 rounded-full bg-emerald-500/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-14 right-0 w-64 h-64 rounded-full bg-cyan-500/10 blur-3xl" />
 
       {/* Toast de Sucesso */}
       {mensagemSucesso && (
-        <div className="relative z-20 mb-3 p-3.5 rounded-2xl bg-emerald-500/20 border border-emerald-400 text-emerald-300 flex items-center gap-2.5 animate-fadeIn shadow-xl backdrop-blur-xl text-xs font-bold">
-          <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" />
-          <span>{mensagemSucesso}</span>
+        <div className="relative z-20 shrink-0 px-3.5 py-2.5 rounded-2xl bg-emerald-500/20 border border-emerald-400 text-emerald-300 flex items-center gap-2 shadow-xl backdrop-blur-xl text-xs font-bold">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+          <span className="truncate">{mensagemSucesso}</span>
         </div>
       )}
 
-      {/* HEADER TÁTIL DO CLIENTE / IRMÃO */}
-      <section className="relative z-10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/10 rounded-3xl p-4 sm:p-5 shadow-xl mb-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            {/* Avatar Tipográfico ou Foto */}
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-white/10 to-black/40 border border-emerald-400/60 flex items-center justify-center text-emerald-300 font-bold text-xl shadow-inner shrink-0 relative">
-              {cliente?.nome ? getIniciais(cliente.nome) : 'IR'}
-              <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#0B1324]" title="Ativo no Bar" />
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-lg sm:text-xl font-black text-white tracking-tight">
-                  Ir.'. {cliente?.nome || 'Obreiro'}
-                </h1>
-                {cliente?.cim && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-400/10 border border-cyan-400/30 text-cyan-300">
-                    CIM: {cliente.cim}
-                  </span>
-                )}
-              </div>
-              <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2">
-                <span>{cliente?.nome_loja_origem || 'Loja Mantenedora'}</span>
-                <span>•</span>
-                <span className="text-emerald-400 font-semibold">Conta Ativa</span>
-              </p>
-            </div>
+      {/* CABEÇALHO COMPACTO DO CLIENTE / IRMÃO */}
+      <header className="relative z-10 shrink-0 bg-[#0f131c]/90 backdrop-blur-xl border border-white/10 rounded-2xl px-3.5 py-2.5 shadow-lg flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-400/50 flex items-center justify-center text-emerald-300 font-black text-sm shrink-0 relative">
+            {cliente?.nome ? getIniciais(cliente.nome) : 'IR'}
+            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#0f131c]" />
           </div>
-
-          {/* Botão de Alternar Irmão */}
-          <button
-            onClick={() => {
-              setModalTrocarCliente(true);
-              handleBuscarClientes('');
-            }}
-            className="self-end sm:self-center px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold text-slate-300 hover:text-white transition flex items-center gap-1.5 shadow-sm"
-          >
-            <User className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Trocar Irmão</span>
-          </button>
-        </div>
-
-        {/* BARRA HERO: TELEMETRIA TÁTIL DE SALDO & CARTÃO */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-4 pt-3.5 border-t border-white/10">
-          {/* Card Saldo em Carteira */}
-          <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-3 flex items-center justify-between">
-            <div>
-              <span className="text-[9px] uppercase tracking-wider font-bold text-slate-400 block">
-                Saldo na Conta Bar
-              </span>
-              <span
-                className={`text-lg font-black font-mono tabular-nums ${
-                  carteira.saldo >= 0 ? 'text-emerald-400' : 'text-amber-400'
-                }`}
-              >
-                R$ {carteira.saldo.toFixed(2).replace('.', ',')}
-              </span>
-            </div>
-            <div className="w-9 h-9 rounded-xl bg-emerald-400/10 border border-emerald-400/30 flex items-center justify-center text-emerald-400">
-              <Wallet className="w-4 h-4" />
-            </div>
-          </div>
-
-          {/* Card Cartão & Credencial Digital com QR Code */}
-          <div
-            onClick={() => {
-              setAbaAtiva('comanda_qr');
-              setModalQrExpandido(true);
-            }}
-            className="bg-white/[0.04] border border-amber-400/30 hover:border-amber-400/60 rounded-2xl p-3 flex items-center justify-between cursor-pointer transition hover:bg-white/[0.08] group shadow-sm"
-            title="Clique para abrir seu QR Code de Balcão"
-          >
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[9px] uppercase tracking-wider font-bold text-amber-300 block">
-                  Credencial Digital
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h1 className="text-sm font-black text-white tracking-tight truncate">
+                Ir.'. {cliente?.nome || 'Obreiro'}
+              </h1>
+              {cliente?.cim && (
+                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 shrink-0">
+                  CIM {cliente.cim}
                 </span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              </div>
-              <span className="text-xs font-bold font-mono text-white block truncate max-w-[140px] mt-0.5">
-                {cartaoAtivo ? cartaoAtivo : (cliente?.cim ? `CIM ${cliente.cim}` : `ID #${cliente?.id}`)}
-              </span>
-              <span className="text-[9px] text-slate-400 group-hover:text-amber-300 transition-colors flex items-center gap-1 mt-0.5">
-                <QrCode className="w-3 h-3 text-amber-400" /> Toque para expandir
-              </span>
+              )}
             </div>
-            <div className="w-9 h-9 rounded-xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-300 group-hover:scale-105 transition shadow-inner">
-              <QrCode className="w-4 h-4" />
-            </div>
-          </div>
-
-          {/* Card Comanda da Noite */}
-          <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-3 flex items-center justify-between">
-            <div>
-              <span className="text-[9px] uppercase tracking-wider font-bold text-slate-400 block">
-                Consumo da Noite
-              </span>
-              <span
-                className={`text-sm font-black font-mono tabular-nums ${
-                  comandaAberta && comandaAberta.total > 0
-                    ? 'text-amber-400'
-                    : 'text-slate-400'
-                }`}
-              >
-                {comandaAberta ? `R$ ${comandaAberta.total.toFixed(2).replace('.', ',')}` : 'R$ 0,00'}
-              </span>
-            </div>
-            <div
-              className={`w-9 h-9 rounded-xl flex items-center justify-center border ${
-                comandaAberta && comandaAberta.total > 0
-                  ? 'bg-amber-400/10 border-amber-400/30 text-amber-400'
-                  : 'bg-white/5 border-white/10 text-slate-500'
-              }`}
-            >
-              <Receipt className="w-4 h-4" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* OS 5 SUB-MENUS DO NÍVEL CLIENTE: NAVEGAÇÃO SEGMENTADA GLASS */}
-      <nav className="relative z-10 grid grid-cols-2 sm:grid-cols-5 gap-2 my-2">
-        <button
-          onClick={() => setAbaAtiva('comanda_qr')}
-          className={`col-span-2 sm:col-span-1 p-2.5 rounded-2xl border font-bold text-xs uppercase tracking-wider transition flex flex-col items-center justify-center gap-1 cursor-pointer relative ${
-            abaAtiva === 'comanda_qr'
-              ? 'bg-amber-400/20 border-amber-400/40 text-amber-300 shadow-md shadow-amber-500/10'
-              : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.08]'
-          }`}
-        >
-          <QrCode className="w-4 h-4 text-amber-400" />
-          <span className="text-[10px]">Meu QR Code</span>
-        </button>
-
-        <button
-          onClick={() => setAbaAtiva('pagamentos')}
-          className={`p-2.5 rounded-2xl border font-bold text-xs uppercase tracking-wider transition flex flex-col items-center justify-center gap-1 cursor-pointer relative ${
-            abaAtiva === 'pagamentos'
-              ? 'bg-emerald-400/20 border-emerald-400/40 text-emerald-300 shadow-md shadow-emerald-500/10'
-              : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.08]'
-          }`}
-        >
-          {comandaAberta && comandaAberta.total > 0 && (
-            <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-mono text-[8px] font-black animate-pulse">
-              PENDENTE
-            </span>
-          )}
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span className="text-[10px]">Pagar Conta</span>
-        </button>
-
-        <button
-          onClick={() => setAbaAtiva('credito')}
-          className={`p-2.5 rounded-2xl border font-bold text-xs uppercase tracking-wider transition flex flex-col items-center justify-center gap-1 cursor-pointer ${
-            abaAtiva === 'credito'
-              ? 'bg-cyan-400/20 border-cyan-400/40 text-cyan-300 shadow-md shadow-cyan-500/10'
-              : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.08]'
-          }`}
-        >
-          <Wallet className="w-4 h-4 text-cyan-400" />
-          <span className="text-[10px]">Recarregar</span>
-        </button>
-
-        <button
-          onClick={() => setAbaAtiva('relatorio')}
-          className={`p-2.5 rounded-2xl border font-bold text-xs uppercase tracking-wider transition flex flex-col items-center justify-center gap-1 cursor-pointer ${
-            abaAtiva === 'relatorio'
-              ? 'bg-amber-400/20 border-amber-400/40 text-amber-300 shadow-md shadow-amber-500/10'
-              : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.08]'
-          }`}
-        >
-          <FileText className="w-4 h-4 text-amber-400" />
-          <span className="text-[10px]">Extrato</span>
-        </button>
-
-        <button
-          onClick={() => setAbaAtiva('cadastro')}
-          className={`p-2.5 rounded-2xl border font-bold text-xs uppercase tracking-wider transition flex flex-col items-center justify-center gap-1 cursor-pointer ${
-            abaAtiva === 'cadastro'
-              ? 'bg-white/15 border-white/30 text-white shadow-md'
-              : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.08]'
-          }`}
-        >
-          <User className="w-4 h-4 text-slate-300" />
-          <span className="text-[10px]">Documentos</span>
-        </button>
-      </nav>
-
-      {/* CONTEÚDO DA ABA 0: CREDENCIAL DIGITAL & QR CODE DE BALCÃO (PUREZA & SIMETRIA) */}
-      {abaAtiva === 'comanda_qr' && (
-        <div className="space-y-4 animate-fade-in flex flex-col items-center">
-          <div className="w-full max-w-md bg-gradient-to-b from-[#131B2E] via-[#0B1326] to-[#070F1E] border border-[#DDB96B]/40 rounded-3xl p-6 sm:p-8 shadow-2xl text-center relative overflow-hidden">
-            {/* Decorações Geométricas de Pureza e Simetria */}
-            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-[#DDB96B] to-transparent opacity-80" />
-            <div className="absolute -top-12 -right-12 w-32 h-32 bg-[#DDB96B]/5 rounded-full blur-2xl pointer-events-none" />
-            <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-[#10B981]/5 rounded-full blur-2xl pointer-events-none" />
-
-            {/* Cabeçalho da Credencial */}
-            <div className="space-y-1 mb-5">
-              <span className="text-[10px] uppercase tracking-[0.25em] font-extrabold text-[#DDB96B] block font-mono">
-                Salão de Ágapes • Credencial Soberana
-              </span>
-              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                {cliente?.nome || 'Obreiro'}
-              </h2>
-              <div className="flex items-center justify-center gap-2 text-xs text-slate-400 mt-1">
-                {cliente?.cim && (
-                  <span className="px-2 py-0.5 rounded-full bg-[#070F1E] border border-[#DDB96B]/30 font-mono text-[#FDE68A] text-[11px] font-bold">
-                    CIM {cliente.cim}
-                  </span>
-                )}
-                <span>•</span>
-                <span>{cliente?.grau_maconico || 'Mestre Maçom'}</span>
-              </div>
-            </div>
-
-            {/* Container Central do QR Code (Alto Contraste Óptico) */}
-            <div className="my-5 p-5 bg-white rounded-3xl shadow-[0_12px_40px_rgba(0,0,0,0.6)] border-4 border-[#FDE68A] inline-block mx-auto transition-transform hover:scale-[1.02]">
-              <QRCode
-                value={getQrCodeValor()}
-                size={200}
-                bgColor="#FFFFFF"
-                fgColor="#070F1E"
-                level="H"
-              />
-              <div className="mt-3 pt-2 border-t border-slate-200">
-                <span className="font-mono text-[11px] font-extrabold tracking-wider text-[#070F1E] block">
-                  {cartaoAtivo || (cliente?.cim ? `CIM ${cliente.cim}` : `ID ${cliente?.id}`)}
-                </span>
-              </div>
-            </div>
-
-            {/* Telemetria de Identificação e Saldo em 2 Caixas Simétricas */}
-            <div className="grid grid-cols-2 gap-3 my-5 text-left">
-              <div className="p-3 rounded-2xl bg-[#070F1E]/80 border border-[#334155]">
-                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block font-mono">
-                  Saldo em Carteira
-                </span>
-                <span className={`text-base font-extrabold font-mono ${carteira.saldo >= 0 ? 'text-[#4EDEA3]' : 'text-[#FFB95F]'}`}>
-                  R$ {carteira.saldo.toFixed(2)}
-                </span>
-              </div>
-              <div className="p-3 rounded-2xl bg-[#070F1E]/80 border border-[#334155]">
-                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block font-mono">
-                  Estado da Conta
-                </span>
-                <span className="text-xs font-bold text-[#4EDEA3] flex items-center gap-1.5 mt-0.5">
-                  <span className="w-2 h-2 rounded-full bg-[#10B981] inline-block animate-pulse" />
-                  Consumo Ativo
-                </span>
-              </div>
-            </div>
-
-            {/* Botão de Expansão em Tela Cheia */}
-            <button
-              onClick={() => setModalQrExpandido(true)}
-              className="w-full min-h-[46px] px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#DDB96B] to-[#FDE68A] hover:brightness-110 text-[#070F1E] font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-[#DDB96B]/20 transition-all cursor-pointer"
-            >
-              <Maximize2 className="w-4 h-4" />
-              <span>Expandir para Leitor de Balcão</span>
-            </button>
-
-            <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
-              Apresente esta credencial ao garçom ou aponte para a câmera do terminal de autoatendimento para registrar consumos em sua comanda.
+            <p className="text-[10px] text-slate-400 truncate">
+              {cliente?.nome_loja_origem || 'Loja Mantenedora'}
             </p>
+          </div>
+        </div>
 
-            {/* SEÇÃO SIMÉTRICA: DOCUMENTOS & CARTEIRAS VINCULADAS */}
-            <div className="w-full mt-6 pt-5 border-t border-[#334155] text-left space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-mono font-extrabold uppercase tracking-widest text-[#FDE68A] flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-[#DDB96B]" /> Documentos Atrelados
+        <button
+          onClick={() => {
+            setModalTrocarCliente(true);
+            handleBuscarClientes('');
+          }}
+          className="shrink-0 px-2.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-[11px] font-bold text-slate-200 transition flex items-center gap-1.5 cursor-pointer"
+          title="Trocar Irmão"
+        >
+          <User className="w-3.5 h-3.5 text-cyan-400" />
+          <span>Trocar</span>
+        </button>
+      </header>
+
+      {/* CARTÃO EM CASCATA 1: DADOS PESSOAIS */}
+      <section
+        className={`relative z-10 bg-[#0f131c] border rounded-2xl transition-all overflow-hidden flex flex-col ${
+          cartaoAberto === 'dados'
+            ? 'flex-1 min-h-0 border-emerald-400/40 shadow-xl'
+            : 'shrink-0 border-white/10 hover:border-white/20'
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => setCartaoAberto((prev) => (prev === 'dados' ? null : 'dados'))}
+          className="w-full shrink-0 px-3.5 py-3 flex items-center justify-between gap-2 text-left cursor-pointer hover:bg-white/[0.02] transition"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center text-cyan-300 shrink-0">
+              <User className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-white">Dados Pessoais</span>
+                {dependentes.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-[9px] font-bold text-cyan-300">
+                    {dependentes.length} dep.
                   </span>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    CNH, e-GOB, Militares e Entidades de Classe
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNovoDocTipo('CNH');
-                    setNovoDocRotulo('CNH Digital');
-                    setNovoDocCodigo('');
-                    setErroVincular(null);
-                    setModalVincularAberto(true);
-                  }}
-                  className="px-2.5 py-1.5 bg-[#1E293B] hover:bg-[#334155] border border-[#DDB96B]/40 hover:border-[#DDB96B] text-[#FDE68A] rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Vincular</span>
-                </button>
+                )}
               </div>
+              <span className="text-[10px] text-slate-400 block truncate">
+                Cadastro • Dependentes • Identificação
+              </span>
+            </div>
+          </div>
+          {cartaoAberto === 'dados' ? (
+            <ChevronUp className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+          )}
+        </button>
 
-              {/* Lista dos Documentos do Irmão */}
-              {cliente?.identificadores_qr && cliente.identificadores_qr.length > 0 ? (
-                <div className="space-y-2">
-                  {cliente.identificadores_qr.map((doc) => (
-                    <div
-                      key={doc.id || doc.codigo}
-                      className="p-3 rounded-2xl bg-[#070F1E]/80 border border-[#334155] flex items-center justify-between gap-3 group hover:border-[#DDB96B]/30 transition-all"
+        {cartaoAberto === 'dados' && (
+          <div className="flex-1 min-h-0 flex flex-col border-t border-white/10">
+            {/* Sub-abas em cascata: Cadastro | Dependentes | Identificação */}
+            <div className="shrink-0 grid grid-cols-3 gap-1.5 p-2.5 bg-[#0a0e17] border-b border-white/10">
+              {[
+                { id: 'cadastro' as const, label: 'Cadastro' },
+                { id: 'dependentes' as const, label: `Dependentes${dependentes.length ? ` (${dependentes.length})` : ''}` },
+                { id: 'identificacao' as const, label: 'Identificação' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setSubAbaDados(tab.id)}
+                  className={`py-2 px-2 rounded-xl text-[11px] font-bold transition cursor-pointer ${
+                    subAbaDados === tab.id
+                      ? 'bg-[#10b981] text-[#022c22] shadow-sm'
+                      : 'bg-[#181b25] text-slate-300 hover:text-white border border-white/10'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3">
+              {/* SUB-ABA 1.1: CADASTRO (LEITURA E EDIÇÃO) */}
+              {subAbaDados === 'cadastro' && (
+                <div className="space-y-3">
+                  {sucessoContato && (
+                    <div className="p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-xs font-bold flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>Dados atualizados com sucesso!</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                        Nome Completo
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={cliente?.nome || ''}
+                        className="w-full bg-[#181b25] border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 font-semibold cursor-not-allowed opacity-85"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                        Loja Mantenedora
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={cliente?.nome_loja_origem || 'Loja Atual'}
+                        className="w-full bg-[#181b25] border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-300 cursor-not-allowed opacity-85"
+                      />
+                    </div>
+
+                    {/* CIM e CPF SEPARADOS */}
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                        CIM (Obreiro)
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={cliente?.cim || 'Não informado'}
+                        className="w-full bg-[#181b25] border border-white/10 rounded-xl px-3 py-2 text-xs text-emerald-300 font-mono font-bold cursor-not-allowed opacity-90"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                        CPF (Documento Federal)
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={
+                          cliente?.cpf && !cliente.cpf.startsWith('CIM:') && !cliente.cpf.startsWith('CAD:')
+                            ? `${cliente.cpf.slice(0, 3)}.***.***-${cliente.cpf.slice(-2)}`
+                            : 'Não informado'
+                        }
+                        className="w-full bg-[#181b25] border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono cursor-not-allowed opacity-90"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 block mb-1 flex items-center gap-1">
+                        <Phone className="w-3 h-3" />
+                        <span>WhatsApp / Celular</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={telefoneEdit}
+                        onChange={(e) => setTelefoneEdit(e.target.value)}
+                        placeholder="(62) 99999-9999"
+                        className="w-full bg-[#0a0e17] border border-cyan-400/35 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 block mb-1 flex items-center gap-1">
+                        <Mail className="w-3 h-3" />
+                        <span>E-mail</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={emailEdit}
+                        onChange={(e) => setEmailEdit(e.target.value)}
+                        placeholder="seuemail@exemplo.com"
+                        className="w-full bg-[#0a0e17] border border-cyan-400/35 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-slate-400">
+                    Pelo menos um dos dois documentos (CIM ou CPF) é obrigatório para identificação.
+                  </p>
+
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                      Preferências / Restrições
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={obsEdit}
+                      onChange={(e) => setObsEdit(e.target.value)}
+                      placeholder="Ex: Sem glúten, cerveja sem álcool..."
+                      className="w-full bg-[#0a0e17] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSalvarContato}
+                      disabled={salvandoContato}
+                      className="px-4 py-2.5 rounded-xl bg-[#10b981] hover:bg-[#34d399] text-[#022c22] font-black text-xs uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-[#DDB96B]/10 border border-[#DDB96B]/25 flex items-center justify-center text-[#FDE68A] shrink-0">
-                          <QrCode className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold text-white truncate block">
-                              {doc.rotulo}
-                            </span>
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#10B981]/15 text-[#4EDEA3] border border-[#10B981]/30">
-                              {doc.tipo}
+                      {salvandoContato ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                      <span>Salvar Alterações</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-ABA 1.2: DEPENDENTES (LEITURA E EDIÇÃO) */}
+              {subAbaDados === 'dependentes' && (
+                <div className="space-y-2.5">
+                  <p className="text-[11px] text-slate-400">
+                    Gerencie limites por sessão ou pause a autorização dos dependentes vinculados ao seu cadastro.
+                  </p>
+                  {dependentes.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-[#181b25] border border-white/10 text-xs text-slate-400 text-center">
+                      Nenhum dependente vinculado. Dependentes podem ser adicionados pelo operador na confirmação da comanda.
+                    </div>
+                  ) : (
+                    dependentes.map((dep) => (
+                      <div
+                        key={dep.id}
+                        className={`p-3 rounded-xl bg-[#181b25] border space-y-2 ${
+                          dep.autorizacao_pausada ? 'border-rose-500/40 opacity-80' : 'border-white/10'
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-xs text-white">{dep.nome}</span>
+                              <span className="px-1.5 py-0.5 rounded bg-cyan-500/15 border border-cyan-400/30 text-[9px] font-bold text-cyan-300">
+                                {dep.parentesco}
+                              </span>
+                              {dep.autorizacao_pausada && (
+                                <span className="px-1.5 py-0.5 rounded bg-rose-500/20 border border-rose-400/40 text-[9px] font-bold text-rose-300">
+                                  Pausado
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-slate-400">
+                              Consumo: <strong className="text-amber-400">R$ {dep.consumo_total.toFixed(2).replace('.', ',')}</strong>
                             </span>
                           </div>
-                          <span className="text-[10px] font-mono text-slate-400 truncate block mt-0.5">
-                            {doc.codigo.length > 30 ? `${doc.codigo.substring(0, 28)}...` : doc.codigo}
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePausaDependente(dep)}
+                            disabled={salvandoDepId === dep.id}
+                            className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                              dep.autorizacao_pausada
+                                ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                                : 'bg-rose-500/15 border-rose-400/30 text-rose-300'
+                            }`}
+                          >
+                            {dep.autorizacao_pausada ? 'Reativar' : 'Pausar'}
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1 border-t border-white/5">
+                          <label className="text-[10px] text-slate-400">Limite sessão (R$):</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="5"
+                            value={limitesDepEdit[dep.id] ?? ''}
+                            onChange={(e) => setLimitesDepEdit((prev) => ({ ...prev, [dep.id]: e.target.value }))}
+                            placeholder="Sem limite"
+                            className="w-24 px-2 py-1 rounded-lg bg-[#0a0e17] border border-white/10 text-xs text-white focus:outline-none focus:border-cyan-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSalvarLimiteDependente(dep)}
+                            disabled={salvandoDepId === dep.id}
+                            className="px-2.5 py-1 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 text-[10px] font-bold cursor-pointer"
+                          >
+                            Salvar
+                          </button>
                         </div>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDesvincularDocumento(doc.id || doc.codigo)}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all shrink-0 cursor-pointer"
-                        title="Desvincular Documento"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
-              ) : (
-                <div className="p-4 rounded-2xl bg-[#070F1E]/50 border border-dashed border-[#334155] text-center">
-                  <p className="text-xs text-slate-400">
-                    Nenhum documento externo atrelado no momento.
-                  </p>
-                  <p className="text-[11px] text-[#DDB96B]/80 mt-1">
-                    Vincule sua CNH, e-GOB Card ou carteira funcional para poder pedir no bar apenas mostrando o QR Code do documento!
-                  </p>
+              )}
+
+              {/* SUB-ABA 1.3: IDENTIFICAÇÃO (GERAR QR PESSOAL & ATRELAR DOCUMENTOS) */}
+              {subAbaDados === 'identificacao' && (
+                <div className="space-y-3">
+                  <div className="p-3 rounded-xl bg-[#181b25] border border-emerald-400/30 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs font-bold text-white block">QR Code Pessoal de Balcão</span>
+                      <span className="text-[10px] text-slate-400">
+                        {cartaoAtivo || (cliente?.cim ? `CIM ${cliente.cim}` : `ID #${cliente?.id}`)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setModalQrExpandido(true)}
+                      className="px-3 py-2 rounded-xl bg-[#10b981] text-[#022c22] text-xs font-black flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      <QrCode className="w-3.5 h-3.5" />
+                      <span>Exibir QR</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <div>
+                      <span className="text-[10px] font-mono font-extrabold uppercase tracking-wider text-amber-300 block">
+                        Documentos com QR Atrelados
+                      </span>
+                      <span className="text-[10px] text-slate-400">CNH, CNI, e-GOB Card ou Carteira de Classe</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNovoDocTipo('CNH');
+                        setNovoDocRotulo('CNH Digital');
+                        setNovoDocCodigo('');
+                        setErroVincular(null);
+                        setModalVincularAberto(true);
+                      }}
+                      className="px-2.5 py-1.5 bg-[#181b25] hover:bg-white/10 border border-amber-400/40 text-amber-300 rounded-xl text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Atrelar</span>
+                    </button>
+                  </div>
+
+                  {cliente?.identificadores_qr && cliente.identificadores_qr.length > 0 ? (
+                    <div className="space-y-2">
+                      {cliente.identificadores_qr.map((doc) => (
+                        <div
+                          key={doc.id || doc.codigo}
+                          className="p-2.5 rounded-xl bg-[#181b25] border border-white/10 flex items-center justify-between gap-2"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-300 shrink-0">
+                              <QrCode className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-white truncate">{doc.rotulo}</span>
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/15 text-emerald-300">
+                                  {doc.tipo}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-mono text-slate-400 truncate block">
+                                {doc.codigo.length > 28 ? `${doc.codigo.substring(0, 26)}...` : doc.codigo}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDesvincularDocumento(doc.id || doc.codigo)}
+                            className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg cursor-pointer shrink-0"
+                            title="Desvincular"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-xl bg-[#181b25]/60 border border-dashed border-white/10 text-center text-[11px] text-slate-400">
+                      Nenhum documento externo atrelado. Clique em "Atrelar" para vincular CNH ou e-GOB Card.
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </section>
 
-      {/* MODAL TELA CHEIA: APRESENTAÇÃO DO QR CODE PARA O LEITOR / BALCÃO */}
-      {modalQrExpandido && (
-        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-fade-in">
-          <div className="w-full max-w-sm bg-[#0B1326] border-2 border-[#DDB96B]/60 rounded-3xl p-6 sm:p-8 shadow-[0_0_60px_rgba(221,185,107,0.2)] text-center relative">
-            <button
-              onClick={() => setModalQrExpandido(false)}
-              className="absolute top-4 right-4 p-2 rounded-xl bg-[#1E293B] text-slate-400 hover:text-white transition-all cursor-pointer"
-              title="Fechar"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="space-y-1 mb-4">
-              <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-[#DDB96B] block">
-                Leitura Óptica no Balcão
-              </span>
-              <h3 className="text-lg font-black text-white">
-                {cliente?.nome || 'Obreiro'}
-              </h3>
-              <p className="text-xs text-slate-400">
-                Aproxime o QR Code do scanner ou da câmera
-              </p>
+      {/* CARTÃO EM CASCATA 2: CARTEIRA (STATUS, SALDO, DEPÓSITO E PAGAMENTO) */}
+      <section
+        className={`relative z-10 bg-[#0f131c] border rounded-2xl transition-all overflow-hidden flex flex-col ${
+          cartaoAberto === 'carteira'
+            ? 'flex-1 min-h-0 border-emerald-400/40 shadow-xl'
+            : 'shrink-0 border-white/10 hover:border-white/20'
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => setCartaoAberto((prev) => (prev === 'carteira' ? null : 'carteira'))}
+          className="w-full shrink-0 px-3.5 py-3 flex items-center justify-between gap-2 text-left cursor-pointer hover:bg-white/[0.02] transition"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <Wallet className="w-4 h-4" />
             </div>
-
-            {/* Bloco Branco de Alto Contraste para Bipagem Instantânea */}
-            <div className="my-4 p-6 bg-white rounded-3xl shadow-2xl inline-block border-4 border-[#FDE68A]">
-              <QRCode
-                value={getQrCodeValor()}
-                size={230}
-                bgColor="#FFFFFF"
-                fgColor="#070F1E"
-                level="H"
-              />
-              <div className="mt-3 pt-2 border-t border-slate-200">
-                <span className="font-mono text-xs font-black tracking-widest text-[#070F1E] block">
-                  {cartaoAtivo || (cliente?.cim ? `CIM ${cliente.cim}` : `ID ${cliente?.id}`)}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black text-white">Carteira</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-[10px] font-mono font-bold text-emerald-300 tabular-nums">
+                  R$ {carteira.saldo.toFixed(2).replace('.', ',')} • Ativa
                 </span>
+                {comandaAberta && comandaAberta.total > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-[#090d16] text-[9px] font-black">
+                    PENDENTE
+                  </span>
+                )}
               </div>
-            </div>
-
-            <div className="mt-4">
-              <button
-                onClick={() => setModalQrExpandido(false)}
-                className="w-full min-h-[44px] px-4 py-2 bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-slate-200 font-bold rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
-              >
-                Voltar ao Menu
-              </button>
+              <span className="text-[10px] text-slate-400 block truncate">
+                Status • Saldo • Depósito • Pagamento
+              </span>
             </div>
           </div>
-        </div>
-      )}
+          {cartaoAberto === 'carteira' ? (
+            <ChevronUp className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+          )}
+        </button>
 
-      {/* MODAL: VINCULAR NOVO DOCUMENTO (CNH, CNI, E-GOB, MILITAR, OAB) */}
-      {modalVincularAberto && (
-        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-fade-in">
-          <div className="w-full max-w-md bg-[#0B1326] border border-[#DDB96B]/50 rounded-3xl shadow-2xl p-6 sm:p-7 relative text-left">
-            <button
-              onClick={() => setModalVincularAberto(false)}
-              className="absolute top-4 right-4 p-2 rounded-xl bg-[#1E293B] text-slate-400 hover:text-white transition-all cursor-pointer"
-              title="Fechar"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="space-y-1 mb-5">
-              <span className="text-[10px] uppercase font-mono font-extrabold tracking-widest text-[#DDB96B] block">
-                Nova Credencial
-              </span>
-              <h3 className="text-lg font-black text-white">
-                Vincular Documento com QR Code
-              </h3>
-              <p className="text-xs text-slate-400">
-                Atrele sua CNH, e-GOB Card ou carteira de classe ao seu cadastro.
-              </p>
-            </div>
-
-            {erroVincular && (
-              <div className="mb-4 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-                <X className="w-4 h-4 shrink-0" />
-                <span>{erroVincular}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleVincularDocumento} className="space-y-4">
-              {/* Seleção do Tipo de Documento em Pílulas Simétricas */}
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-2">
-                  Tipo de Documento
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { tipo: 'CNH', label: 'CNH' },
-                    { tipo: 'CNI', label: 'CNI' },
-                    { tipo: 'E_GOB_CARD', label: 'e-GOB' },
-                    { tipo: 'MILITAR', label: 'Militar' },
-                    { tipo: 'ENTIDADE_CLASSE', label: 'OAB/CRM' },
-                    { tipo: 'OUTRO', label: 'Outro' }
-                  ].map(item => (
-                    <button
-                      key={item.tipo}
-                      type="button"
-                      onClick={() => {
-                        setNovoDocTipo(item.tipo as any);
-                        if (item.tipo === 'CNH') setNovoDocRotulo('CNH Digital');
-                        else if (item.tipo === 'CNI') setNovoDocRotulo('Nova Carteira de Identidade (CNI)');
-                        else if (item.tipo === 'E_GOB_CARD') setNovoDocRotulo('e-GOB Card Oficial');
-                        else if (item.tipo === 'MILITAR') setNovoDocRotulo('Carteira Funcional Militar');
-                        else if (item.tipo === 'ENTIDADE_CLASSE') setNovoDocRotulo('Carteira de Classe (OAB/CRM)');
-                        else setNovoDocRotulo('Cartão de Acesso');
-                      }}
-                      className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all border text-center cursor-pointer ${
-                        novoDocTipo === item.tipo
-                          ? 'bg-[#DDB96B]/20 border-[#DDB96B] text-[#FDE68A] shadow-sm'
-                          : 'bg-[#131B2E] border-[#334155] text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Rótulo Descritivo */}
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
-                  Nome / Rótulo de Identificação
-                </label>
-                <input
-                  type="text"
-                  value={novoDocRotulo}
-                  onChange={e => setNovoDocRotulo(e.target.value)}
-                  placeholder="Ex: CNH Digital do Serpro"
-                  className="w-full min-h-[42px] px-3.5 rounded-xl bg-[#070F1E] border border-[#334155] text-white text-xs outline-none focus:border-[#DDB96B]"
-                  required
-                />
-              </div>
-
-              {/* Código ou Leitura por Câmera */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300">
-                    Conteúdo / Leitura do QR Code
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setIsCameraModalOpen(true)}
-                    className="text-xs font-bold text-[#4EDEA3] hover:text-emerald-300 flex items-center gap-1 cursor-pointer"
-                  >
-                    <Camera className="w-3.5 h-3.5" />
-                    <span>Ler com Câmera</span>
-                  </button>
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={novoDocCodigo}
-                    onChange={e => setNovoDocCodigo(e.target.value)}
-                    placeholder="Cole ou escaneie o QR Code do documento..."
-                    className="flex-1 min-h-[42px] px-3.5 rounded-xl bg-[#070F1E] border border-[#334155] text-white text-xs font-mono outline-none focus:border-[#DDB96B]"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setIsCameraModalOpen(true)}
-                    className="px-3 bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-slate-200 rounded-xl flex items-center justify-center cursor-pointer"
-                    title="Abrir scanner de câmera"
-                  >
-                    <Camera className="w-4 h-4 text-[#DDB96B]" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Botões Finais de Ação */}
-              <div className="pt-2 flex gap-2">
+        {cartaoAberto === 'carteira' && (
+          <div className="flex-1 min-h-0 flex flex-col border-t border-white/10">
+            {/* Sub-abas da Carteira: Status | Saldo | Depósito | Pagamento */}
+            <div className="shrink-0 grid grid-cols-4 gap-1.5 p-2.5 bg-[#0a0e17] border-b border-white/10">
+              {[
+                { id: 'status' as const, label: 'Status' },
+                { id: 'saldo' as const, label: 'Saldo' },
+                { id: 'deposito' as const, label: 'Depósito' },
+                { id: 'pagamento' as const, label: 'Pagamento' },
+              ].map((tab) => (
                 <button
+                  key={tab.id}
                   type="button"
-                  onClick={() => setModalVincularAberto(false)}
-                  className="flex-1 min-h-[44px] px-4 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-slate-300 font-bold text-xs uppercase cursor-pointer"
+                  onClick={() => setSubAbaCarteira(tab.id)}
+                  className={`py-2 px-1.5 rounded-xl text-[11px] font-bold transition cursor-pointer relative ${
+                    subAbaCarteira === tab.id
+                      ? 'bg-[#10b981] text-[#022c22] shadow-sm'
+                      : 'bg-[#181b25] text-slate-300 hover:text-white border border-white/10'
+                  }`}
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={vinculandoDoc}
-                  className="flex-1 min-h-[44px] px-4 rounded-xl bg-gradient-to-r from-[#DDB96B] to-[#FDE68A] hover:brightness-110 text-[#070F1E] font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
-                >
-                  {vinculandoDoc ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Salvando...</span>
-                    </>
-                  ) : (
-                    <span>Confirmar Vínculo</span>
+                  {tab.label}
+                  {tab.id === 'pagamento' && comandaAberta && comandaAberta.total > 0 && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                   )}
                 </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+              ))}
+            </div>
 
-      {/* MODAL DE CÂMERA PARA LER O QR CODE DO DOCUMENTO */}
-      <LeitorQrCameraModal
-        isOpen={isCameraModalOpen}
-        onClose={() => setIsCameraModalOpen(false)}
-        onScanSuccess={(codigo) => {
-          setNovoDocCodigo(codigo.trim());
-          setIsCameraModalOpen(false);
-          setErroVincular(null);
-        }}
-        titulo="Escanear QR Code do Documento"
-        subtitulo="Aponte para o QR Code da CNH, CNI, e-GOB Card ou Carteira de Classe"
-      />
+            <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3">
+              {/* SUB-ABA 2.1: STATUS */}
+              {subAbaCarteira === 'status' && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="p-3 rounded-xl bg-[#181b25] border border-white/10">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Status da Conta</span>
+                      <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 mt-1">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        Consumo Ativo
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-[#181b25] border border-white/10">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Limite Fiado</span>
+                      <span className="text-sm font-black font-mono text-white mt-0.5 block">
+                        R$ {carteira.limite_fiado.toFixed(2).replace('.', ',')}
+                      </span>
+                    </div>
+                  </div>
 
+                  <div className="p-3.5 rounded-xl bg-[#181b25] border border-white/10 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Comanda da Noite</span>
+                      <span className={`text-base font-black font-mono ${comandaAberta && comandaAberta.total > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        {comandaAberta && comandaAberta.total > 0
+                          ? `#${comandaAberta.id} • R$ ${comandaAberta.total.toFixed(2).replace('.', ',')}`
+                          : 'Nenhuma pendência'}
+                      </span>
+                    </div>
+                    {comandaAberta && comandaAberta.total > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setSubAbaCarteira('pagamento')}
+                        className="px-3 py-2 rounded-xl bg-amber-400 text-[#090d16] text-xs font-black cursor-pointer shrink-0"
+                      >
+                        Pagar Agora
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setSubAbaCarteira('deposito')}
+                        className="px-3 py-2 rounded-xl bg-white/10 text-white text-xs font-bold cursor-pointer shrink-0"
+                      >
+                        Depositar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-ABA 2.2: SALDO E EXTRATO (RENDERIZADO ABAIXO) */}
+              {subAbaCarteira === 'saldo' && (
+                <div className="p-3 rounded-xl bg-[#181b25] border border-emerald-400/25 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Saldo Disponível</span>
+                    <span className={`text-xl font-black font-mono tabular-nums ${carteira.saldo >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      R$ {carteira.saldo.toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSubAbaCarteira('deposito')}
+                    className="px-3 py-2 rounded-xl bg-[#10b981] text-[#022c22] text-xs font-black cursor-pointer"
+                  >
+                    + Recarregar
+                  </button>
+                </div>
+              )}
       {/* CONTEÚDO DA ABA 1: PAGAMENTOS (QUITAÇÃO DA COMANDA ABERTA / AUTO-CHECKOUT) */}
-      {abaAtiva === 'pagamentos' && (
+      {subAbaCarteira === 'pagamento' && (
         <div className="space-y-4 animate-fade-in">
           {comandaAberta && comandaAberta.total > 0 ? (
             <div className="bg-[#131B2E] border border-[#F59E0B]/40 rounded-2xl p-5 shadow-xl space-y-5">
@@ -1479,14 +1442,14 @@ export const PortalCliente: React.FC = () => {
 
               <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
                 <button
-                  onClick={() => setAbaAtiva('credito')}
+                  onClick={() => setSubAbaCarteira('deposito')}
                   className="px-5 py-2.5 rounded-xl bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-xs font-bold text-[#7BD0FF] flex items-center gap-2 cursor-pointer transition-all"
                 >
                   <Wallet className="w-4 h-4" />
                   <span>Inserir Créditos Pré-pagos</span>
                 </button>
                 <button
-                  onClick={() => setAbaAtiva('relatorio')}
+                  onClick={() => setSubAbaCarteira('saldo')}
                   className="px-5 py-2.5 rounded-xl bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-xs font-bold text-slate-300 flex items-center gap-2 cursor-pointer transition-all"
                 >
                   <FileText className="w-4 h-4" />
@@ -1499,7 +1462,7 @@ export const PortalCliente: React.FC = () => {
       )}
 
       {/* CONTEÚDO DA ABA 2: CRÉDITO (INSERÇÃO DE SALDOS VIA PIX) */}
-      {abaAtiva === 'credito' && (
+      {subAbaCarteira === 'deposito' && (
         <div className="bg-[#131B2E] border border-[#334155] rounded-2xl p-5 shadow-xl space-y-5 animate-fade-in">
           <div className="border-b border-[#334155] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -1804,7 +1767,7 @@ export const PortalCliente: React.FC = () => {
       )}
 
       {/* CONTEÚDO DA ABA 3: RELATÓRIO (FATURAS E HISTÓRICO DE SESSÕES) */}
-      {abaAtiva === 'relatorio' && (
+      {subAbaCarteira === 'saldo' && (
         <div className="bg-[#131B2E] border border-[#334155] rounded-2xl p-5 shadow-xl space-y-5 animate-fade-in">
           <div className="border-b border-[#334155] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
@@ -1934,224 +1897,285 @@ export const PortalCliente: React.FC = () => {
           )}
         </div>
       )}
+            </div>
+          </div>
+        )}
+      </section>
 
-      {/* CONTEÚDO DA ABA 4: CADASTRO (MEUS DADOS & WHATSAPP) */}
-      {abaAtiva === 'cadastro' && (
-        <div className="bg-[#131B2E] border border-[#334155] rounded-2xl p-5 shadow-xl space-y-5 animate-fade-in">
-          <div className="border-b border-[#334155] pb-4">
-            <span className="text-xs uppercase tracking-widest font-mono text-slate-400 font-bold block">
-              Dados Cadastrais
+      {/* ÁREA RESTANTE DA TELA: QR CODE DO CLIENTE OU BARRA COMPACTA PARA EXPANDIR */}
+      {cartaoAberto === null ? (
+        <section className="relative z-10 flex-1 min-h-0 bg-gradient-to-b from-[#131B2E] via-[#0B1326] to-[#070F1E] border border-emerald-400/30 rounded-3xl p-4 shadow-2xl flex flex-col items-center justify-between text-center overflow-hidden">
+          <div className="shrink-0">
+            <span className="text-[10px] uppercase tracking-[0.2em] font-extrabold text-emerald-300 block font-mono">
+              Credencial Digital • Balcão
             </span>
-            <h2 className="text-xl font-bold text-white mt-0.5">
-              Identificação & Preferências do Irmão
-            </h2>
           </div>
 
-          {sucessoContato && (
-            <div className="p-3 rounded-xl bg-[#10B981]/20 border border-[#10B981] text-[#4EDEA3] text-xs font-bold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>Dados de contato e preferências atualizados com sucesso!</span>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Nome Completo */}
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                Nome do Irmão / Consumidor
-              </label>
-              <input
-                type="text"
-                readOnly
-                value={cliente?.nome || ''}
-                className="w-full bg-[#0B1326] border border-[#334155] rounded-xl px-3.5 py-2.5 text-sm text-slate-300 font-semibold cursor-not-allowed opacity-80"
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center py-2">
+            <div className="p-3.5 bg-white rounded-2xl shadow-2xl border-2 border-emerald-400/70 inline-flex flex-col items-center">
+              <QRCode
+                value={getQrCodeValor()}
+                size={156}
+                bgColor="#FFFFFF"
+                fgColor="#070F1E"
+                level="H"
               />
-            </div>
-
-            {/* CIM */}
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                CIM Maçônico
-              </label>
-              <input
-                type="text"
-                readOnly
-                value={cliente?.cim || 'Não informado'}
-                className="w-full bg-[#0B1326] border border-[#334155] rounded-xl px-3.5 py-2.5 text-sm text-slate-300 font-mono cursor-not-allowed opacity-80"
-              />
-            </div>
-
-            {/* CPF Protegido */}
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                CPF / Documento
-              </label>
-              <input
-                type="text"
-                readOnly
-                value={cliente?.cpf ? `${cliente.cpf.slice(0, 3)}.***.***-${cliente.cpf.slice(-2)}` : 'Não informado'}
-                className="w-full bg-[#0B1326] border border-[#334155] rounded-xl px-3.5 py-2.5 text-sm text-slate-300 font-mono cursor-not-allowed opacity-80"
-              />
-            </div>
-
-            {/* Loja de Origem */}
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                Oficina / Loja Mantenedora
-              </label>
-              <input
-                type="text"
-                readOnly
-                value={cliente?.nome_loja_origem || 'Loja Atual'}
-                className="w-full bg-[#0B1326] border border-[#334155] rounded-xl px-3.5 py-2.5 text-sm text-slate-300 cursor-not-allowed opacity-80"
-              />
-            </div>
-
-            {/* WhatsApp / Telefone Editável */}
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-[#7BD0FF] block mb-1 flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5" />
-                <span>WhatsApp / Celular (para Extratos)</span>
-              </label>
-              <input
-                type="text"
-                value={telefoneEdit}
-                onChange={(e) => setTelefoneEdit(e.target.value)}
-                placeholder="(62) 99999-9999"
-                className="w-full bg-[#0B1326] border border-[#38BDF8]/40 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-[#38BDF8]"
-              />
-            </div>
-
-            {/* E-mail Editável */}
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-[#7BD0FF] block mb-1 flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5" />
-                <span>E-mail para Faturas Digitais</span>
-              </label>
-              <input
-                type="email"
-                value={emailEdit}
-                onChange={(e) => setEmailEdit(e.target.value)}
-                placeholder="seuemail@exemplo.com"
-                className="w-full bg-[#0B1326] border border-[#38BDF8]/40 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#38BDF8]"
-              />
-            </div>
-          </div>
-
-          {/* Preferências / Observações */}
-          <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">
-              Preferências de Consumo / Restrições Alimentares
-            </label>
-            <textarea
-              rows={3}
-              value={obsEdit}
-              onChange={(e) => setObsEdit(e.target.value)}
-              placeholder="Ex: Sem glúten, cerveja sem álcool, preferência por chopp gelado..."
-              className="w-full bg-[#0B1326] border border-[#334155] rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#10B981]"
-            />
-          </div>
-
-          <div className="pt-2 flex justify-end">
-            <button
-              onClick={handleSalvarContato}
-              disabled={salvandoContato}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#10B981] to-[#059669] hover:brightness-110 text-[#0B1326] font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-lg"
-            >
-              {salvandoContato ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Salvar Alterações de Contato</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Controle de Dependentes Autorizados pelo Titular */}
-          <div className="pt-5 border-t border-[#334155] space-y-3">
-            <div>
-              <span className="text-xs uppercase tracking-widest font-mono text-cyan-400 font-bold block">
-                Meus Dependentes Autorizados
+              <span className="mt-2 pt-1.5 border-t border-slate-200 w-full text-center font-mono text-[10px] font-black tracking-wider text-[#070F1E]">
+                {cartaoAtivo || (cliente?.cim ? `CIM ${cliente.cim}` : `ID ${cliente?.id}`)}
               </span>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Acompanhe o consumo discriminado, defina limite por sessão ou pause a autorização a qualquer momento.
+            </div>
+            <p className="text-[10px] text-slate-400 mt-2">
+              Apresente ao operador do bar para identificação imediata
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setModalQrExpandido(true)}
+            className="shrink-0 w-full h-11 px-4 rounded-2xl bg-[#10b981] hover:bg-[#34d399] text-[#022c22] font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_18px_rgba(16,185,129,0.25)] transition cursor-pointer"
+          >
+            <Maximize2 className="w-4 h-4" />
+            <span>Expandir QR Code para Leitura</span>
+          </button>
+        </section>
+      ) : (
+        <div className="relative z-10 shrink-0 px-3.5 py-2.5 rounded-2xl bg-[#0f131c] border border-emerald-400/35 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-white p-1 shrink-0 flex items-center justify-center">
+              <QRCode value={getQrCodeValor()} size={24} bgColor="#FFFFFF" fgColor="#070F1E" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-xs font-bold text-white block truncate">Credencial Digital</span>
+              <span className="text-[10px] font-mono text-emerald-300 block truncate">
+                {cartaoAtivo || (cliente?.cim ? `CIM ${cliente.cim}` : `ID ${cliente?.id}`)}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setModalQrExpandido(true)}
+            className="shrink-0 h-10 px-3.5 rounded-xl bg-[#10b981] hover:bg-[#34d399] text-[#022c22] font-black text-[11px] flex items-center gap-1.5 cursor-pointer"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span>Expandir QR</span>
+          </button>
+        </div>
+      )}
+
+      {/* MODAL TELA CHEIA: APRESENTAÇÃO DO QR CODE PARA O LEITOR / BALCÃO */}
+      {modalQrExpandido && (
+        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-fade-in">
+          <div className="w-full max-w-sm bg-[#0B1326] border-2 border-[#DDB96B]/60 rounded-3xl p-6 sm:p-8 shadow-[0_0_60px_rgba(221,185,107,0.2)] text-center relative">
+            <button
+              onClick={() => setModalQrExpandido(false)}
+              className="absolute top-4 right-4 p-2 rounded-xl bg-[#1E293B] text-slate-400 hover:text-white transition-all cursor-pointer"
+              title="Fechar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-1 mb-4">
+              <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-[#DDB96B] block">
+                Leitura Óptica no Balcão
+              </span>
+              <h3 className="text-lg font-black text-white">
+                {cliente?.nome || 'Obreiro'}
+              </h3>
+              <p className="text-xs text-slate-400">
+                Aproxime o QR Code do scanner ou da câmera
               </p>
             </div>
 
-            {dependentes.length === 0 ? (
-              <div className="p-4 rounded-xl bg-[#0B1326] border border-[#334155] text-xs text-slate-400">
-                Nenhum dependente vinculado ao seu cadastro. Dependentes podem ser adicionados pelo operador na confirmação da comanda.
+            {/* Bloco Branco de Alto Contraste para Bipagem Instantânea */}
+            <div className="my-4 p-6 bg-white rounded-3xl shadow-2xl inline-block border-4 border-[#FDE68A]">
+              <QRCode
+                value={getQrCodeValor()}
+                size={230}
+                bgColor="#FFFFFF"
+                fgColor="#070F1E"
+                level="H"
+              />
+              <div className="mt-3 pt-2 border-t border-slate-200">
+                <span className="font-mono text-xs font-black tracking-widest text-[#070F1E] block">
+                  {cartaoAtivo || (cliente?.cim ? `CIM ${cliente.cim}` : `ID ${cliente?.id}`)}
+                </span>
               </div>
-            ) : (
-              <div className="space-y-2.5">
-                {dependentes.map((dep) => (
-                  <div
-                    key={dep.id}
-                    className={`p-3.5 rounded-xl bg-[#0B1326] border space-y-2.5 ${
-                      dep.autorizacao_pausada ? 'border-rose-500/40 opacity-80' : 'border-[#334155]'
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-white">{dep.nome}</span>
-                          <span className="px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-400/30 text-[10px] font-bold text-cyan-300">
-                            {dep.parentesco}
-                          </span>
-                          {dep.autorizacao_pausada && (
-                            <span className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-400/40 text-[10px] font-bold text-rose-300">
-                              Pausado
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[11px] text-slate-400">
-                          Consumo acumulado: <strong className="text-amber-400">R$ {dep.consumo_total.toFixed(2).replace('.', ',')}</strong>
-                        </span>
-                      </div>
+            </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleTogglePausaDependente(dep)}
-                        disabled={salvandoDepId === dep.id}
-                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition ${
-                          dep.autorizacao_pausada
-                            ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/30'
-                            : 'bg-rose-500/15 border-rose-400/30 text-rose-300 hover:bg-rose-500/25'
-                        }`}
-                      >
-                        {dep.autorizacao_pausada ? 'Reativar Autorização' : 'Pausar Autorização'}
-                      </button>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-white/5">
-                      <label className="text-[11px] text-slate-400">Limite por sessão (R$):</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="5"
-                        value={limitesDepEdit[dep.id] ?? ''}
-                        onChange={(e) => setLimitesDepEdit((prev) => ({ ...prev, [dep.id]: e.target.value }))}
-                        placeholder="Sem limite"
-                        className="w-28 px-2.5 py-1 rounded-lg bg-[#131B2E] border border-[#334155] text-xs text-white focus:outline-none focus:border-cyan-400"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleSalvarLimiteDependente(dep)}
-                        disabled={salvandoDepId === dep.id}
-                        className="px-3 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 text-[11px] font-bold transition"
-                      >
-                        Salvar Limite
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="mt-4">
+              <button
+                onClick={() => setModalQrExpandido(false)}
+                className="w-full min-h-[44px] px-4 py-2 bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-slate-200 font-bold rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
+              >
+                Voltar ao Menu
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* MODAL: VINCULAR NOVO DOCUMENTO (CNH, CNI, E-GOB, MILITAR, OAB) */}
+      {modalVincularAberto && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-[#0B1326] border border-[#DDB96B]/50 rounded-3xl shadow-2xl p-6 sm:p-7 relative text-left">
+            <button
+              onClick={() => setModalVincularAberto(false)}
+              className="absolute top-4 right-4 p-2 rounded-xl bg-[#1E293B] text-slate-400 hover:text-white transition-all cursor-pointer"
+              title="Fechar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-1 mb-5">
+              <span className="text-[10px] uppercase font-mono font-extrabold tracking-widest text-[#DDB96B] block">
+                Nova Credencial
+              </span>
+              <h3 className="text-lg font-black text-white">
+                Vincular Documento com QR Code
+              </h3>
+              <p className="text-xs text-slate-400">
+                Atrele sua CNH, e-GOB Card ou carteira de classe ao seu cadastro.
+              </p>
+            </div>
+
+            {erroVincular && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                <X className="w-4 h-4 shrink-0" />
+                <span>{erroVincular}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleVincularDocumento} className="space-y-4">
+              {/* Seleção do Tipo de Documento em Pílulas Simétricas */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-2">
+                  Tipo de Documento
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { tipo: 'CNH', label: 'CNH' },
+                    { tipo: 'CNI', label: 'CNI' },
+                    { tipo: 'E_GOB_CARD', label: 'e-GOB' },
+                    { tipo: 'MILITAR', label: 'Militar' },
+                    { tipo: 'ENTIDADE_CLASSE', label: 'OAB/CRM' },
+                    { tipo: 'OUTRO', label: 'Outro' }
+                  ].map(item => (
+                    <button
+                      key={item.tipo}
+                      type="button"
+                      onClick={() => {
+                        setNovoDocTipo(item.tipo as any);
+                        if (item.tipo === 'CNH') setNovoDocRotulo('CNH Digital');
+                        else if (item.tipo === 'CNI') setNovoDocRotulo('Nova Carteira de Identidade (CNI)');
+                        else if (item.tipo === 'E_GOB_CARD') setNovoDocRotulo('e-GOB Card Oficial');
+                        else if (item.tipo === 'MILITAR') setNovoDocRotulo('Carteira Funcional Militar');
+                        else if (item.tipo === 'ENTIDADE_CLASSE') setNovoDocRotulo('Carteira de Classe (OAB/CRM)');
+                        else setNovoDocRotulo('Cartão de Acesso');
+                      }}
+                      className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all border text-center cursor-pointer ${
+                        novoDocTipo === item.tipo
+                          ? 'bg-[#DDB96B]/20 border-[#DDB96B] text-[#FDE68A] shadow-sm'
+                          : 'bg-[#131B2E] border-[#334155] text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Rótulo Descritivo */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
+                  Nome / Rótulo de Identificação
+                </label>
+                <input
+                  type="text"
+                  value={novoDocRotulo}
+                  onChange={e => setNovoDocRotulo(e.target.value)}
+                  placeholder="Ex: CNH Digital do Serpro"
+                  className="w-full min-h-[42px] px-3.5 rounded-xl bg-[#070F1E] border border-[#334155] text-white text-xs outline-none focus:border-[#DDB96B]"
+                  required
+                />
+              </div>
+
+              {/* Código ou Leitura por Câmera */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                    Conteúdo / Leitura do QR Code
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCameraModalOpen(true)}
+                    className="text-xs font-bold text-[#4EDEA3] hover:text-emerald-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Ler com Câmera</span>
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={novoDocCodigo}
+                    onChange={e => setNovoDocCodigo(e.target.value)}
+                    placeholder="Cole ou escaneie o QR Code do documento..."
+                    className="flex-1 min-h-[42px] px-3.5 rounded-xl bg-[#070F1E] border border-[#334155] text-white text-xs font-mono outline-none focus:border-[#DDB96B]"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsCameraModalOpen(true)}
+                    className="px-3 bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-slate-200 rounded-xl flex items-center justify-center cursor-pointer"
+                    title="Abrir scanner de câmera"
+                  >
+                    <Camera className="w-4 h-4 text-[#DDB96B]" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Botões Finais de Ação */}
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setModalVincularAberto(false)}
+                  className="flex-1 min-h-[44px] px-4 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-slate-300 font-bold text-xs uppercase cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={vinculandoDoc}
+                  className="flex-1 min-h-[44px] px-4 rounded-xl bg-gradient-to-r from-[#DDB96B] to-[#FDE68A] hover:brightness-110 text-[#070F1E] font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {vinculandoDoc ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Salvando...</span>
+                    </>
+                  ) : (
+                    <span>Confirmar Vínculo</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CÂMERA PARA LER O QR CODE DO DOCUMENTO */}
+      <LeitorQrCameraModal
+        isOpen={isCameraModalOpen}
+        onClose={() => setIsCameraModalOpen(false)}
+        onScanSuccess={(codigo) => {
+          setNovoDocCodigo(codigo.trim());
+          setIsCameraModalOpen(false);
+          setErroVincular(null);
+        }}
+        titulo="Escanear QR Code do Documento"
+        subtitulo="Aponte para o QR Code da CNH, CNI, e-GOB Card ou Carteira de Classe"
+      />
+
 
       {/* MODAL DE TROCA DE CLIENTE (UTILITÁRIO PARA TESTES E GERENTE) */}
       {modalTrocarCliente && (
