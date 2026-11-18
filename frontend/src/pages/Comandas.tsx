@@ -100,7 +100,8 @@ export function Comandas() {
   const [cameraContexto, setCameraContexto] = useState<'cartao' | 'produto' | 'cad_cartao' | 'cad_doc'>('cartao');
 
   // 1D: Cadastro Novo Cliente
-  const [cadClienteCpfCim, setCadClienteCpfCim] = useState('');
+  const [cadClienteCim, setCadClienteCim] = useState('');
+  const [cadClienteCpf, setCadClienteCpf] = useState('');
   const [cadClienteNome, setCadClienteNome] = useState('');
   const [cadClienteEmail, setCadClienteEmail] = useState('');
   const [cadClienteTelefone, setCadClienteTelefone] = useState('');
@@ -193,8 +194,26 @@ export function Comandas() {
     }
   };
 
+  const formatarCpfInput = (valor: string) => {
+    const digitos = valor.replace(/\D/g, '').slice(0, 11);
+    if (digitos.length <= 3) return digitos;
+    if (digitos.length <= 6) return `${digitos.slice(0, 3)}.${digitos.slice(3)}`;
+    if (digitos.length <= 9) return `${digitos.slice(0, 3)}.${digitos.slice(3, 6)}.${digitos.slice(6)}`;
+    return `${digitos.slice(0, 3)}.${digitos.slice(3, 6)}.${digitos.slice(6, 9)}-${digitos.slice(9)}`;
+  };
+
   const abrirTelaCadastro1D = (docInicial = '') => {
-    setCadClienteCpfCim(docInicial);
+    const digitos = docInicial.replace(/\D/g, '');
+    if (digitos.length === 11) {
+      setCadClienteCpf(formatarCpfInput(digitos));
+      setCadClienteCim('');
+    } else if (digitos.length >= 4 && digitos.length <= 8) {
+      setCadClienteCim(digitos);
+      setCadClienteCpf('');
+    } else {
+      setCadClienteCim('');
+      setCadClienteCpf('');
+    }
     setCadClienteNome('');
     setCadClienteEmail('');
     setCadClienteTelefone('');
@@ -232,6 +251,20 @@ export function Comandas() {
 
   const handleSalvarCadastroCliente = async (e: FormEvent) => {
     e.preventDefault();
+    const cimLimpo = cadClienteCim.replace(/\D/g, '');
+    const cpfLimpo = cadClienteCpf.replace(/\D/g, '');
+    if (!cimLimpo && !cpfLimpo) {
+      alert('Informe pelo menos o CIM ou o CPF do cliente.');
+      return;
+    }
+    if (cimLimpo && (cimLimpo.length < 4 || cimLimpo.length > 8)) {
+      alert('CIM inválido. Informe entre 4 e 8 dígitos.');
+      return;
+    }
+    if (cpfLimpo && cpfLimpo.length !== 11) {
+      alert('CPF inválido. Informe os 11 dígitos do CPF.');
+      return;
+    }
     if (!cadClienteNome.trim() || !cadClienteEmail.trim()) {
       alert('Nome completo e e-mail são obrigatórios.');
       return;
@@ -242,7 +275,8 @@ export function Comandas() {
         nome: cadClienteNome.trim(),
         email: cadClienteEmail.trim(),
         telefone: cadClienteTelefone.trim() || null,
-        cpf_ou_cim: cadClienteCpfCim.trim() || null,
+        cim: cimLimpo || null,
+        cpf: cpfLimpo || null,
         tipo_consumidor: cadClienteTipo,
         documentos_qr: cadDocumentosQr,
         codigo_cartao_coringa: cadCartaoGenerico.trim() || null,
@@ -535,14 +569,37 @@ export function Comandas() {
                     </div>
 
                     <div>
-                      <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">CPF ou CIM</label>
-                      <input
-                        type="text"
-                        value={cadClienteCpfCim}
-                        onChange={(e) => setCadClienteCpfCim(e.target.value)}
-                        placeholder="CIM (5–7 dígitos) ou CPF"
-                        className="w-full px-3 py-2 rounded-xl bg-[#0a0e17] border border-white/10 text-xs text-white font-mono focus:outline-none focus:border-emerald-400"
-                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">
+                            CIM {!cadClienteCpf.replace(/\D/g, '') && '*'}
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={cadClienteCim}
+                            onChange={(e) => setCadClienteCim(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                            placeholder="5–7 dígitos"
+                            className="w-full px-3 py-2 rounded-xl bg-[#0a0e17] border border-white/10 text-xs text-white font-mono focus:outline-none focus:border-emerald-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">
+                            CPF {!cadClienteCim.replace(/\D/g, '') && '*'}
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={cadClienteCpf}
+                            onChange={(e) => setCadClienteCpf(formatarCpfInput(e.target.value))}
+                            placeholder="000.000.000-00"
+                            className="w-full px-3 py-2 rounded-xl bg-[#0a0e17] border border-white/10 text-xs text-white font-mono focus:outline-none focus:border-emerald-400"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Obrigatório informar pelo menos o CIM ou o CPF.
+                      </p>
                     </div>
 
                     <div>

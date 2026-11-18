@@ -111,6 +111,8 @@ class ClienteCadastroAgapeRequest(BaseModel):
     nome: str = Field(..., min_length=2, max_length=100)
     email: str = Field(..., min_length=5, max_length=100)
     telefone: Optional[str] = Field(None, max_length=20)
+    cpf: Optional[str] = Field(None, max_length=20)
+    cim: Optional[str] = Field(None, max_length=30)
     cpf_ou_cim: Optional[str] = Field(None, max_length=30)
     tipo_consumidor: str = Field(default="IRMAO_QUADRO") # IRMAO_QUADRO ou CONVIDADO_NAO_MACOM
     documentos_qr: List[DocumentoVinculoItem] = Field(default_factory=list)
@@ -140,16 +142,28 @@ async def cadastrar_cliente_agape(
     if tipo not in ("IRMAO_QUADRO", "IRMAO_VISITANTE", "CONVIDADO_NAO_MACOM"):
         raise HTTPException(status_code=400, detail="Tipo de consumidor inválido. Use Novo Irmão ou Convidado.")
 
-    digitos = re.sub(r"\D", "", dados.cpf_ou_cim or "")
-    cpf_val = None
-    cim_val = None
-    if len(digitos) == 11:
-        cpf_val = digitos
-    elif 4 <= len(digitos) <= 8:
-        cim_val = digitos
-        cpf_val = f"CIM:{digitos}"
-    else:
-        cpf_val = f"CAD:{uuid.uuid4().hex[:10].upper()}"
+    cpf_digitos = re.sub(r"\D", "", dados.cpf or "")
+    cim_digitos = re.sub(r"\D", "", dados.cim or "")
+
+    # Compatibilidade com chamadas legadas que ainda enviem cpf_ou_cim
+    if not cpf_digitos and not cim_digitos and dados.cpf_ou_cim:
+        legado_digitos = re.sub(r"\D", "", dados.cpf_ou_cim)
+        if len(legado_digitos) == 11:
+            cpf_digitos = legado_digitos
+        elif 4 <= len(legado_digitos) <= 8:
+            cim_digitos = legado_digitos
+
+    if not cpf_digitos and not cim_digitos:
+        raise HTTPException(status_code=400, detail="Informe pelo menos o CIM ou o CPF do cliente.")
+
+    if cpf_digitos and len(cpf_digitos) != 11:
+        raise HTTPException(status_code=400, detail="CPF inválido. Informe os 11 dígitos do CPF.")
+
+    if cim_digitos and not (4 <= len(cim_digitos) <= 8):
+        raise HTTPException(status_code=400, detail="CIM inválido. Informe entre 4 e 8 dígitos.")
+
+    cim_val = cim_digitos or None
+    cpf_val = cpf_digitos if cpf_digitos else f"CIM:{cim_digitos}"
 
     # Verifica se já existe por CPF ou CIM
     cond = (Cliente.cpf == cpf_val)
