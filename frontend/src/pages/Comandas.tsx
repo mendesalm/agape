@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, type FormEvent } from 'react';
 import { api } from '../services/api';
 import {
   QrCode,
+  ScanBarcode,
   Keyboard,
   Camera,
   UserPlus,
@@ -1072,15 +1073,15 @@ export function Comandas() {
               </div>
 
               {/* BUSCA + SCANNER */}
-              <div className="shrink-0 flex gap-2">
+              <div className="shrink-0 flex items-stretch gap-2">
                 <div className="relative flex-1">
-                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     value={buscaMenuProduto}
                     onChange={(e) => setBuscaMenuProduto(e.target.value)}
                     placeholder="Buscar produto ou código EAN..."
-                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#181b25] border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/50"
+                    className="w-full h-12 pl-10 pr-3 rounded-2xl bg-[#181b25] border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/50"
                   />
                 </div>
                 <button
@@ -1089,10 +1090,11 @@ export function Comandas() {
                     setCameraContexto('produto');
                     setIsCameraAberta(true);
                   }}
-                  className="w-10 h-9 rounded-xl bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 flex items-center justify-center"
-                  title="Bipar produto"
+                  className="h-12 px-4 rounded-2xl bg-[#10b981] hover:bg-[#34d399] active:scale-[0.98] text-[#022c22] font-black text-xs flex items-center justify-center gap-2 shrink-0 shadow-[0_0_16px_rgba(16,185,129,0.28)] transition"
+                  title="Ler código de barras do produto"
                 >
-                  <QrCode size={16} />
+                  <ScanBarcode size={20} />
+                  <span>Bipar</span>
                 </button>
               </div>
 
