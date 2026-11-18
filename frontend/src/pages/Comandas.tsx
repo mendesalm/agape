@@ -464,8 +464,8 @@ export function Comandas() {
   const saldoCarteiraAtivo = clienteDetalhesAtivo?.carteira?.saldo ?? null;
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] bg-[#090d16] text-slate-100 flex flex-col items-center justify-between px-3 py-3 sm:py-5">
-      <div className="w-full max-w-md flex-1 flex flex-col justify-between bg-[#0f131c] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+    <div className="h-[calc(100vh-3.5rem)] bg-[#090d16] text-slate-100 flex flex-col items-center justify-between px-3 py-3 sm:py-5 overflow-hidden">
+      <div className="w-full max-w-md flex-1 min-h-0 flex flex-col justify-between bg-[#0f131c] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
         {/* TOP HEADER PADRÃO STITCH (TELA 1) */}
         <header className="px-4 py-3 bg-[#0a0e17] border-b border-white/10 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -512,7 +512,7 @@ export function Comandas() {
         )}
 
         {/* CONTEÚDO PRINCIPAL (POR ABA) */}
-        <div className="flex-1 flex flex-col p-3.5 gap-3 overflow-y-auto">
+        <div className="flex-1 min-h-0 flex flex-col p-3.5 gap-3 overflow-y-auto">
           {/* ============================================================== */}
           {/* ABA 1: COMANDA (TELAS 1, 1B, 1C, 1D)                          */}
           {/* ============================================================== */}
@@ -1048,7 +1048,7 @@ export function Comandas() {
           {abaAtiva === 'cardapio' && (
             <div className="flex-1 flex flex-col gap-2.5 min-h-0">
               {/* RESUMO COMANDA ATIVA */}
-              <div className="p-3 rounded-2xl bg-[#181b25] border border-white/10 flex items-center justify-between gap-2">
+              <div className="shrink-0 p-3 rounded-2xl bg-[#181b25] border border-white/10 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-black text-white truncate">
@@ -1072,7 +1072,7 @@ export function Comandas() {
               </div>
 
               {/* BUSCA + SCANNER */}
-              <div className="flex gap-2">
+              <div className="shrink-0 flex gap-2">
                 <div className="relative flex-1">
                   <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
@@ -1097,7 +1097,7 @@ export function Comandas() {
               </div>
 
               {/* CARROSSEL HORIZONTAL DE CATEGORIAS */}
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              <div className="shrink-0 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
                 {[
                   { id: 'todos', label: `Todos (${produtosDisponiveis.length})` },
                   { id: 'alcoolicas', label: 'Alcoólicas' },
@@ -1120,7 +1120,7 @@ export function Comandas() {
               </div>
 
               {/* LISTA VERTICAL CONTIDA DE PRODUTOS */}
-              <div className="flex-1 overflow-y-auto max-h-[340px] space-y-2 pr-1">
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
                 {loading ? (
                   <div className="py-10 text-center text-xs text-slate-400">Carregando cardápio...</div>
                 ) : produtosFiltradosMenu.length === 0 ? (
@@ -1192,7 +1192,7 @@ export function Comandas() {
 
               {/* BANDEJA COMPACTA NO RODAPÉ */}
               {totalItensBandeja > 0 && (
-                <div className="p-2.5 rounded-2xl bg-[#181b25] border border-emerald-400/35 flex items-center justify-between gap-2">
+                <div className="shrink-0 p-2.5 rounded-2xl bg-[#181b25] border border-emerald-400/35 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
                       <ShoppingBag size={16} />
