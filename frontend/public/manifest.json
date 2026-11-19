@@ -1,7 +1,7 @@
 {
-  "name": "e-Sigma Ágape - Salão de Ágapes & Confraternização",
-  "short_name": "Ágape",
-  "description": "Gestão de Salão de Ágapes, Comandas QR Code, Carteira Pré-Paga e Estoque FEFO no ecossistema e-Sigma",
+  "name": "e-Sigma Taverna - Salão da Taverna & Confraternização",
+  "short_name": "Taverna",
+  "description": "Gestão de Salão da Taverna, Comandas QR Code, Carteira Pré-Paga e Estoque FEFO no ecossistema e-Sigma",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -10,7 +10,7 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icone-agape.svg",
+      "src": "/icone-taverna.svg",
       "type": "image/svg+xml",
       "sizes": "any",
       "purpose": "any maskable"

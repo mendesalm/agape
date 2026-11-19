@@ -84,7 +84,7 @@ export function ScannerScreen({ navigation }: Props) {
           <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
             <X color="#fff" size={24} />
           </TouchableOpacity>
-          <Text style={styles.title}>E-Sigma ∴ Ágape • QR / Comanda</Text>
+          <Text style={styles.title}>E-Sigma ∴ Taverna • QR / Comanda</Text>
         </View>
         <View style={styles.middleOverlay}>
           <View style={styles.sideOverlay} />

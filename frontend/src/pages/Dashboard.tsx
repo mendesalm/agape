@@ -64,7 +64,7 @@ export function Dashboard() {
   if (loading) {
     return (
       <div className="p-10 text-center text-[#DDB96B] animate-pulse font-cinzel">
-        Carregando métricas financeiras do Salão de Ágapes...
+        Carregando métricas financeiras do Salão da Taverna...
       </div>
     );
   }
@@ -85,7 +85,7 @@ export function Dashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold font-cinzel text-sigma-gold">
-            Painel do Salão de Ágapes
+            Painel do Salão da Taverna
           </h1>
           <p className="text-slate-400 text-sm mt-1">
             Visão geral de faturamento, comandas fechadas, estoque e resultado da Loja.
@@ -221,7 +221,7 @@ export function Dashboard() {
                   >
                     <div>
                       <p className="text-sm font-medium text-slate-200">
-                        {t.descricao || 'Transação do Ágape'}
+                        {t.descricao || 'Transação da Taverna'}
                       </p>
                       <p className="text-xs text-slate-400">
                         {new Date(t.data_transacao).toLocaleString()}

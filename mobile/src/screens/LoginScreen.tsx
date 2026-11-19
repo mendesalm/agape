@@ -42,8 +42,8 @@ export function LoginScreen({ navigation }: Props) {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Wine color="#3b82f6" size={48} />
-        <Text style={styles.title}>e-Sigma Ágape App</Text>
-        <Text style={styles.subtitle}>e-Sigma Ágape — Salão de Ágapes & Confraternização</Text>
+        <Text style={styles.title}>e-Sigma Taverna App</Text>
+        <Text style={styles.subtitle}>e-Sigma Taverna — Salão da Taverna & Confraternização</Text>
       </View>
 
       <View style={styles.form}>

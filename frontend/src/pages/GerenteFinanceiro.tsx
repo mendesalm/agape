@@ -78,8 +78,8 @@ export function GerenteFinanceiro() {
   };
 
   const handleCopiarCobrancaPix = (nome: string, valor: number, idx: number) => {
-    const chavePix = `00020126580014br.gov.bcb.pix0136bar-agape@e-sigma.app520400005303986540${valor.toFixed(2)}5802BR5915Agape Bar6009Sao Paulo62070503***6304`;
-    const mensagem = `Ir.'. ${nome}, segue a chave Pix para liquidação do consumo no Bar do Ágape no valor de R$ ${valor.toFixed(2)}:\n\n${chavePix}`;
+    const chavePix = `00020126580014br.gov.bcb.pix0136bar-agape@e-sigma.app520400005303986540${valor.toFixed(2)}5802BR5915Taverna Bar6009Sao Paulo62070503***6304`;
+    const mensagem = `Ir.'. ${nome}, segue a chave Pix para liquidação do consumo no Bar da Taverna no valor de R$ ${valor.toFixed(2)}:\n\n${chavePix}`;
     navigator.clipboard?.writeText(mensagem);
     setPixCopiadoIdx(idx);
     setTimeout(() => setPixCopiadoIdx(null), 2500);
@@ -130,7 +130,7 @@ export function GerenteFinanceiro() {
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-white mt-1 tracking-tight">
-            Gestão Financeira do Salão de Ágapes
+            Gestão Financeira do Salão da Taverna
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
             Caixa isolado da oficina, conciliação de pagamentos e contas a receber.

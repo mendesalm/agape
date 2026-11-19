@@ -32,7 +32,7 @@ export const LeitorQrCameraModal: React.FC<LeitorQrCameraModalProps> = ({
   const [cameraIdx, setCameraIdx] = useState(0);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const lidoRef = useRef(false);
-  const containerId = 'agape-qr-camera-reader';
+  const containerId = 'taverna-qr-camera-reader';
 
   const pararScanner = async () => {
     const scanner = scannerRef.current;

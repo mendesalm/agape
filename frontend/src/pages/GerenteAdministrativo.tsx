@@ -58,7 +58,7 @@ export const GerenteAdministrativo: React.FC = () => {
   const [fechamentoConcluido, setFechamentoConcluido] = useState<boolean>(false);
   const [buscaDevedor, setBuscaDevedor] = useState<string>('');
 
-  // Fechamento por Sessão / Evento de Ágape
+  // Fechamento por Sessão / Evento de Taverna
   const hojeIso = new Date().toISOString().slice(0, 10);
   const [sessaoNome, setSessaoNome] = useState('Sessão Ordinária');
   const [sessaoDataInicio, setSessaoDataInicio] = useState(hojeIso);
@@ -151,8 +151,8 @@ export const GerenteAdministrativo: React.FC = () => {
   };
 
   const handleCopiarCobrancaPix = (nome: string, valor: number, idx: number) => {
-    const chavePix = `00020126580014br.gov.bcb.pix0136bar-agape@e-sigma.app520400005303986540${valor.toFixed(2)}5802BR5915Agape Bar6009Sao Paulo62070503***6304`;
-    const mensagem = `Ir.'. ${nome}, segue a chave Pix para liquidação do consumo no Bar do Ágape no valor de R$ ${valor.toFixed(2)}:\n\n${chavePix}`;
+    const chavePix = `00020126580014br.gov.bcb.pix0136bar-agape@e-sigma.app520400005303986540${valor.toFixed(2)}5802BR5915Taverna Bar6009Sao Paulo62070503***6304`;
+    const mensagem = `Ir.'. ${nome}, segue a chave Pix para liquidação do consumo no Bar da Taverna no valor de R$ ${valor.toFixed(2)}:\n\n${chavePix}`;
     navigator.clipboard?.writeText(mensagem);
     setPixCopiadoIdx(idx);
     setTimeout(() => setPixCopiadoIdx(null), 2500);
@@ -550,7 +550,7 @@ export const GerenteAdministrativo: React.FC = () => {
         {abaAtiva === 'FECHAMENTO' && (
           <div className="space-y-3">
 
-            {/* Fechamento por Sessão / Evento de Ágape (Tesouraria / Hospitalaria) */}
+            {/* Fechamento por Sessão / Evento de Taverna (Tesouraria / Hospitalaria) */}
             <div className="rounded-3xl bg-gradient-to-br from-cyan-500/10 via-white/[0.05] to-white/[0.02] backdrop-blur-xl border border-cyan-400/25 p-4 space-y-3 shadow-xl">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>

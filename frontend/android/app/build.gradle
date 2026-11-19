@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.esigma.agape"
+    namespace = "com.esigma.taverna"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.esigma.agape"
+        applicationId "com.esigma.taverna"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

@@ -155,7 +155,7 @@ export const PdvMobileScannerModal: React.FC<PdvMobileScannerModalProps> = ({
   const pausadoRef = useRef<boolean>(false);
   const passoRef = useRef<'CLIENTE' | 'PRODUTO'>('CLIENTE');
   const comandaAtivaRef = useRef<Comanda | null>(null);
-  const containerId = 'agape-pdv-camera-viewport';
+  const containerId = 'taverna-pdv-camera-viewport';
 
   useEffect(() => {
     passoRef.current = passo;

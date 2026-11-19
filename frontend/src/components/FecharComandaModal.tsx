@@ -102,7 +102,7 @@ export function FecharComandaModal({
   const saldoFinalProjetado = saldoAtualNum - totalComanda;
   const fiadoBloqueado = formaPagamento === 'saldo_bar_fiado' && saldoFinalProjetado < -limiteFiado;
 
-  const chavePixFicticia = `00020126580014br.gov.bcb.pix0136agape-loja-${comandaId}@e-sigma.app520400005303986540${totalComanda.toFixed(2)}5802BR5915Agape Bar6009Sao Paulo62070503***6304`;
+  const chavePixFicticia = `00020126580014br.gov.bcb.pix0136agape-loja-${comandaId}@e-sigma.app520400005303986540${totalComanda.toFixed(2)}5802BR5915Taverna Bar6009Sao Paulo62070503***6304`;
 
   const handleCopiarPix = () => {
     navigator.clipboard?.writeText(chavePixFicticia);

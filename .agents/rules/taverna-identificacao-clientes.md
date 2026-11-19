@@ -1,11 +1,11 @@
 ---
 trigger: model_decision
-description: Regras de negócio e UX para identificação de clientes, cadastro de Irmãos/Convidados e vínculo de Dependentes no E-Sigma ∴ Ágape.
+description: Regras de negócio e UX para identificação de clientes, cadastro de Irmãos/Convidados e vínculo de Dependentes no E-Sigma ∴ Taverna.
 ---
 
-# Regras de Identificação e Cadastro de Clientes — E-Sigma ∴ Ágape
+# Regras de Identificação e Cadastro de Clientes — E-Sigma ∴ Taverna
 
-- **Cabeçalho padrão:** `E-Sigma ∴ Ágape` (`COMANDASMART POS`) e loja ativa `Loja João Pedro Junqueira`.
+- **Cabeçalho padrão:** `E-Sigma ∴ Taverna` (`COMANDASMART POS`) e loja ativa `Loja João Pedro Junqueira`.
 - **Identificação (`1` / `1B`):**
   - Aceitar **QR Code / Cartão**, **CIM (5–7 dígitos)** e **CPF (11 dígitos)** sem travar máscara de CPF para CIMs curtos.
   - Oferecer atalhos **`Buscar por Nome`** e **`Últimos Atendidos`** junto ao numpad.

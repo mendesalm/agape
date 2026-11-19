@@ -17,7 +17,7 @@ export const HubInicialLoja: React.FC = () => {
 
   const userStr = localStorage.getItem('bipfy_user') || localStorage.getItem('barix_user') || localStorage.getItem('@Barix:user');
   const user = userStr ? JSON.parse(userStr) : null;
-  const lojaNome = localStorage.getItem('@Barix:ambito_titulo') || user?.loja_atual?.nome_fantasia || 'Loja Ágape';
+  const lojaNome = localStorage.getItem('@Barix:ambito_titulo') || user?.loja_atual?.nome_fantasia || 'Loja Taverna';
   const lojaNumero = user?.tenant_id || user?.loja_atual?.numero_loja || '2181';
 
   const cargoRaw = (user?.cargo || user?.role || '').toUpperCase();
@@ -59,7 +59,7 @@ export const HubInicialLoja: React.FC = () => {
           </div>
           <div>
             <span className="text-lg font-black tracking-tight bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-500 bg-clip-text text-transparent block">
-              Ágape
+              Taverna
             </span>
             <span className="block text-[10px] font-semibold tracking-wider text-slate-400 uppercase -mt-0.5">
               Gestão Integrada

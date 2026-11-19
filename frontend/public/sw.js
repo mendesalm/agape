@@ -1,9 +1,9 @@
-// Service Worker PWA para e-Sigma Ágape
-const CACHE_NAME = 'agape-pwa-cache-v3';
+// Service Worker PWA para e-Sigma Taverna
+const CACHE_NAME = 'taverna-pwa-cache-v3';
 const STATIC_ASSETS = [
   '/',
   '/favicon.svg',
-  '/icone-agape.svg',
+  '/icone-taverna.svg',
   '/manifest.json'
 ];
 
@@ -12,7 +12,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.debug('Cache PWA e-Sigma Ágape inicial registrado com avisos:', err);
+        console.debug('Cache PWA e-Sigma Taverna inicial registrado com avisos:', err);
       });
     })
   );

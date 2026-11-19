@@ -4,7 +4,7 @@ import { Eye, EyeOff, Building2, Shield, ArrowRight, RotateCcw } from 'lucide-re
 import axios from 'axios';
 import { api } from '../services/api';
 import HeroBackground from '../components/HeroBackground';
-import { LogoAnimadaAgape } from '../components/LogoAnimadaAgape';
+import { LogoAnimadaTaverna } from '../components/LogoAnimadaTaverna';
 
 interface AmbitoAcesso {
   tipo: 'LOJA' | 'SISTEMA';
@@ -146,7 +146,7 @@ export const Login: React.FC = () => {
 
     setCarregando(true);
     try {
-      // 1. Tenta autenticação direta no Ágape (SuperAdmin, Webmasters de Loja e Operadores do Salão de Ágapes)
+      // 1. Tenta autenticação direta na Taverna (SuperAdmin, Webmasters de Loja e Operadores do Salão da Taverna)
       const response = await api.post('/auth/login', {
         email: identificador.trim(),
         senha
@@ -191,13 +191,13 @@ export const Login: React.FC = () => {
 
         <div className="text-center mb-7 relative z-10">
           <div id="hero-logo" className="inline-flex items-center justify-center mb-4">
-            <LogoAnimadaAgape width={84} height={84} showText={false} animated={true} />
+            <LogoAnimadaTaverna width={84} height={84} showText={false} animated={true} />
           </div>
           <h1 className="text-2xl font-bold tracking-wider mb-1 font-cinzel bg-gradient-to-r from-[#FDE68A] via-[#DDB96B] to-[#B8862D] bg-clip-text text-transparent">
             {ambitosParaEscolha.length > 0 ? 'Âmbito de Acesso' : 'Acesso Restrito'}
           </h1>
           <p className="text-xs font-bold tracking-[0.25em] uppercase text-[#DDB96B]/80 mb-1">
-            Módulo Ágape • e-Sigma
+            Módulo Taverna • e-Sigma
           </p>
           <p className="text-sm text-slate-400">
             {ambitosParaEscolha.length > 0

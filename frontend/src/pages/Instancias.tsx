@@ -221,10 +221,10 @@ export function Instancias() {
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
             <Building2 className="text-indigo-600 w-8 h-8" />
-            Gestão de Lojas & Salões de Ágapes (e-Sigma)
+            Gestão de Lojas & Salões da Taverna (e-Sigma)
           </h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            Sincronize Lojas do banco lojas_db, provisione Salões de Ágapes e gerencie os Mestres de Banquetes.
+            Sincronize Lojas do banco lojas_db, provisione Salões da Taverna e gerencie os Mestres de Banquetes.
           </p>
         </div>
 

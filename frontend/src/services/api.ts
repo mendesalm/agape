@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// Configuração base do Axios para consumir a API FastAPI do e-Sigma Ágape
+// Configuração base do Axios para consumir a API FastAPI do e-Sigma Taverna
 const defaultBaseUrl =
   typeof window !== 'undefined' &&
   window.location.hostname !== 'localhost' &&

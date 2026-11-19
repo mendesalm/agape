@@ -249,7 +249,7 @@ export function ComprovanteTermicoModal({
                   {comprovante.loja_numero && (
                     <p className="text-[11px] text-slate-600 font-bold">Oficina / Loja Nº {comprovante.loja_numero}</p>
                   )}
-                  <p className="text-[10px] text-slate-500">SISTEMA DE CONSUMO ÁGAPE (BAR)</p>
+                  <p className="text-[10px] text-slate-500">SISTEMA DE CONSUMO TAVERNA (BAR)</p>
                   <p className="text-[10px] text-slate-500 mt-1">Conta Financeira Segregada da Loja</p>
                 </div>
 
@@ -348,7 +348,7 @@ export function ComprovanteTermicoModal({
               <div className="space-y-2">
                 <div className="text-center border-b border-dashed border-slate-400 pb-2">
                   <h4 className="font-bold text-sm tracking-wide uppercase">EXTRATO DE CONSUMAÇÃO</h4>
-                  <p className="text-[10px] text-slate-500">SISTEMA ÁGAPE • CONTA DO BAR</p>
+                  <p className="text-[10px] text-slate-500">SISTEMA TAVERNA • CONTA DO BAR</p>
                   <p className="text-[10px] text-slate-600 mt-1">
                     Período: {new Date(dataInicio).toLocaleDateString('pt-BR')} a {new Date(dataFim).toLocaleDateString('pt-BR')}
                   </p>

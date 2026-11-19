@@ -360,7 +360,7 @@ export const PortalCliente: React.FC = () => {
 
   // Gerar QR Code Pix para Recarga
   const handleGerarPixRecarga = (valorFinal: number) => {
-    const mockPayload = `00020126580014br.gov.bcb.pix0136agape-recarga-${cliente?.id || '0'}-${Date.now()}520400005303986540${(valorFinal).toFixed(2)}5802BR5915AGAPE BAR LOJA6008BRASILIA62070503***6304E091`;
+    const mockPayload = `00020126580014br.gov.bcb.pix0136agape-recarga-${cliente?.id || '0'}-${Date.now()}520400005303986540${(valorFinal).toFixed(2)}5802BR5915TAVERNA BAR LOJA6008BRASILIA62070503***6304E091`;
     setChavePixCopia(mockPayload);
     setMostrarPixRecarga(true);
     setPixCopiado(false);
@@ -431,7 +431,7 @@ export const PortalCliente: React.FC = () => {
   // Gerar Pix para Quitação da Comanda Aberta
   const handleGerarPixQuitacao = () => {
     if (!comandaAberta) return;
-    const mockPayload = `00020126580014br.gov.bcb.pix0136agape-quitar-${comandaAberta.id}-${Date.now()}520400005303986540${comandaAberta.total.toFixed(2)}5802BR5915AGAPE QUITACAO6008BRASILIA62070503***6304E882`;
+    const mockPayload = `00020126580014br.gov.bcb.pix0136agape-quitar-${comandaAberta.id}-${Date.now()}520400005303986540${comandaAberta.total.toFixed(2)}5802BR5915TAVERNA QUITACAO6008BRASILIA62070503***6304E882`;
     setChavePixQuitacao(mockPayload);
     setMostrarPixQuitacao(true);
     setPixQuitacaoCopiado(false);
@@ -1467,7 +1467,7 @@ export const PortalCliente: React.FC = () => {
           <div className="border-b border-[#334155] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <span className="text-xs uppercase tracking-widest font-mono text-[#7BD0FF] font-bold block">
-                Conta Corrente Ágape
+                Conta Corrente Taverna
               </span>
               <h2 className="text-xl font-bold text-white mt-0.5">
                 Inserção de Saldos Pré-pagos

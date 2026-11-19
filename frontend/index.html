@@ -6,15 +6,15 @@
     <meta name="theme-color" content="#070F1E" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Ágape" />
-    <meta name="description" content="e-Sigma Ágape - Gestão de Salão de Ágapes, Comandas QR Code, Carteira Pré-Paga e Estoque FEFO" />
-    <link rel="icon" type="image/svg+xml" href="/icone-agape.svg" />
+    <meta name="apple-mobile-web-app-title" content="Taverna" />
+    <meta name="description" content="e-Sigma Taverna - Gestão de Salão da Taverna, Comandas QR Code, Carteira Pré-Paga e Estoque FEFO" />
+    <link rel="icon" type="image/svg+xml" href="/icone-taverna.svg" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800;900&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet" />
-    <title>Ágape - Sistema de Gestão para Lojas Maçônicas</title>
+    <title>Taverna - Sistema de Gestão para Lojas Maçônicas</title>
   </head>
   <body class="bg-[#070F1E] text-slate-200 antialiased">
     <div id="root"></div>
@@ -28,7 +28,7 @@
         });
         navigator.serviceWorker.addEventListener('message', (event) => {
           if (event.data && event.data.type === 'NOVA_VERSAO_DISPONIVEL') {
-            console.log('Nova versão do Ágape detectada. Atualizando...');
+            console.log('Nova versão do Taverna detectada. Atualizando...');
             window.location.reload();
           }
         });

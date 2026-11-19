@@ -476,7 +476,7 @@ export function Comandas() {
             </div>
             <div className="min-w-0">
               <div className="text-sm font-black tracking-tight text-white leading-tight truncate">
-                E-Sigma ∴ Ágape
+                E-Sigma ∴ Taverna
               </div>
               <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 truncate">
                 {lojaNome}

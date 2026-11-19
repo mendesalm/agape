@@ -92,7 +92,7 @@ export function Layout() {
           )}
           <div className="flex items-center gap-2 text-amber-400 font-bold text-lg tracking-tight">
             <Wine className="w-5 h-5 text-amber-500" />
-            <span>Ágape</span>
+            <span>Taverna</span>
           </div>
         </div>
         
@@ -125,7 +125,7 @@ export function Layout() {
               </div>
               <div>
                 <h1 className="text-base font-black tracking-tight text-white flex items-center gap-1.5">
-                  Ágape <span className="text-[10px] font-semibold text-amber-400/90 tracking-widest uppercase">Bar</span>
+                  Taverna <span className="text-[10px] font-semibold text-amber-400/90 tracking-widest uppercase">Bar</span>
                 </h1>
                 <p className="text-[10px] text-slate-400">
                   {user?.tenant_id ? `Instância #${user.tenant_id}` : 'Ecossistema SaaS'}
@@ -426,7 +426,7 @@ export function Layout() {
             <Outlet />
           </div>
           <footer className="w-full py-2.5 px-4 text-center text-[10px] font-mono text-slate-600 border-t border-slate-900/80">
-            E-Sigma ∴ Ágape • v{__APP_VERSION__} (build #{__BUILD_HASH__} • {__BUILD_TIME__} UTC)
+            E-Sigma ∴ Taverna • v{__APP_VERSION__} (build #{__BUILD_HASH__} • {__BUILD_TIME__} UTC)
           </footer>
         </main>
       </div>

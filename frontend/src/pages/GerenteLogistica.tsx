@@ -1002,7 +1002,7 @@ export const GerenteLogistica: React.FC = () => {
                     {produtoEmGestao.nome}
                   </h2>
                   <p className="text-[11px] text-slate-400 truncate">
-                    {produtoEmGestao.descricao || 'Item integrado ao Salão de Ágapes'}
+                    {produtoEmGestao.descricao || 'Item integrado ao Salão da Taverna'}
                   </p>
                 </div>
               </div>
@@ -1469,7 +1469,7 @@ export const GerenteLogistica: React.FC = () => {
                       type="text" 
                       value={cadCodigo}
                       onChange={(e) => setCadCodigo(e.target.value)}
-                      placeholder="QR-AGAPE-..." 
+                      placeholder="QR-TAVERNA-..." 
                       className="w-full px-3 py-1.5 rounded-xl bg-white/[0.06] border border-white/10 text-xs text-cyan-300 placeholder-slate-500 focus:outline-none focus:border-cyan-400/50 font-mono"
                     />
                   </div>

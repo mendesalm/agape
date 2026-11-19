@@ -1,4 +1,4 @@
-package com.esigma.agape;
+package com.esigma.taverna;
 
 import com.getcapacitor.BridgeActivity;
 

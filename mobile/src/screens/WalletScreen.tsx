@@ -107,7 +107,7 @@ export function WalletScreen({ navigation }: Props) {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.greeting} numberOfLines={1}>
-              {cliente?.nome || 'Membro Ágape'}
+              {cliente?.nome || 'Membro Taverna'}
             </Text>
             <Text style={styles.subGreeting}>{identificadorTexto}</Text>
           </View>
@@ -279,7 +279,7 @@ export function WalletScreen({ navigation }: Props) {
                 <View style={styles.infoBox}>
                   <Text style={styles.infoLabel}>DEPÓSITO VIA PIX</Text>
                   <Text style={styles.helperNote}>
-                    Solicite recarga rápida via PIX no Portal Web ou diretamente no balcão do Ágape.
+                    Solicite recarga rápida via PIX no Portal Web ou diretamente no balcão da Taverna.
                   </Text>
                 </View>
               )}

@@ -127,7 +127,7 @@ export function ComandaMenuScreen({ route, navigation }: Props) {
           <ArrowLeft color="#fff" size={24} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.title}>E-Sigma ∴ Ágape • Cardápio</Text>
+          <Text style={styles.title}>E-Sigma ∴ Taverna • Cardápio</Text>
           <Text style={styles.subtitle}>Comanda: {identificador}</Text>
         </View>
         <View style={styles.badgeMesa}>

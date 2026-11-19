@@ -44,7 +44,7 @@
 }
 
 /* ==========================================================================
-   SISTEMA SOBERANO DE DESIGN DO ECOSSISTEMA E-SIGMA (HERDADO PELO ÁGAPE)
+   SISTEMA SOBERANO DE DESIGN DO ECOSSISTEMA E-SIGMA (HERDADO PELO TAVERNA)
    ========================================================================== */
 
 .vidro-escuro {
@@ -191,12 +191,12 @@
 }
 
 /* ==========================================================================
-   HARMONIZAÇÃO AUTOMÁTICA DOS COMPONENTES INTERNOS DO ÁGAPE (DARK NAVY + GOLD)
+   HARMONIZAÇÃO AUTOMÁTICA DOS COMPONENTES INTERNOS DO TAVERNA (DARK NAVY + GOLD)
    Garante que todos os cards, tabelas, inputs e modais das páginas internas
    herdem o tema Azul Profundo (#070F1E / #0A1428) e Ouro Maçônico (#DDB96B)
    ========================================================================== */
 
-.agape-sovereign-shell .bg-white {
+.taverna-sovereign-shell .bg-white {
   background-color: rgba(10, 20, 40, 0.82) !important;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -204,75 +204,75 @@
   color: #e2e8f0 !important;
 }
 
-.agape-sovereign-shell .bg-slate-50,
-.agape-sovereign-shell .bg-slate-50\/80,
-.agape-sovereign-shell .bg-slate-50\/50,
-.agape-sovereign-shell .bg-slate-100,
-.agape-sovereign-shell .bg-gray-50,
-.agape-sovereign-shell .bg-gray-100 {
+.taverna-sovereign-shell .bg-slate-50,
+.taverna-sovereign-shell .bg-slate-50\/80,
+.taverna-sovereign-shell .bg-slate-50\/50,
+.taverna-sovereign-shell .bg-slate-100,
+.taverna-sovereign-shell .bg-gray-50,
+.taverna-sovereign-shell .bg-gray-100 {
   background-color: rgba(14, 28, 54, 0.75) !important;
   border-color: rgba(30, 50, 92, 0.65) !important;
   color: #cbd5e1 !important;
 }
 
-.agape-sovereign-shell .border-slate-100,
-.agape-sovereign-shell .border-slate-200,
-.agape-sovereign-shell .border-slate-200\/80,
-.agape-sovereign-shell .border-gray-100,
-.agape-sovereign-shell .border-gray-200,
-.agape-sovereign-shell .border-gray-300,
-.agape-sovereign-shell .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
-.agape-sovereign-shell .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
-.agape-sovereign-shell .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+.taverna-sovereign-shell .border-slate-100,
+.taverna-sovereign-shell .border-slate-200,
+.taverna-sovereign-shell .border-slate-200\/80,
+.taverna-sovereign-shell .border-gray-100,
+.taverna-sovereign-shell .border-gray-200,
+.taverna-sovereign-shell .border-gray-300,
+.taverna-sovereign-shell .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.taverna-sovereign-shell .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.taverna-sovereign-shell .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
   border-color: rgba(221, 185, 107, 0.18) !important;
 }
 
-.agape-sovereign-shell .text-slate-900,
-.agape-sovereign-shell .text-slate-800,
-.agape-sovereign-shell .text-gray-900,
-.agape-sovereign-shell .text-gray-800 {
+.taverna-sovereign-shell .text-slate-900,
+.taverna-sovereign-shell .text-slate-800,
+.taverna-sovereign-shell .text-gray-900,
+.taverna-sovereign-shell .text-gray-800 {
   color: #f8fafc !important;
 }
 
-.agape-sovereign-shell .text-slate-700,
-.agape-sovereign-shell .text-slate-600,
-.agape-sovereign-shell .text-gray-700,
-.agape-sovereign-shell .text-gray-600 {
+.taverna-sovereign-shell .text-slate-700,
+.taverna-sovereign-shell .text-slate-600,
+.taverna-sovereign-shell .text-gray-700,
+.taverna-sovereign-shell .text-gray-600 {
   color: #cbd5e1 !important;
 }
 
-.agape-sovereign-shell .text-slate-500,
-.agape-sovereign-shell .text-slate-400,
-.agape-sovereign-shell .text-gray-500,
-.agape-sovereign-shell .text-gray-400 {
+.taverna-sovereign-shell .text-slate-500,
+.taverna-sovereign-shell .text-slate-400,
+.taverna-sovereign-shell .text-gray-500,
+.taverna-sovereign-shell .text-gray-400 {
   color: #94a3b8 !important;
 }
 
-.agape-sovereign-shell input:not([type="checkbox"]):not([type="radio"]),
-.agape-sovereign-shell select,
-.agape-sovereign-shell textarea {
+.taverna-sovereign-shell input:not([type="checkbox"]):not([type="radio"]),
+.taverna-sovereign-shell select,
+.taverna-sovereign-shell textarea {
   background-color: rgba(7, 15, 30, 0.75) !important;
   border-color: rgba(221, 185, 107, 0.28) !important;
   color: #f8fafc !important;
 }
 
-.agape-sovereign-shell input::placeholder,
-.agape-sovereign-shell textarea::placeholder {
+.taverna-sovereign-shell input::placeholder,
+.taverna-sovereign-shell textarea::placeholder {
   color: #64748b !important;
 }
 
-.agape-sovereign-shell input:focus,
-.agape-sovereign-shell select:focus,
-.agape-sovereign-shell textarea:focus {
+.taverna-sovereign-shell input:focus,
+.taverna-sovereign-shell select:focus,
+.taverna-sovereign-shell textarea:focus {
   border-color: #DDB96B !important;
   outline: none !important;
   box-shadow: 0 0 0 2px rgba(221, 185, 107, 0.2) !important;
 }
 
-.agape-sovereign-shell .bg-amber-600,
-.agape-sovereign-shell .bg-amber-500,
-.agape-sovereign-shell .bg-blue-600,
-.agape-sovereign-shell .bg-indigo-600 {
+.taverna-sovereign-shell .bg-amber-600,
+.taverna-sovereign-shell .bg-amber-500,
+.taverna-sovereign-shell .bg-blue-600,
+.taverna-sovereign-shell .bg-indigo-600 {
   background: radial-gradient(circle at 50% 0%, #38bdf8 0%, #0284c7 45%, #0369a1 100%) !important;
   color: #ffffff !important;
   border: 1px solid #DDB96B !important;
@@ -281,49 +281,49 @@
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 10px rgba(221, 185, 107, 0.2) !important;
 }
 
-.agape-sovereign-shell .text-amber-600,
-.agape-sovereign-shell .text-amber-700,
-.agape-sovereign-shell .text-amber-800,
-.agape-sovereign-shell .text-blue-600,
-.agape-sovereign-shell .text-indigo-600 {
+.taverna-sovereign-shell .text-amber-600,
+.taverna-sovereign-shell .text-amber-700,
+.taverna-sovereign-shell .text-amber-800,
+.taverna-sovereign-shell .text-blue-600,
+.taverna-sovereign-shell .text-indigo-600 {
   color: #DDB96B !important;
 }
 
-.agape-sovereign-shell .bg-amber-50,
-.agape-sovereign-shell .bg-amber-100 {
+.taverna-sovereign-shell .bg-amber-50,
+.taverna-sovereign-shell .bg-amber-100 {
   background-color: rgba(221, 185, 107, 0.12) !important;
   border-color: rgba(221, 185, 107, 0.3) !important;
   color: #FDE68A !important;
 }
 
-.agape-sovereign-shell .bg-emerald-50,
-.agape-sovereign-shell .bg-green-50,
-.agape-sovereign-shell .bg-green-100 {
+.taverna-sovereign-shell .bg-emerald-50,
+.taverna-sovereign-shell .bg-green-50,
+.taverna-sovereign-shell .bg-green-100 {
   background-color: rgba(16, 185, 129, 0.12) !important;
   border-color: rgba(16, 185, 129, 0.3) !important;
   color: #6ee7b7 !important;
 }
 
-.agape-sovereign-shell .bg-rose-50,
-.agape-sovereign-shell .bg-red-50,
-.agape-sovereign-shell .bg-red-100 {
+.taverna-sovereign-shell .bg-rose-50,
+.taverna-sovereign-shell .bg-red-50,
+.taverna-sovereign-shell .bg-red-100 {
   background-color: rgba(244, 63, 94, 0.12) !important;
   border-color: rgba(244, 63, 94, 0.3) !important;
   color: #fda4af !important;
 }
 
-.agape-sovereign-shell .bg-blue-50,
-.agape-sovereign-shell .bg-blue-100,
-.agape-sovereign-shell .bg-indigo-50,
-.agape-sovereign-shell .bg-indigo-100 {
+.taverna-sovereign-shell .bg-blue-50,
+.taverna-sovereign-shell .bg-blue-100,
+.taverna-sovereign-shell .bg-indigo-50,
+.taverna-sovereign-shell .bg-indigo-100 {
   background-color: rgba(56, 189, 248, 0.12) !important;
   border-color: rgba(56, 189, 248, 0.3) !important;
   color: #7dd3fc !important;
 }
 
-.agape-sovereign-shell tbody tr:hover,
-.agape-sovereign-shell .hover\:bg-gray-50:hover,
-.agape-sovereign-shell .hover\:bg-slate-50:hover {
+.taverna-sovereign-shell tbody tr:hover,
+.taverna-sovereign-shell .hover\:bg-gray-50:hover,
+.taverna-sovereign-shell .hover\:bg-slate-50:hover {
   background-color: rgba(221, 185, 107, 0.06) !important;
 }
 

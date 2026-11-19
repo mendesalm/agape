@@ -74,7 +74,7 @@ export const ProdutoGlassThumb: React.FC<ProdutoGlassThumbProps> = ({
       };
     }
 
-    // 4. Cervejas / Alcoólicas Tradicionais -> Âmbar Dourado Quente (Padrão Ágape)
+    // 4. Cervejas / Alcoólicas Tradicionais -> Âmbar Dourado Quente (Padrão Taverna)
     return {
       glow: 'bg-amber-500/25',
       gradienteFundo: 'from-amber-950/30 via-slate-900/60 to-yellow-950/20',

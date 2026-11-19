@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { QrCode, Wallet, ShieldCheck, ArrowRight, Sparkles, Lock, Layers } from 'lucide-react';
 import HeroBackground from '../components/HeroBackground';
-import { LogoAnimadaAgape } from '../components/LogoAnimadaAgape';
+import { LogoAnimadaTaverna } from '../components/LogoAnimadaTaverna';
 
 export const Landing: React.FC = () => {
   return (
@@ -13,10 +13,10 @@ export const Landing: React.FC = () => {
       <header className="sticky top-0 z-40 vidro-escuro border-b border-[#DDB96B]/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/agape.svg" alt="Ágape" className="w-11 h-11 drop-shadow-[0_2px_10px_rgba(221,185,107,0.4)]" />
+            <img src="/taverna.svg" alt="Taverna" className="w-11 h-11 drop-shadow-[0_2px_10px_rgba(221,185,107,0.4)]" />
             <div>
               <span className="text-xl font-bold font-cinzel tracking-widest text-sigma-gold block leading-none">
-                ÁGAPE
+                TAVERNA
               </span>
               <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400 block mt-1">
                 Ecossistema e-Sigma
@@ -44,16 +44,16 @@ export const Landing: React.FC = () => {
       {/* Hero Section */}
       <section className="relative pt-14 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center">
         <div id="hero-logo" className="flex justify-center mb-6">
-          <LogoAnimadaAgape width={180} height={180} showText={true} animated={true} />
+          <LogoAnimadaTaverna width={180} height={180} showText={true} animated={true} />
         </div>
 
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full vidro-destaque text-[#FDE68A] text-xs font-bold uppercase tracking-widest mb-6">
-          <Sparkles className="w-3.5 h-3.5 text-[#DDB96B]" /> Salão de Ágapes, Comandas QR & Estoque FEFO
+          <Sparkles className="w-3.5 h-3.5 text-[#DDB96B]" /> Salão da Taverna, Comandas QR & Estoque FEFO
         </div>
 
         <h1 className="text-3xl sm:text-5xl font-bold font-cinzel tracking-wide text-white max-w-4xl mx-auto leading-tight mb-6">
           Gestão Soberana do{' '}
-          <span className="text-sigma-gold">Salão de Ágapes</span> para Lojas Maçônicas
+          <span className="text-sigma-gold">Salão da Taverna</span> para Lojas Maçônicas
         </h1>
 
         <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
@@ -66,7 +66,7 @@ export const Landing: React.FC = () => {
             to="/login"
             className="w-full sm:w-auto px-8 py-4 text-base btn-masonic-pill btn-pill-blue"
           >
-            Entrar no Ágape <ArrowRight className="w-5 h-5" />
+            Entrar na Taverna <ArrowRight className="w-5 h-5" />
           </Link>
           <a
             href="https://lojas.e-sigma.app"
@@ -88,7 +88,7 @@ export const Landing: React.FC = () => {
               Comandas & QR Code Fraternal
             </h3>
             <p className="text-sm text-slate-300 leading-relaxed">
-              Abertura imediata de mesas ou consumo individual por Irmão com lançamento ágil pelo celular ou tablet no Salão de Ágapes.
+              Abertura imediata de mesas ou consumo individual por Irmão com lançamento ágil pelo celular ou tablet no Salão da Taverna.
             </p>
           </div>
 
@@ -122,9 +122,9 @@ export const Landing: React.FC = () => {
       <footer className="mt-12 border-t border-[#DDB96B]/20 vidro-escuro py-8 px-4 text-center text-xs text-slate-400">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <img src="/agape.svg" alt="Ágape" className="w-6 h-6" />
+            <img src="/taverna.svg" alt="Taverna" className="w-6 h-6" />
             <span className="font-cinzel text-[#DDB96B] font-bold tracking-wider">
-              e-Sigma Ágape
+              e-Sigma Taverna
             </span>
           </div>
           <div className="flex items-center gap-4 text-slate-400">

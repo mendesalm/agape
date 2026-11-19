@@ -23,7 +23,7 @@ export async function inicializarDispositivoNativo() {
     await Keyboard.setResizeMode({ mode: KeyboardResize.Body });
     await SplashScreen.hide({ fadeOutDuration: 400 });
   } catch (erro) {
-    console.debug('Aviso na inicialização de recursos nativos (Ágape):', erro);
+    console.debug('Aviso na inicialização de recursos nativos (Taverna):', erro);
   }
 }
 

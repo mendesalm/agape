@@ -43,7 +43,7 @@ interface ConsumidorSanitizado {
   saldo_carteira: number;
 }
 
-export function EquipeAgape() {
+export function EquipeTaverna() {
   const [abaAtiva, setAbaAtiva] = useState<'operadores' | 'consumidores'>('operadores');
 
   // Estado: Operadores
@@ -91,7 +91,7 @@ export function EquipeAgape() {
       const res = await api.get('/esigma/operadores');
       setOperadores(res.data);
     } catch (err) {
-      console.error('Erro ao carregar operadores do Ágape:', err);
+      console.error('Erro ao carregar operadores da Taverna:', err);
     } finally {
       setLoadingOp(false);
     }
@@ -209,7 +209,7 @@ export function EquipeAgape() {
             <Shield size={14} /> Segurança & Isolamento Maçônico (lojas_db)
           </div>
           <h1 className="text-2xl font-extrabold text-gray-900">
-            Operadores do Balcão & Consumidores do Ágape
+            Operadores do Balcão & Consumidores da Taverna
           </h1>
           <p className="text-sm text-gray-500 mt-1">
             Gerencie atendentes não maçons (familiares ou garçons contratados) com acesso isolado e reconheça Irmãos por CIM/CPF.
@@ -241,7 +241,7 @@ export function EquipeAgape() {
           <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Users size={20} className="text-indigo-600" /> Equipe de Operação do Salão de Ágapes
+                <Users size={20} className="text-indigo-600" /> Equipe de Operação do Salão da Taverna
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
                 Operadores com cargo <strong>Balcão / Garçom</strong> acessam apenas vendas e estoque — sem acesso aos dados maçônicos da Loja.
@@ -264,7 +264,7 @@ export function EquipeAgape() {
                   <tr className="bg-gray-50 text-[11px] font-bold uppercase text-gray-500 border-b border-gray-100">
                     <th className="py-3.5 px-6">Nome / E-mail</th>
                     <th className="py-3.5 px-6">Vínculo com a Loja</th>
-                    <th className="py-3.5 px-6">Função no Ágape</th>
+                    <th className="py-3.5 px-6">Função na Taverna</th>
                     <th className="py-3.5 px-6">Acesso Hoje</th>
                     <th className="py-3.5 px-6 text-right">Ação</th>
                   </tr>
@@ -341,7 +341,7 @@ export function EquipeAgape() {
                 Reconhecer Consumidor por CIM ou CPF
               </h2>
               <p className="text-xs text-gray-500 mt-1">
-                Digite o <strong>CIM</strong> ou <strong>CPF</strong> de um Irmão do Quadro ou Visitante para sincronizá-lo automaticamente com o Ágape e gerar o QR Code dele.
+                Digite o <strong>CIM</strong> ou <strong>CPF</strong> de um Irmão do Quadro ou Visitante para sincronizá-lo automaticamente com o Taverna e gerar o QR Code dele.
               </p>
             </div>
 
@@ -406,7 +406,7 @@ export function EquipeAgape() {
                 Sessões Brancas, Festas & Cunhadas/Sobrinhos
               </span>
               <h2 className="text-lg font-bold text-gray-900 mt-0.5">
-                Cadastrar Consumidor Não Maçom no Ágape
+                Cadastrar Consumidor Não Maçom na Taverna
               </h2>
               <p className="text-xs text-gray-500 mt-1">
                 Cadastra familiares ou convidados diretamente em <code className="bg-gray-100 px-1 rounded">agape_clientes</code> sem misturar com o Quadro de Obreiros da Loja.
@@ -480,7 +480,7 @@ export function EquipeAgape() {
                 className="w-full py-2.5 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-xs font-bold shadow-sm flex items-center justify-center gap-2"
               >
                 <QrCode size={16} />
-                {salvandoCli ? 'Cadastrando...' : 'Cadastrar no Ágape & Gerar QR Code'}
+                {salvandoCli ? 'Cadastrando...' : 'Cadastrar na Taverna & Gerar QR Code'}
               </button>
             </form>
           </div>
@@ -493,8 +493,8 @@ export function EquipeAgape() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
             <div className="p-5 bg-indigo-950 text-white flex justify-between items-center">
               <div>
-                <h3 className="font-bold text-base">Novo Operador do Salão de Ágapes</h3>
-                <p className="text-xs text-indigo-200">Acesso estritamente isolado aos recursos do Ágape</p>
+                <h3 className="font-bold text-base">Novo Operador do Salão da Taverna</h3>
+                <p className="text-xs text-indigo-200">Acesso estritamente isolado aos recursos da Taverna</p>
               </div>
               <button onClick={() => setModalNovoOp(false)} className="text-indigo-200 hover:text-white text-sm font-bold">✕</button>
             </div>
@@ -619,7 +619,7 @@ export function EquipeAgape() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">E-mail de Login no Ágape *</label>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">E-mail de Login na Taverna *</label>
                     <input
                       type="email"
                       required
@@ -635,14 +635,14 @@ export function EquipeAgape() {
                       required
                       value={opSenha}
                       onChange={(e) => setOpSenha(e.target.value)}
-                      placeholder="Ex: agape2026"
+                      placeholder="Ex: taverna2026"
                       className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Permissão dentro do Ágape</label>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Permissão dentro da Taverna</label>
                   <select
                     value={opCargo}
                     onChange={(e) => setOpCargo(e.target.value as 'OPERADOR_BALCAO' | 'GARCOM' | 'WEBMASTER')}
@@ -650,7 +650,7 @@ export function EquipeAgape() {
                   >
                     <option value="OPERADOR_BALCAO">OPERADOR_BALCAO — Apenas Balcão Rápido, Comandas e Estoque (Isolado)</option>
                     <option value="GARCOM">GARCOM — Apenas Bipagem de Pedidos e Comandas (Isolado)</option>
-                    <option value="WEBMASTER">WEBMASTER — Mestre de Banquetes / Gestor Geral do Ágape da Loja</option>
+                    <option value="WEBMASTER">WEBMASTER — Mestre de Banquetes / Gestor Geral da Taverna da Loja</option>
                   </select>
                 </div>
 

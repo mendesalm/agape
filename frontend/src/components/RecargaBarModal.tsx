@@ -69,7 +69,7 @@ export function RecargaBarModal({
                 Inserir Créditos na Conta do Bar
               </h3>
               <p className="text-xs text-slate-400">
-                Caixa do Ágape 100% isolado da Loja
+                Caixa da Taverna 100% isolado da Loja
               </p>
             </div>
           </div>
