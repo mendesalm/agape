@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-echo "=== Implantando e-Sigma Agape (agape.e-sigma.app) na porta 8007 ==="
+echo "=== Implantando e-Sigma Taverna (taverna.e-sigma.app) na porta 8007 ==="
 
 APP_DIR="/var/www/agape"
 
@@ -25,10 +25,10 @@ systemctl enable agape-api
 systemctl restart agape-api
 
 # 4. Nginx VirtualHost (preserva configuracao SSL do Certbot se ja existir)
-if [ ! -f "/etc/nginx/sites-available/agape.e-sigma.app" ]; then
-    cp "$APP_DIR/deploy/agape.e-sigma.app.nginx.conf" /etc/nginx/sites-available/agape.e-sigma.app
-    ln -sf /etc/nginx/sites-available/agape.e-sigma.app /etc/nginx/sites-enabled/agape.e-sigma.app
+if [ ! -f "/etc/nginx/sites-available/taverna.e-sigma.app" ]; then
+    cp "$APP_DIR/deploy/taverna.e-sigma.app.nginx.conf" /etc/nginx/sites-available/taverna.e-sigma.app
+    ln -sf /etc/nginx/sites-available/taverna.e-sigma.app /etc/nginx/sites-enabled/taverna.e-sigma.app
     nginx -t && systemctl reload nginx
 fi
 
-echo "=== Agape ativo em https://agape.e-sigma.app (Porta interna 8007) ==="
+echo "=== Taverna ativo em https://taverna.e-sigma.app (Porta interna 8007) ==="

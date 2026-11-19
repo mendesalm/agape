@@ -2,7 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Endpoint oficial da API do e-Sigma Taverna em produção
-const API_URL = 'https://agape.e-sigma.app/api';
+const API_URL = 'https://taverna.e-sigma.app/api';
 
 export const api = axios.create({
   baseURL: API_URL,

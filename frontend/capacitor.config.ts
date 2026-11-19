@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'e-Sigma Taverna',
   webDir: 'dist',
   server: {
-    url: 'https://agape.e-sigma.app',
+    url: 'https://taverna.e-sigma.app',
     cleartext: true
   }
 };

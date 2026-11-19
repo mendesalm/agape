@@ -1,4 +1,4 @@
-name: Deploy Automático e-Sigma Ágape
+name: Deploy Automático e-Sigma Taverna
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            # Acessar a pasta onde o projeto Ágape está na VPS
+            # Acessar a pasta onde o projeto Taverna está na VPS
             cd /var/www/agape
             git pull origin main
 
@@ -28,3 +28,11 @@ jobs:
             cd frontend
             npm install
             npm run build
+
+            # Configura VirtualHost Nginx para taverna.e-sigma.app (se ainda não existir)
+            if [ ! -f "/etc/nginx/sites-available/taverna.e-sigma.app" ]; then
+              sudo cp /var/www/agape/deploy/taverna.e-sigma.app.nginx.conf /etc/nginx/sites-available/taverna.e-sigma.app
+              sudo ln -sf /etc/nginx/sites-available/taverna.e-sigma.app /etc/nginx/sites-enabled/taverna.e-sigma.app
+              sudo nginx -t && sudo systemctl reload nginx
+              sudo certbot --nginx -d taverna.e-sigma.app --non-interactive --agree-tos --register-unsafely-without-email --redirect || true
+            fi
