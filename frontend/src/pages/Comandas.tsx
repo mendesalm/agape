@@ -23,6 +23,7 @@ import {
   Radio,
   RotateCcw,
   ClipboardList,
+  Lock,
 } from 'lucide-react';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
 import { ProdutoGlassThumb } from '../components/ProdutoGlassThumb';
@@ -1392,26 +1393,79 @@ export function Comandas() {
           )}
         </div>
 
-        {/* BARRA DE NAVEGAÇÃO INFERIOR FIXA (4 ABAS STITCH) */}
-        <nav className="grid grid-cols-4 bg-[#0a0e17] border-t border-white/10 py-1.5 px-2">
+        {/* BARRA DE NAVEGAÇÃO INFERIOR INTELIGENTE (FLUXO SEQUENCIAL) */}
+        <nav className="shrink-0 grid grid-cols-4 bg-[#0a0e17] border-t border-white/10 py-1.5 px-2 gap-1">
           {[
-            { id: 'comanda' as AbaStitch, label: 'Comanda', icon: QrCode },
-            { id: 'cardapio' as AbaStitch, label: 'Cardápio', icon: UtensilsCrossed },
-            { id: 'historico' as AbaStitch, label: 'Histórico', icon: Receipt },
-            { id: 'fechamento' as AbaStitch, label: 'Fechamento', icon: CreditCard },
+            {
+              id: 'comanda' as AbaStitch,
+              label: 'Comanda',
+              icon: QrCode,
+              requerCliente: false,
+              badge: comandaBalcaoAtiva ? '✓' : null,
+              badgeCor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40',
+            },
+            {
+              id: 'cardapio' as AbaStitch,
+              label: 'Cardápio',
+              icon: UtensilsCrossed,
+              requerCliente: true,
+              badge: totalItensBandeja > 0 ? String(totalItensBandeja) : null,
+              badgeCor: 'bg-[#10b981] text-[#022c22]',
+            },
+            {
+              id: 'historico' as AbaStitch,
+              label: 'Histórico',
+              icon: Receipt,
+              requerCliente: true,
+              badge:
+                comandaBalcaoAtiva && comandaBalcaoAtiva.itens.length > 0
+                  ? String(comandaBalcaoAtiva.itens.reduce((a, b) => a + b.quantidade, 0))
+                  : null,
+              badgeCor: 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30',
+            },
+            {
+              id: 'fechamento' as AbaStitch,
+              label: 'Fechamento',
+              icon: CreditCard,
+              requerCliente: true,
+              badge: comandaBalcaoAtiva && totalAcumuladoAtiva > 0 ? 'R$' : null,
+              badgeCor: 'bg-amber-400 text-[#090d16]',
+            },
           ].map((tab) => {
             const Icon = tab.icon;
             const ativo = abaAtiva === tab.id;
+            const bloqueada = tab.requerCliente && !comandaBalcaoAtiva;
             return (
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setAbaAtiva(tab.id)}
-                className={`py-1.5 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition ${
-                  ativo ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'
+                disabled={bloqueada}
+                aria-disabled={bloqueada}
+                title={bloqueada ? 'Identifique um cliente na aba Comanda primeiro' : tab.label}
+                onClick={() => {
+                  if (bloqueada) return;
+                  setAbaAtiva(tab.id);
+                }}
+                className={`relative py-1.5 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition ${
+                  bloqueada
+                    ? 'text-slate-600 opacity-45 cursor-not-allowed'
+                    : ativo
+                    ? 'text-emerald-400 bg-emerald-500/10 cursor-pointer'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04] cursor-pointer'
                 }`}
               >
-                <Icon size={18} />
+                <div className="relative">
+                  <Icon size={18} />
+                  {bloqueada ? (
+                    <Lock size={10} className="absolute -top-1 -right-2 text-slate-500" />
+                  ) : tab.badge ? (
+                    <span
+                      className={`absolute -top-1.5 -right-3 px-1 min-w-[14px] h-[14px] rounded-full text-[8px] font-black flex items-center justify-center ${tab.badgeCor}`}
+                    >
+                      {tab.badge}
+                    </span>
+                  ) : null}
+                </div>
                 <span>{tab.label}</span>
               </button>
             );
