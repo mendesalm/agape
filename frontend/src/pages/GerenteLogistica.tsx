@@ -18,7 +18,9 @@ import {
   Camera, 
   Layers,
   RefreshCw,
-  GitMerge
+  GitMerge,
+  FileText,
+  Printer
 } from 'lucide-react';
 import { LeitorQrCameraModal } from '../components/LeitorQrCameraModal';
 import { ProdutoGlassThumb } from '../components/ProdutoGlassThumb';
@@ -116,6 +118,39 @@ export const GerenteLogistica: React.FC = () => {
       prioridade: string;
     }>;
     texto_whatsapp: string;
+  } | null>(null);
+  const hojeIso = new Date().toISOString().slice(0, 10);
+  const trintaDiasAtrasIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const [isModalRelatorioEstoque, setIsModalRelatorioEstoque] = useState(false);
+  const [relatorioDataInicio, setRelatorioDataInicio] = useState(trintaDiasAtrasIso);
+  const [relatorioDataFim, setRelatorioDataFim] = useState(hojeIso);
+  const [carregandoRelatorioEstoque, setCarregandoRelatorioEstoque] = useState(false);
+  const [relatorioEstoque, setRelatorioEstoque] = useState<{
+    data_inicio: string;
+    data_fim: string;
+    totais: {
+      total_produtos: number;
+      total_entradas: number;
+      total_saidas: number;
+      total_perdas: number;
+      valor_estoque_atual_custo: number;
+    };
+    itens: Array<{
+      produto_id: number;
+      nome: string;
+      categoria: string;
+      codigo_barras?: string | null;
+      qtd_gondola: number;
+      qtd_armazem: number;
+      estoque_atual: number;
+      preco_custo: number;
+      valor_estoque_custo: number;
+      entradas: number;
+      saidas_venda: number;
+      perdas: number;
+      transferencias: number;
+      ajustes: number;
+    }>;
   } | null>(null);
   const [isModalTransferir, setIsModalTransferir] = useState(false);
   const [qtdTransferir, setQtdTransferir] = useState('6');
@@ -621,6 +656,168 @@ export const GerenteLogistica: React.FC = () => {
     }
   };
 
+  const escapeHtml = (texto: string) =>
+    texto
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+  const imprimirHtmlComoPdf = (titulo: string, corpoHtml: string) => {
+    const win = window.open('', '_blank', 'width=960,height=720');
+    if (!win) {
+      alert('Permita pop-ups no navegador para gerar o PDF.');
+      return;
+    }
+    const lojaTitulo = localStorage.getItem('@Barix:ambito_titulo') || 'E-Sigma ∴ Taverna';
+    const dataHoraAgora = new Date().toLocaleString('pt-BR');
+    win.document.write(`<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>${escapeHtml(titulo)}</title>
+<style>
+  @page { size: A4; margin: 14mm; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; margin: 0; padding: 16px; font-size: 12px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 14px; }
+  .brand { font-size: 16px; font-weight: 800; }
+  .sub { font-size: 11px; color: #475569; margin-top: 2px; }
+  .meta { text-align: right; font-size: 10px; color: #475569; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+  .card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; background: #f8fafc; }
+  .card-label { font-size: 9px; text-transform: uppercase; color: #64748b; font-weight: 700; }
+  .card-val { font-size: 15px; font-weight: 800; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-size: 11px; }
+  th { background: #e2e8f0; font-weight: 700; text-transform: uppercase; font-size: 10px; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .badge-crit { background: #fee2e2; color: #991b1b; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 10px; }
+  .badge-rep { background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 10px; }
+  .footer { margin-top: 16px; font-size: 10px; color: #64748b; text-align: right; border-top: 1px solid #e2e8f0; padding-top: 6px; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="brand">E-Sigma ∴ Taverna — ${escapeHtml(titulo)}</div>
+      <div class="sub">${escapeHtml(lojaTitulo)}</div>
+    </div>
+    <div class="meta">Emitido em ${escapeHtml(dataHoraAgora)}</div>
+  </div>
+  ${corpoHtml}
+  <div class="footer">Documento gerado pelo módulo de Logística • E-Sigma ∴ Taverna</div>
+  <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 250); };</script>
+</body>
+</html>`);
+    win.document.close();
+  };
+
+  const gerarPdfListaCompras = () => {
+    if (!listaCompras) return;
+    const linhas = listaCompras.itens.length === 0
+      ? '<tr><td colspan="6" style="text-align:center;color:#059669;font-weight:700;">Estoque abastecido! Nenhum item abaixo do ponto de reposição.</td></tr>'
+      : listaCompras.itens.map((it) => `
+          <tr>
+            <td><span class="${it.prioridade === 'critico' ? 'badge-crit' : 'badge-rep'}">${it.prioridade === 'critico' ? 'CRÍTICO' : 'REPOR'}</span></td>
+            <td><strong>${escapeHtml(it.nome)}</strong></td>
+            <td class="num">${it.estoque_atual} un</td>
+            <td class="num">${it.estoque_minimo} un</td>
+            <td class="num">${it.consumo_medio_sessao} un</td>
+            <td class="num"><strong>+${it.sugestao_compra} un</strong></td>
+            <td class="num">R$ ${it.custo_estimado.toFixed(2).replace('.', ',')}</td>
+          </tr>
+        `).join('');
+
+    const corpo = `
+      <div class="cards">
+        <div class="card"><div class="card-label">Sessões Analisadas</div><div class="card-val">${listaCompras.num_sessoes_analisadas}</div></div>
+        <div class="card"><div class="card-label">Itens a Repor</div><div class="card-val">${listaCompras.total_itens_repor}</div></div>
+        <div class="card"><div class="card-label">Custo Estimado</div><div class="card-val">R$ ${listaCompras.custo_estimado_total.toFixed(2).replace('.', ',')}</div></div>
+        <div class="card"><div class="card-label">Destinatário</div><div class="card-val" style="font-size:12px;">Ecônomo / Compras</div></div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Prioridade</th>
+            <th>Produto</th>
+            <th class="num">Atual</th>
+            <th class="num">Mínimo</th>
+            <th class="num">Média/Sessão</th>
+            <th class="num">Comprar</th>
+            <th class="num">Custo Est.</th>
+          </tr>
+        </thead>
+        <tbody>${linhas}</tbody>
+      </table>
+    `;
+    imprimirHtmlComoPdf('Lista de Compras (Ecônomo)', corpo);
+  };
+
+  const carregarRelatorioEstoque = async (ini = relatorioDataInicio, fim = relatorioDataFim) => {
+    try {
+      setCarregandoRelatorioEstoque(true);
+      const res = await api.get(`/financeiro/relatorio-estoque-periodo?data_inicio=${encodeURIComponent(ini)}&data_fim=${encodeURIComponent(fim)}`);
+      setRelatorioEstoque(res.data);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erro ao carregar relatório de estoque por período.');
+    } finally {
+      setCarregandoRelatorioEstoque(false);
+    }
+  };
+
+  const abrirRelatorioEstoque = async () => {
+    setIsModalRelatorioEstoque(true);
+    await carregarRelatorioEstoque();
+  };
+
+  const gerarPdfRelatorioEstoque = () => {
+    if (!relatorioEstoque) return;
+    const fmtData = (iso: string) => {
+      const [y, m, d] = iso.split('-');
+      return `${d}/${m}/${y}`;
+    };
+    const linhas = relatorioEstoque.itens.map((it) => `
+      <tr>
+        <td><strong>${escapeHtml(it.nome)}</strong><div style="font-size:9px;color:#64748b;">${escapeHtml(it.categoria || '')}${it.codigo_barras ? ` • ${escapeHtml(it.codigo_barras)}` : ''}</div></td>
+        <td class="num">${it.qtd_gondola}</td>
+        <td class="num">${it.qtd_armazem}</td>
+        <td class="num"><strong>${it.estoque_atual}</strong></td>
+        <td class="num">+${it.entradas}</td>
+        <td class="num">-${it.saidas_venda}</td>
+        <td class="num">${it.perdas > 0 ? `-${it.perdas}` : '0'}</td>
+        <td class="num">R$ ${it.valor_estoque_custo.toFixed(2).replace('.', ',')}</td>
+      </tr>
+    `).join('');
+
+    const corpo = `
+      <div style="margin-bottom:10px;font-size:11px;color:#334155;">
+        Período analisado: <strong>${fmtData(relatorioEstoque.data_inicio)}</strong> a <strong>${fmtData(relatorioEstoque.data_fim)}</strong>
+      </div>
+      <div class="cards">
+        <div class="card"><div class="card-label">Entradas (Compras)</div><div class="card-val">+${relatorioEstoque.totais.total_entradas} un</div></div>
+        <div class="card"><div class="card-label">Saídas (Vendas)</div><div class="card-val">-${relatorioEstoque.totais.total_saidas} un</div></div>
+        <div class="card"><div class="card-label">Perdas / Avarias</div><div class="card-val">-${relatorioEstoque.totais.total_perdas} un</div></div>
+        <div class="card"><div class="card-label">Valor Estoque (Custo)</div><div class="card-val">R$ ${relatorioEstoque.totais.valor_estoque_atual_custo.toFixed(2).replace('.', ',')}</div></div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Produto</th>
+            <th class="num">Bar</th>
+            <th class="num">Armazém</th>
+            <th class="num">Total Atual</th>
+            <th class="num">Entradas</th>
+            <th class="num">Vendas</th>
+            <th class="num">Perdas</th>
+            <th class="num">Valor Custo</th>
+          </tr>
+        </thead>
+        <tbody>${linhas}</tbody>
+      </table>
+    `;
+    imprimirHtmlComoPdf('Relatório de Estoque por Período', corpo);
+  };
+
   return (
     <div className="relative min-h-[calc(100vh-3.5rem)] flex flex-col justify-between p-4 sm:p-6 lg:p-8 max-w-lg lg:max-w-4xl mx-auto overflow-hidden animate-fadeIn select-none text-slate-100">
       
@@ -819,6 +1016,15 @@ export const GerenteLogistica: React.FC = () => {
                 className="px-3 py-1 rounded-xl text-[10px] font-bold shrink-0 transition-all bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/35 text-emerald-300"
               >
                 Lista de Compras (Ecônomo)
+              </button>
+
+              <button
+                type="button"
+                onClick={abrirRelatorioEstoque}
+                className="px-3 py-1 rounded-xl text-[10px] font-bold shrink-0 transition-all bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/35 text-cyan-300 flex items-center gap-1"
+              >
+                <FileText size={12} />
+                <span>Relatório Estoque (PDF)</span>
               </button>
             </div>
           </div>
@@ -2019,6 +2225,15 @@ export const GerenteLogistica: React.FC = () => {
               </button>
               <button
                 type="button"
+                onClick={gerarPdfListaCompras}
+                disabled={!listaCompras}
+                className="flex-1 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-200 text-xs font-bold transition disabled:opacity-40 flex items-center justify-center gap-1.5"
+              >
+                <Printer size={14} />
+                <span>Gerar PDF</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   if (listaCompras?.texto_whatsapp) {
                     window.open(`https://wa.me/?text=${encodeURIComponent(listaCompras.texto_whatsapp)}`, '_blank', 'noopener,noreferrer');
@@ -2028,6 +2243,134 @@ export const GerenteLogistica: React.FC = () => {
                 className="flex-1 py-2 rounded-xl bg-emerald-400 text-slate-950 text-xs font-black hover:bg-emerald-300 transition disabled:opacity-40"
               >
                 Enviar WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Relatório de Estoque por Período (PDF) */}
+      {isModalRelatorioEstoque && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-[#0B1324] border border-cyan-400/30 p-5 space-y-4 shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-cyan-300 flex items-center gap-2">
+                  <FileText size={16} />
+                  <span>Relatório de Estoque por Período</span>
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Posição atual, entradas, vendas e perdas no intervalo selecionado.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsModalRelatorioEstoque(false)}
+                className="text-slate-400 hover:text-white text-sm font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-2 bg-white/[0.04] p-3 rounded-2xl border border-white/10">
+              <div>
+                <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Data Início</label>
+                <input
+                  type="date"
+                  value={relatorioDataInicio}
+                  onChange={(e) => setRelatorioDataInicio(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-xl bg-black/40 border border-white/15 text-xs text-white"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Data Fim</label>
+                <input
+                  type="date"
+                  value={relatorioDataFim}
+                  onChange={(e) => setRelatorioDataFim(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-xl bg-black/40 border border-white/15 text-xs text-white"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => carregarRelatorioEstoque(relatorioDataInicio, relatorioDataFim)}
+                disabled={carregandoRelatorioEstoque}
+                className="px-4 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-200 text-xs font-bold transition disabled:opacity-40"
+              >
+                {carregandoRelatorioEstoque ? 'Consultando...' : 'Consultar Período'}
+              </button>
+            </div>
+
+            {relatorioEstoque && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10">
+                  <span className="text-[9px] uppercase text-slate-400 block font-bold">Entradas</span>
+                  <span className="text-sm font-black text-emerald-400">+{relatorioEstoque.totais.total_entradas} un</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10">
+                  <span className="text-[9px] uppercase text-slate-400 block font-bold">Vendas</span>
+                  <span className="text-sm font-black text-cyan-300">-{relatorioEstoque.totais.total_saidas} un</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10">
+                  <span className="text-[9px] uppercase text-slate-400 block font-bold">Perdas</span>
+                  <span className="text-sm font-black text-rose-400">-{relatorioEstoque.totais.total_perdas} un</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/10">
+                  <span className="text-[9px] uppercase text-slate-400 block font-bold">Valor em Estoque</span>
+                  <span className="text-sm font-black text-amber-300">
+                    R$ {relatorioEstoque.totais.valor_estoque_atual_custo.toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+              {carregandoRelatorioEstoque ? (
+                <div className="py-10 text-center text-xs text-slate-400 animate-pulse">
+                  Consolidando movimentações de estoque...
+                </div>
+              ) : !relatorioEstoque || relatorioEstoque.itens.length === 0 ? (
+                <div className="py-10 text-center text-xs text-slate-400">
+                  Nenhum produto encontrado para o período.
+                </div>
+              ) : (
+                relatorioEstoque.itens.map((it) => (
+                  <div
+                    key={it.produto_id}
+                    className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <span className="font-bold text-white block truncate">{it.nome}</span>
+                      <span className="text-[10px] text-slate-400">
+                        Bar: {it.qtd_gondola} • Armazém: {it.qtd_armazem} • Ent: +{it.entradas} • Vnd: -{it.saidas_venda} • Perdas: -{it.perdas}
+                      </span>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-black text-white block">{it.estoque_atual} un</span>
+                      <span className="text-[10px] text-amber-300 font-mono">
+                        R$ {it.valor_estoque_custo.toFixed(2).replace('.', ',')}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsModalRelatorioEstoque(false)}
+                className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-semibold text-white transition"
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                onClick={gerarPdfRelatorioEstoque}
+                disabled={!relatorioEstoque || carregandoRelatorioEstoque}
+                className="flex-1 py-2.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 text-xs font-black transition disabled:opacity-40 flex items-center justify-center gap-1.5"
+              >
+                <Printer size={15} />
+                <span>Gerar PDF do Período</span>
               </button>
             </div>
           </div>

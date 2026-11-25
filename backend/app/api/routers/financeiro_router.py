@@ -430,3 +430,125 @@ async def gerar_lista_compras_economo(
         "itens": itens_compra,
         "texto_whatsapp": texto_whatsapp,
     }
+
+
+@router.get("/relatorio-estoque-periodo")
+async def relatorio_estoque_por_periodo(
+    data_inicio: Optional[str] = Query(None, description="Data inicial YYYY-MM-DD"),
+    data_fim: Optional[str] = Query(None, description="Data final YYYY-MM-DD"),
+    db: AsyncSession = Depends(obter_sessao),
+    usuario: Usuario = Depends(obter_usuario_logado)
+):
+    """
+    Relatório consolidado de movimentações e posição de estoque por período
+    (entradas, transferências, vendas, perdas e estoque atual por produto).
+    """
+    from datetime import datetime, timedelta
+    from sqlalchemy.future import select
+    from sqlalchemy.orm import selectinload
+    from app.models.produto import Produto
+    from app.models.movimentacao_estoque import MovimentacaoEstoque, TipoMovimentacao
+
+    hoje = datetime.utcnow().date()
+    d_fim = datetime.strptime(data_fim, "%Y-%m-%d").date() if data_fim else hoje
+    d_ini = datetime.strptime(data_inicio, "%Y-%m-%d").date() if data_inicio else (d_fim - timedelta(days=30))
+
+    dt_ini = datetime.combine(d_ini, datetime.min.time())
+    dt_fim = datetime.combine(d_fim, datetime.max.time())
+
+    res_prods = await db.execute(
+        select(Produto)
+        .options(selectinload(Produto.lotes))
+        .where(Produto.tenant_id == usuario.tenant_id, Produto.ativo == True)
+        .order_by(Produto.nome.asc())
+    )
+    produtos = res_prods.scalars().all()
+    prod_map = {p.id: p for p in produtos}
+
+    res_movs = await db.execute(
+        select(MovimentacaoEstoque)
+        .join(Produto, MovimentacaoEstoque.produto_id == Produto.id)
+        .options(selectinload(MovimentacaoEstoque.lote), selectinload(MovimentacaoEstoque.produto))
+        .where(
+            Produto.tenant_id == usuario.tenant_id,
+            MovimentacaoEstoque.data_movimentacao >= dt_ini,
+            MovimentacaoEstoque.data_movimentacao <= dt_fim,
+        )
+        .order_by(MovimentacaoEstoque.data_movimentacao.desc())
+    )
+    movs = res_movs.scalars().all()
+
+    agregados: dict = {}
+    for p in produtos:
+        lotes_ativos = [l for l in (p.lotes or []) if l.ativo]
+        qtd_gondola = sum(int(l.quantidade_gondola or 0) for l in lotes_ativos)
+        qtd_armazem = sum(int(l.quantidade_armazem or 0) for l in lotes_ativos)
+        estoque_atual = qtd_gondola + qtd_armazem
+        custo_unit = float(p.preco_custo or 0.0)
+        agregados[p.id] = {
+            "produto_id": p.id,
+            "nome": p.nome,
+            "categoria": p.categoria,
+            "codigo_barras": p.codigo_barras,
+            "qtd_gondola": qtd_gondola,
+            "qtd_armazem": qtd_armazem,
+            "estoque_atual": estoque_atual,
+            "preco_custo": custo_unit,
+            "valor_estoque_custo": round(estoque_atual * custo_unit, 2),
+            "entradas": 0,
+            "saidas_venda": 0,
+            "perdas": 0,
+            "transferencias": 0,
+            "ajustes": 0,
+        }
+
+    movimentacoes_detalhe = []
+    total_entradas = 0
+    total_saidas = 0
+    total_perdas = 0
+
+    for m in movs:
+        qtd_abs = abs(int(m.quantidade or 0))
+        item = agregados.get(m.produto_id)
+        if item is not None:
+            if m.tipo == TipoMovimentacao.ENTRADA_COMPRA:
+                item["entradas"] += qtd_abs
+                total_entradas += qtd_abs
+            elif m.tipo == TipoMovimentacao.SAIDA_VENDA:
+                item["saidas_venda"] += qtd_abs
+                total_saidas += qtd_abs
+            elif m.tipo == TipoMovimentacao.PERDA_QUEBRA:
+                item["perdas"] += qtd_abs
+                total_perdas += qtd_abs
+            elif m.tipo in (TipoMovimentacao.TRANSFERENCIA_GONDOLA, TipoMovimentacao.TRANSFERENCIA_ARMAZEM):
+                item["transferencias"] += qtd_abs
+            elif m.tipo == TipoMovimentacao.AJUSTE_INVENTARIO:
+                item["ajustes"] += int(m.quantidade or 0)
+
+        if len(movimentacoes_detalhe) < 300:
+            prod_obj = m.produto or prod_map.get(m.produto_id)
+            movimentacoes_detalhe.append({
+                "id": m.id,
+                "data_hora": m.data_movimentacao.isoformat() if m.data_movimentacao else None,
+                "produto_nome": prod_obj.nome if prod_obj else f"Produto #{m.produto_id}",
+                "tipo": m.tipo.value if hasattr(m.tipo, "value") else str(m.tipo),
+                "quantidade": int(m.quantidade or 0),
+                "motivo": m.motivo,
+            })
+
+    itens_lista = list(agregados.values())
+    valor_estoque_total = round(sum(i["valor_estoque_custo"] for i in itens_lista), 2)
+
+    return {
+        "data_inicio": d_ini.isoformat(),
+        "data_fim": d_fim.isoformat(),
+        "totais": {
+            "total_produtos": len(itens_lista),
+            "total_entradas": total_entradas,
+            "total_saidas": total_saidas,
+            "total_perdas": total_perdas,
+            "valor_estoque_atual_custo": valor_estoque_total,
+        },
+        "itens": itens_lista,
+        "movimentacoes": movimentacoes_detalhe,
+    }
