@@ -36,11 +36,14 @@ async def _montar_ambitos_usuario(db: AsyncSession, usuario: Usuario) -> Dict[st
     - Lojas Maçônicas vinculadas ao usuário (ex: Loja 2181 em agape_estabelecimentos e obreiro_loja_associacoes)
     """
     is_superadmin = usuario.cargo == "SUPERADMIN"
+    u_tenant_id = usuario.tenant_id
+    u_email = (usuario.email or "").lower()
+    u_ob_id = usuario.obreiro_responsavel_id or -1
     lojas_map: Dict[int, Dict[str, Any]] = {}
 
     # 1. Loja diretamente vinculada ao registro do usuário
-    if usuario.tenant_id:
-        res_est = await db.execute(select(Estabelecimento).where(Estabelecimento.id == usuario.tenant_id))
+    if u_tenant_id:
+        res_est = await db.execute(select(Estabelecimento).where(Estabelecimento.id == u_tenant_id))
         est = res_est.scalars().first()
         if est:
             lojas_map[est.id] = {
@@ -53,31 +56,32 @@ async def _montar_ambitos_usuario(db: AsyncSession, usuario: Usuario) -> Dict[st
 
     # 2. Lojas associadas ao Obreiro em obreiro_loja_associacoes (pluri-filiação ou vínculo maçônico)
     try:
-        res_assoc = await db.execute(
-            text("""
-                SELECT ae.id, ae.nome_fantasia, ae.numero_loja, ae.rito, ae.loja_esigma_id
-                FROM obreiro_loja_associacoes ola
-                JOIN obreiros o ON o.id = ola.obreiro_id
-                JOIN agape_estabelecimentos ae ON ae.loja_esigma_id = ola.loja_id
-                WHERE LOWER(COALESCE(o.email, '')) = :email
-                   OR o.id = :ob_id
-                ORDER BY ae.numero_loja ASC
-            """),
-            {
-                "email": (usuario.email or "").lower(),
-                "ob_id": usuario.obreiro_responsavel_id or -1
-            }
-        )
-        for r in res_assoc.mappings().all():
-            lojas_map[r["id"]] = {
-                "id": r["id"],
-                "nome_fantasia": r["nome_fantasia"],
-                "numero_loja": r["numero_loja"],
-                "rito": r["rito"],
-                "loja_esigma_id": r["loja_esigma_id"]
-            }
+        async with db.begin_nested():
+            res_assoc = await db.execute(
+                text("""
+                    SELECT ae.id, ae.nome_fantasia, ae.numero_loja, ae.rito, ae.loja_esigma_id
+                    FROM obreiro_loja_associacoes ola
+                    JOIN obreiros o ON o.id = ola.obreiro_id
+                    JOIN agape_estabelecimentos ae ON ae.loja_esigma_id = ola.loja_id
+                    WHERE LOWER(COALESCE(o.email, '')) = :email
+                       OR o.id = :ob_id
+                    ORDER BY ae.numero_loja ASC
+                """),
+                {
+                    "email": u_email,
+                    "ob_id": u_ob_id
+                }
+            )
+            for r in res_assoc.mappings().all():
+                lojas_map[r["id"]] = {
+                    "id": r["id"],
+                    "nome_fantasia": r["nome_fantasia"],
+                    "numero_loja": r["numero_loja"],
+                    "rito": r["rito"],
+                    "loja_esigma_id": r["loja_esigma_id"]
+                }
     except Exception:
-        await db.rollback()
+        pass
 
     # 3. Se for SuperAdmin e ainda não tiver a Loja 2181 na lista de atalhos diretos, inclui a Loja 2181
     if is_superadmin and not any(str(v.get("numero_loja")) == "2181" for v in lojas_map.values()):
@@ -93,7 +97,7 @@ async def _montar_ambitos_usuario(db: AsyncSession, usuario: Usuario) -> Dict[st
             }
 
     lojas_vinculadas = list(lojas_map.values())
-    loja_padrao = lojas_map.get(usuario.tenant_id) if usuario.tenant_id else (lojas_vinculadas[0] if lojas_vinculadas else None)
+    loja_padrao = lojas_map.get(u_tenant_id) if u_tenant_id else (lojas_vinculadas[0] if lojas_vinculadas else None)
 
     ambitos: List[Dict[str, Any]] = []
     for lj in lojas_vinculadas:
@@ -102,13 +106,13 @@ async def _montar_ambitos_usuario(db: AsyncSession, usuario: Usuario) -> Dict[st
             "tenant_id": lj["id"],
             "numero_loja": lj["numero_loja"],
             "titulo": lj["nome_fantasia"],
-            "subtitulo": f"Salão de Ágapes • Estoque (Armazém & Display) e Comandas da Loja Nº {lj['numero_loja']}" if lj.get("numero_loja") else "Salão de Ágapes • Estoque (Armazém & Display) e Comandas"
+            "subtitulo": f"Salão da Taverna • Estoque (Armazém & Display) e Comandas da Loja Nº {lj['numero_loja']}" if lj.get("numero_loja") else "Salão da Taverna • Estoque (Armazém & Display) e Comandas"
         })
 
     if is_superadmin:
         ambitos.append({
             "tipo": "SISTEMA",
-            "tenant_id": loja_padrao["id"] if loja_padrao else usuario.tenant_id,
+            "tenant_id": loja_padrao["id"] if loja_padrao else u_tenant_id,
             "numero_loja": None,
             "titulo": "Administração Global do Sistema (e-Sigma SaaS)",
             "subtitulo": "Visão SuperAdmin • Gerenciar todas as Lojas Maçônicas, Instâncias e Métricas Globais"
@@ -232,23 +236,25 @@ async def login(
     # Se a senha local divergir, sincroniza com a tabela 'obreiros' do lojas_db
     if not senha_valida:
         try:
-            res_ob_sync = await db.execute(
-                text("""
-                    SELECT o.hash_senha
-                    FROM obreiros o
-                    WHERE LOWER(COALESCE(o.email, '')) = :email
-                       OR o.id = :ob_id
-                    LIMIT 1
-                """),
-                {"email": (usuario.email or "").lower(), "ob_id": usuario.obreiro_responsavel_id or -1}
-            )
-            row_sync = res_ob_sync.mappings().first()
-            if row_sync and row_sync["hash_senha"] and verificar_senha(senha, row_sync["hash_senha"]):
-                usuario.senha_hash = row_sync["hash_senha"]
+            async with db.begin_nested():
+                res_ob_sync = await db.execute(
+                    text("""
+                        SELECT o.hash_senha
+                        FROM obreiros o
+                        WHERE LOWER(COALESCE(o.email, '')) = :email
+                           OR o.id = :ob_id
+                        LIMIT 1
+                    """),
+                    {"email": (usuario.email or "").lower(), "ob_id": usuario.obreiro_responsavel_id or -1}
+                )
+                row_sync = res_ob_sync.mappings().first()
+                if row_sync and row_sync["hash_senha"] and verificar_senha(senha, row_sync["hash_senha"]):
+                    usuario.senha_hash = row_sync["hash_senha"]
+                    senha_valida = True
+            if senha_valida:
                 await db.commit()
-                senha_valida = True
         except Exception:
-            await db.rollback()
+            pass
 
     # Fallback final via API central do e-Sigma (caso a senha tenha sido alterada lá)
     if not senha_valida:
