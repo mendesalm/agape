@@ -76,7 +76,7 @@ async def _montar_ambitos_usuario(db: AsyncSession, usuario: Usuario) -> Dict[st
                 "loja_esigma_id": r["loja_esigma_id"]
             }
     except Exception:
-        pass
+        await db.rollback()
 
     # 3. Se for SuperAdmin e ainda não tiver a Loja 2181 na lista de atalhos diretos, inclui a Loja 2181
     if is_superadmin and not any(str(v.get("numero_loja")) == "2181" for v in lojas_map.values()):

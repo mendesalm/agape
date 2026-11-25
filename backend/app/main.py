@@ -39,8 +39,10 @@ async def lifespan(app: FastAPI):
             from sqlalchemy import inspect, text
             from app.models.produto import Produto
             from app.models.cliente import Cliente
+            from app.models.usuario import Usuario
             tabela_prod = Produto.__tablename__
             tabela_cli = Cliente.__tablename__
+            tabela_usr = Usuario.__tablename__
             insp = inspect(sync_conn)
             colunas_produtos = {c["name"] for c in insp.get_columns(tabela_prod)}
             if "codigos_barras_alternativos" not in colunas_produtos:
@@ -61,6 +63,20 @@ async def lifespan(app: FastAPI):
                 sync_conn.execute(text(
                     f"ALTER TABLE {tabela_cli} ADD COLUMN autorizacao_pausada BOOLEAN NOT NULL DEFAULT {default_bool}"
                 ))
+
+            colunas_usuarios = {c["name"] for c in insp.get_columns(tabela_usr)}
+            if "cpf" not in colunas_usuarios:
+                sync_conn.execute(text(f"ALTER TABLE {tabela_usr} ADD COLUMN cpf VARCHAR(20) NULL"))
+            if "telefone" not in colunas_usuarios:
+                sync_conn.execute(text(f"ALTER TABLE {tabela_usr} ADD COLUMN telefone VARCHAR(30) NULL"))
+            if "tipo_vinculo" not in colunas_usuarios:
+                sync_conn.execute(text(
+                    f"ALTER TABLE {tabela_usr} ADD COLUMN tipo_vinculo VARCHAR(40) NOT NULL DEFAULT 'CONTRATADO_EXTERNO'"
+                ))
+            if "familiar_esigma_id" not in colunas_usuarios:
+                sync_conn.execute(text(f"ALTER TABLE {tabela_usr} ADD COLUMN familiar_esigma_id INTEGER NULL"))
+            if "obreiro_responsavel_id" not in colunas_usuarios:
+                sync_conn.execute(text(f"ALTER TABLE {tabela_usr} ADD COLUMN obreiro_responsavel_id INTEGER NULL"))
 
         await conn.run_sync(_migrar_colunas_pendentes)
         logger.info("Tabelas do banco de dados sincronizadas.")
