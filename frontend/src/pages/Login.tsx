@@ -154,13 +154,11 @@ export const Login: React.FC = () => {
       const { access_token, usuario } = response.data;
       processarRespostaLogin(access_token, usuario);
     } catch (localErr: any) {
-      // 2. Fallback SSO centralizado na API do e-Sigma (OAuth2 form-urlencoded: username + password)
+      // 2. Fallback SSO centralizado na API do e-Sigma (JSON: username + password)
       try {
-        const formParams = new URLSearchParams();
-        formParams.append('username', identificador.trim());
-        formParams.append('password', senha);
-        const ssoAuth = await axios.post('https://e-sigma.app/api/v1/auth/login', formParams, {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        const ssoAuth = await axios.post('https://e-sigma.app/api/v1/auth/login', {
+          username: identificador.trim(),
+          password: senha
         });
         const eSigmaToken = ssoAuth.data?.access_token;
         if (eSigmaToken) {

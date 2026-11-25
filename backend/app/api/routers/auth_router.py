@@ -253,13 +253,13 @@ async def login(
     # Fallback final via API central do e-Sigma (caso a senha tenha sido alterada lá)
     if not senha_valida:
         def _login_remoto_esigma(login_id: str, pwd: str) -> bool:
-            payload = urllib.parse.urlencode({"username": login_id, "password": pwd}).encode("utf-8")
+            payload = json.dumps({"username": login_id, "password": pwd}).encode("utf-8")
             for url in ["http://127.0.0.1:8000/api/v1/auth/login", "https://e-sigma.app/api/v1/auth/login"]:
                 try:
                     req = urllib.request.Request(
                         url,
                         data=payload,
-                        headers={"Content-Type": "application/x-www-form-urlencoded"},
+                        headers={"Content-Type": "application/json"},
                         method="POST"
                     )
                     with urllib.request.urlopen(req, timeout=4) as resp:
