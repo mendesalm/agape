@@ -9,7 +9,7 @@ from sqlalchemy.future import select
 from sqlalchemy import text
 
 from app.core.database import obter_sessao
-from app.core.security import verificar_senha, criar_token_acesso
+from app.core.security import verificar_senha, obter_hash_senha, criar_token_acesso
 from app.models.usuario import Usuario
 from app.models.estabelecimento import Estabelecimento
 from app.api.dependencias import obter_usuario_logado
@@ -211,6 +211,11 @@ async def login(
     if not usuario:
         raise HTTPException(status_code=400, detail="E-mail/CIM ou senha incorretos")
 
+    # Garante cargo SUPERADMIN para contas raízes do ecossistema
+    if usuario.email in ("sistema@e-sigma.app", "mendesalm@gmail.com") and usuario.cargo != "SUPERADMIN":
+        usuario.cargo = "SUPERADMIN"
+        await db.commit()
+
     # Verifica a senha no hash do usuário ou nos hashes globais de SuperAdmin (Harmonia / e-Sigma)
     senha_valida = verificar_senha(senha, usuario.senha_hash)
     if not senha_valida and usuario.cargo == "SUPERADMIN":
@@ -218,6 +223,51 @@ async def login(
             if verificar_senha(senha, h):
                 senha_valida = True
                 break
+
+    # Se a senha local divergir, sincroniza com a tabela 'obreiros' do lojas_db
+    if not senha_valida:
+        try:
+            res_ob_sync = await db.execute(
+                text("""
+                    SELECT o.hash_senha
+                    FROM obreiros o
+                    WHERE LOWER(COALESCE(o.email, '')) = :email
+                       OR o.id = :ob_id
+                    LIMIT 1
+                """),
+                {"email": (usuario.email or "").lower(), "ob_id": usuario.obreiro_responsavel_id or -1}
+            )
+            row_sync = res_ob_sync.mappings().first()
+            if row_sync and row_sync["hash_senha"] and verificar_senha(senha, row_sync["hash_senha"]):
+                usuario.senha_hash = row_sync["hash_senha"]
+                await db.commit()
+                senha_valida = True
+        except Exception:
+            await db.rollback()
+
+    # Fallback final via API central do e-Sigma (caso a senha tenha sido alterada lá)
+    if not senha_valida:
+        def _login_remoto_esigma(login_id: str, pwd: str) -> bool:
+            payload = json.dumps({"email_or_cim": login_id, "password": pwd}).encode("utf-8")
+            for url in ["http://127.0.0.1:8000/api/v1/auth/login", "https://e-sigma.app/api/v1/auth/login"]:
+                try:
+                    req = urllib.request.Request(
+                        url,
+                        data=payload,
+                        headers={"Content-Type": "application/json"},
+                        method="POST"
+                    )
+                    with urllib.request.urlopen(req, timeout=4) as resp:
+                        if resp.status == 200:
+                            return True
+                except Exception:
+                    continue
+            return False
+
+        if await asyncio.to_thread(_login_remoto_esigma, usuario.email or identificador, senha):
+            usuario.senha_hash = obter_hash_senha(senha)
+            await db.commit()
+            senha_valida = True
 
     if not senha_valida:
         raise HTTPException(status_code=400, detail="E-mail/CIM ou senha incorretos")
