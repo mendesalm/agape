@@ -1,5 +1,6 @@
 import asyncio
 import urllib.request
+import urllib.parse
 import json
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -151,19 +152,23 @@ async def login(
 
     identificador_lower = identificador.lower()
 
-    resultado = await db.execute(
-        select(Usuario).where(
-            (Usuario.email == identificador_lower) |
-            (Usuario.email == f"{identificador_lower}@gmail.com") |
-            (Usuario.email == f"{identificador_lower}@e-sigma.app")
+    try:
+        resultado = await db.execute(
+            select(Usuario).where(
+                (Usuario.email == identificador_lower) |
+                (Usuario.email == f"{identificador_lower}@gmail.com") |
+                (Usuario.email == f"{identificador_lower}@e-sigma.app")
+            )
         )
-    )
-    usuario = resultado.scalars().first()
+        usuario = resultado.scalars().first()
 
-    # Se digitou CIM 272875 ou usuario mendesalm, resolve para mendesalm@gmail.com (SuperAdmin)
-    if not usuario and identificador_lower in ["272875", "mendesalm", "mendes"]:
-        res_mendes = await db.execute(select(Usuario).where(Usuario.email == "mendesalm@gmail.com"))
-        usuario = res_mendes.scalars().first()
+        # Se digitou CIM 272875 ou usuario mendesalm, resolve para mendesalm@gmail.com (SuperAdmin)
+        if not usuario and identificador_lower in ["272875", "mendesalm", "mendes"]:
+            res_mendes = await db.execute(select(Usuario).where(Usuario.email == "mendesalm@gmail.com"))
+            usuario = res_mendes.scalars().first()
+    except Exception as exc_usr:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao consultar usuário: {type(exc_usr).__name__}: {str(exc_usr)}")
 
     # Se não achou em agape_usuarios, verifica se é um Obreiro em 'obreiros' no lojas_db
     if not usuario:
@@ -248,13 +253,13 @@ async def login(
     # Fallback final via API central do e-Sigma (caso a senha tenha sido alterada lá)
     if not senha_valida:
         def _login_remoto_esigma(login_id: str, pwd: str) -> bool:
-            payload = json.dumps({"email_or_cim": login_id, "password": pwd}).encode("utf-8")
+            payload = urllib.parse.urlencode({"username": login_id, "password": pwd}).encode("utf-8")
             for url in ["http://127.0.0.1:8000/api/v1/auth/login", "https://e-sigma.app/api/v1/auth/login"]:
                 try:
                     req = urllib.request.Request(
                         url,
                         data=payload,
-                        headers={"Content-Type": "application/json"},
+                        headers={"Content-Type": "application/x-www-form-urlencoded"},
                         method="POST"
                     )
                     with urllib.request.urlopen(req, timeout=4) as resp:
