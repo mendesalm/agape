@@ -93,6 +93,7 @@ export const GerenteLogistica: React.FC = () => {
   const [salvandoCodigoAlternativo, setSalvandoCodigoAlternativo] = useState(false);
   const [buscandoSugestoesEan, setBuscandoSugestoesEan] = useState(false);
   const [sugestoesEanInternet, setSugestoesEanInternet] = useState<Array<{ codigo: string; nome: string; marca?: string; foto_url?: string; score: number }>>([]);
+  const [sugestoesSelecionadas, setSugestoesSelecionadas] = useState<string[]>([]);
   const [produtoSimilarSugerido, setProdutoSimilarSugerido] = useState<{ id: number; nome: string; codigo_barras?: string; codigos_barras_alternativos?: string[]; foto_url?: string } | null>(null);
   const [isModalMesclar, setIsModalMesclar] = useState(false);
   const [produtoAbsorverId, setProdutoAbsorverId] = useState<string>('');
@@ -220,6 +221,7 @@ export const GerenteLogistica: React.FC = () => {
     setNovoPrecoVenda(prod.preco_venda.toFixed(2));
     setNovoPrecoCusto(prod.preco_custo.toFixed(2));
     setSugestoesEanInternet([]);
+    setSugestoesSelecionadas([]);
     setNovoCodigoAlternativo('');
     setModoView('detalhe');
   };
@@ -497,6 +499,7 @@ export const GerenteLogistica: React.FC = () => {
     if (!produtoEmGestao) return;
     try {
       setBuscandoSugestoesEan(true);
+      setSugestoesSelecionadas([]);
       const res = await api.get(`/produtos/${produtoEmGestao.id}/buscar-codigos-alternativos`);
       const lista = res.data?.sugestoes || [];
       setSugestoesEanInternet(lista);
@@ -510,13 +513,25 @@ export const GerenteLogistica: React.FC = () => {
     }
   };
 
-  const handleVincularSugestaoInternet = async (codigo: string) => {
-    if (!produtoEmGestao) return;
+  const handleToggleSugestaoEan = (codigo: string) => {
+    setSugestoesSelecionadas((prev) =>
+      prev.includes(codigo) ? prev.filter((c) => c !== codigo) : [...prev, codigo]
+    );
+  };
+
+  const handleVincularSugestoesMarcadas = async () => {
+    if (!produtoEmGestao || sugestoesSelecionadas.length === 0) return;
     const atuais = produtoEmGestao.codigos_barras_alternativos || [];
-    if (!atuais.includes(codigo)) {
-      await handleAtualizarCodigosAlternativos([...atuais, codigo]);
+    const principal = (produtoEmGestao.codigo_barras || '').trim();
+    const novos = sugestoesSelecionadas.filter((c) => c !== principal && !atuais.includes(c));
+    if (novos.length === 0) {
+      setSugestoesEanInternet((prev) => prev.filter((s) => !sugestoesSelecionadas.includes(s.codigo)));
+      setSugestoesSelecionadas([]);
+      return;
     }
-    setSugestoesEanInternet((prev) => prev.filter((s) => s.codigo !== codigo));
+    await handleAtualizarCodigosAlternativos([...atuais, ...novos]);
+    setSugestoesEanInternet((prev) => prev.filter((s) => !sugestoesSelecionadas.includes(s.codigo)));
+    setSugestoesSelecionadas([]);
   };
 
   const handleVincularCodigoAoSimilar = async () => {
@@ -1049,47 +1064,106 @@ export const GerenteLogistica: React.FC = () => {
                   </div>
                 </div>
 
-                {(produtoEmGestao.codigos_barras_alternativos || []).length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
+                    Códigos Vinculados ({(produtoEmGestao.codigo_barras ? 1 : 0) + (produtoEmGestao.codigos_barras_alternativos || []).length})
+                  </span>
                   <div className="flex flex-wrap gap-1.5">
+                    {produtoEmGestao.codigo_barras && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-[10px] font-mono text-emerald-200">
+                        <span>{produtoEmGestao.codigo_barras}</span>
+                        <span className="px-1 py-0.2 rounded bg-emerald-500/20 text-[8px] font-sans font-bold uppercase text-emerald-300">
+                          Principal
+                        </span>
+                      </span>
+                    )}
                     {(produtoEmGestao.codigos_barras_alternativos || []).map((cod) => (
                       <span
                         key={cod}
-                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-[10px] font-mono text-slate-200"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] border border-white/15 text-[10px] font-mono text-slate-200"
                       >
-                        {cod}
+                        <span>{cod}</span>
                         <button
                           type="button"
                           onClick={() => handleRemoverCodigoAlternativo(cod)}
                           disabled={salvandoCodigoAlternativo}
-                          className="text-slate-400 hover:text-rose-400 font-bold transition"
-                          title="Remover código alternativo"
+                          className="text-slate-400 hover:text-rose-400 font-bold transition cursor-pointer"
+                          title="Remover código vinculado"
                         >
                           ×
                         </button>
                       </span>
                     ))}
+                    {!produtoEmGestao.codigo_barras && (produtoEmGestao.codigos_barras_alternativos || []).length === 0 && (
+                      <span className="text-[11px] text-slate-500 italic">
+                        Nenhum código de barras vinculado a este produto.
+                      </span>
+                    )}
                   </div>
-                )}
+                </div>
 
                 {sugestoesEanInternet.length > 0 && (
-                  <div className="pt-1.5 space-y-1">
-                    <span className="text-[10px] font-semibold text-indigo-300 block">
-                      Sugestões encontradas na internet (clique para vincular):
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {sugestoesEanInternet.map((sug) => (
+                  <div className="pt-2 border-t border-white/10 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[10px] font-semibold text-indigo-300">
+                        Sugestões encontradas na internet ({sugestoesEanInternet.length}):
+                      </span>
+                      <div className="flex items-center gap-2">
                         <button
-                          key={sug.codigo}
                           type="button"
-                          onClick={() => handleVincularSugestaoInternet(sug.codigo)}
-                          disabled={salvandoCodigoAlternativo}
-                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-400/30 text-[10px] text-indigo-200 transition"
-                          title={sug.nome}
+                          onClick={() => {
+                            if (sugestoesSelecionadas.length === sugestoesEanInternet.length) {
+                              setSugestoesSelecionadas([]);
+                            } else {
+                              setSugestoesSelecionadas(sugestoesEanInternet.map((s) => s.codigo));
+                            }
+                          }}
+                          className="text-[10px] font-semibold text-slate-300 hover:text-white underline cursor-pointer"
                         >
-                          <span className="font-mono font-bold">+ {sug.codigo}</span>
-                          <span className="text-slate-300 truncate max-w-[140px]">{sug.nome}</span>
+                          {sugestoesSelecionadas.length === sugestoesEanInternet.length
+                            ? 'Desmarcar todos'
+                            : 'Selecionar todos'}
                         </button>
-                      ))}
+                        <button
+                          type="button"
+                          onClick={handleVincularSugestoesMarcadas}
+                          disabled={salvandoCodigoAlternativo || sugestoesSelecionadas.length === 0}
+                          className="px-3 py-1.5 rounded-lg bg-[#10b981] hover:bg-[#34d399] text-[#022c22] text-[10px] font-black transition disabled:opacity-40 cursor-pointer"
+                        >
+                          {salvandoCodigoAlternativo
+                            ? 'Salvando...'
+                            : `Vincular Marcados (${sugestoesSelecionadas.length})`}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
+                      {sugestoesEanInternet.map((sug) => {
+                        const marcado = sugestoesSelecionadas.includes(sug.codigo);
+                        return (
+                          <label
+                            key={sug.codigo}
+                            className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] cursor-pointer transition ${
+                              marcado
+                                ? 'bg-indigo-500/20 border-indigo-400/50 text-white'
+                                : 'bg-black/25 border-white/10 text-slate-300 hover:border-white/25'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={marcado}
+                                onChange={() => handleToggleSugestaoEan(sug.codigo)}
+                                className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-0"
+                              />
+                              <span className="font-mono font-bold text-indigo-300 shrink-0">{sug.codigo}</span>
+                              <span className="truncate">{sug.nome}</span>
+                            </div>
+                            {sug.marca && (
+                              <span className="text-[9px] text-slate-400 shrink-0">{sug.marca}</span>
+                            )}
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
